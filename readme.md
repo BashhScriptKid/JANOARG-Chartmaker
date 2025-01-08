@@ -13,7 +13,7 @@ The chart editor for a rhythm game where everything can move.
 * A copy of Git/Github Desktop is recommended so you can update/submit code easily
 
 ### Instructions
-* Clone the project (by downloading it to your computer or by running the following command in the cmd/terminal: `git clone https://github.com/ducdat0507/JANOARG.git`).
+* Clone the project (by downloading it to your computer or by running the following command in the cmd/terminal: `git clone https://github.com/ducdat0507/JANOARG-Chartmaker.git`).
 * Open the root folder using the Unity Editor.
 * Make edits to the code (of course)
 * Send the project (by making a pull request)

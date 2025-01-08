@@ -136,7 +136,7 @@ public class HomeModal : Modal
 
     public void OpenGitHubIssueTracker()
     {
-        Application.OpenURL("https://github.com/FFF40/JANOARG/issues");
+        Application.OpenURL("https://github.com/FFF40/JANOARG-Chartmaker/issues");
     }
 
     public void OpenDiscordServer()

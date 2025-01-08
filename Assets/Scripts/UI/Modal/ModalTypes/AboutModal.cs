@@ -47,7 +47,7 @@ public class AboutModal : Modal
 
     public void OpenGitHub()
     {
-        Application.OpenURL("https://github.com/ducdat0507/JANOARG");
+        Application.OpenURL("https://github.com/ducdat0507/JANOARG-Chartmaker");
     }
 
     public void OpenDiscord()

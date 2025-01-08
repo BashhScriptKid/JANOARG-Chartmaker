@@ -160,12 +160,12 @@ public class NavigationBar : MonoBehaviour
             new ContextMenuListAction("Interactive Tutorials...", () => ModalHolder.main.Spawn<TutorialModal>()),
             new ContextMenuListAction("Chartmaker Manual...", () => ModalHolder.main.Spawn<HelpModal>()),
             new ContextMenuListSeparator(),
-            new ContextMenuListAction("Source Code on GitHub", () => Application.OpenURL("https://github.com/FFF40/JANOARG"), icon: "Github Icon"),
-            new ContextMenuListAction("Report an Issue / Suggestion", () => Application.OpenURL("https://github.com/FFF40/JANOARG/issues"), icon: "External Link"),
+            new ContextMenuListAction("Source Code on GitHub", () => Application.OpenURL("https://github.com/FFF40/JANOARG-Chartmaker"), icon: "Github Icon"),
+            new ContextMenuListAction("Report an Issue / Suggestion", () => Application.OpenURL("https://github.com/FFF40/JANOARG-Chartmaker/issues"), icon: "External Link"),
             new ContextMenuListAction("FFF40 Studios Discord Server", () => Application.OpenURL("https://discord.gg/vXJTPFQBHm"), icon: "Discord Icon"),
             new ContextMenuListSeparator(),
             new ContextMenuListAction("Check for Updates", () => VersionCheckerModal.InitFetch()),
-            new ContextMenuListAction("Show All Releases", () => Application.OpenURL("https://github.com/FFF40/JANOARG/releases"), icon: "External Link"),
+            new ContextMenuListAction("Show All Releases", () => Application.OpenURL("https://github.com/FFF40/JANOARG-Chartmaker/releases"), icon: "External Link"),
             new ContextMenuListSeparator(),
             new ContextMenuListAction("About Chartmaker...", () => ModalHolder.main.Spawn<AboutModal>(), icon: "Credits")
         );

@@ -10,6 +10,13 @@ using UnityEngine.UI;
 
 public class VersionCheckerModal : Modal
 {
+    const string RELEASES_URL = "https://api.github.com/repos/FFF40/JANOARG-Chartmaker/releases";
+    readonly string FILE_NAME = Application.platform switch {
+        RuntimePlatform.WindowsPlayer => "Chartmaker-win-x86_64.zip",
+        RuntimePlatform.LinuxPlayer => "Chartmaker-linux-x86_64.tar.gz",
+        _ => "Chartmaker-win-x86_64.zip",
+    };
+
     public static VersionCheckerModal main;
     public static Coroutine Checker;
 
@@ -45,7 +52,7 @@ public class VersionCheckerModal : Modal
         RemindLaterButton.gameObject.SetActive(false);
         DownloadButton.gameObject.SetActive(false);
 
-        LatestRelease = data?.Data?.Find(x => x.name.StartsWith("chartmaker-v"));
+        LatestRelease = data?.Data?.Find(x => x.name.StartsWith("v"));
 
         if (LatestRelease == null)
         {
@@ -78,13 +85,7 @@ public class VersionCheckerModal : Modal
             DescriptionText.text = new Regex(@"\*\*(.+)\*\*", RegexOptions.Multiline).Replace(DescriptionText.text, "<b>$1</b>");
             DescriptionText.text = new Regex(@"\*(.+)\*", RegexOptions.Multiline).Replace(DescriptionText.text, "<i>$1</i>");
 
-            string match = Application.platform switch {
-                RuntimePlatform.WindowsPlayer => "Chartmaker-win-x86_64.zip",
-                RuntimePlatform.LinuxPlayer => "Chartmaker-linux-x86_64.tar.gz",
-                _ => "Chartmaker-win-x86_64.zip",
-            };
-
-            LatestAsset = LatestRelease.assets.Find(x => x.name == match);
+            LatestAsset = LatestRelease.assets.Find(x => x.name == FILE_NAME);
             LatestAsset ??= LatestRelease.assets[0];
 
             OkButton.gameObject.SetActive(false);
@@ -106,7 +107,7 @@ public class VersionCheckerModal : Modal
 
     public static IEnumerator Fetch(bool silent = false)
     {
-        UnityWebRequest request = UnityWebRequest.Get("https://api.github.com/repos/FFF40/JANOARG/releases");
+        UnityWebRequest request = UnityWebRequest.Get(RELEASES_URL);
         yield return request.SendWebRequest();
 
         if (request.responseCode == 200) 
