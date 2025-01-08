@@ -1358,10 +1358,29 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
 
             if (DraggingItem != null) 
             {
-                if (DraggingItem.Count > 0 && DraggingItem[0] is not Lane) 
+                if (DraggingItem.Count > 0) 
                 {
                     ChartmakerHistory history = Chartmaker.main.History;
-                    if (DraggingItem[0] is BPMStop) 
+                    if (DraggingItem[0] is Lane) 
+                    {
+                        ChartmakerTimelineDragLaneAction action;
+                        var last = history.ActionsBehind.Count == 0 ? null : history.ActionsBehind.Peek();
+                        if (last is ChartmakerTimelineDragLaneAction lastMove && lastMove.Targets == DraggingItem)
+                        {
+                            action = lastMove;
+                            action.Undo();
+                        } 
+                        else 
+                        {
+                            action = new ChartmakerTimelineDragLaneAction {
+                                Targets = DraggingItem,
+                            };
+                            history.ActionsBehind.Push(action);
+                        }
+                        action.Value = ToRoundedBeat(beatEnd - beatStart + DraggingItemOffset);
+                        action.Redo();
+                    }
+                    else if (DraggingItem[0] is BPMStop) 
                     {
                         ChartmakerTimelineDragFloatAction action;
                         var last = history.ActionsBehind.Count == 0 ? null : history.ActionsBehind.Peek();
@@ -1377,7 +1396,7 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                             };
                             history.ActionsBehind.Push(action);
                         }
-                        action.Value = (DraggingItem[0] is BPMStop ? timeEnd - timeStart : beatEnd - beatStart) + DraggingItemOffset;
+                        action.Value = timeEnd - timeStart + DraggingItemOffset;
                         action.Redo();
                     }
                     else
@@ -1396,7 +1415,7 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                             };
                             history.ActionsBehind.Push(action);
                         }
-                        action.Value = ToRoundedBeat((DraggingItem[0] is BPMStop ? timeEnd - timeStart : beatEnd - beatStart) + DraggingItemOffset);
+                        action.Value = ToRoundedBeat(beatEnd - beatStart + DraggingItemOffset);
                         action.Redo();
                     }
                     history.ActionsAhead.Clear();

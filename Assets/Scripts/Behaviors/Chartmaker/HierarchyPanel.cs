@@ -477,7 +477,7 @@ public class HierarchyPanel : MonoBehaviour
                 List<Lane> list = Chartmaker.main.CurrentChart.Lanes;
                 int index = list.IndexOf(lane);
 
-                ChartmakerRearrangeLaneAction rearrangeLaneAction(Lane adjacent, string group) => new () {
+                ChartmakerArrangeLaneAction rearrangeLaneAction(Lane adjacent, string group) => new () {
                     Target = lane,
                     BeforeAdjacent = index > 0 ? list[index - 1] : null,
                     BeforeGroup = lane.Group,
@@ -495,7 +495,7 @@ public class HierarchyPanel : MonoBehaviour
                 List<LaneGroup> list = Chartmaker.main.CurrentChart.Groups;
                 int index = list.IndexOf(group);
 
-                ChartmakerRearrangeLaneGroupAction rearrangeGroupAction(LaneGroup adjacent, string parent) => new () {
+                ChartmakerArrangeLaneGroupAction rearrangeGroupAction(LaneGroup adjacent, string parent) => new () {
                     Target = group,
                     BeforeAdjacent = index > 0 ? list[index - 1] : null,
                     BeforeGroup = group.Group,
@@ -520,7 +520,7 @@ public class HierarchyPanel : MonoBehaviour
                 List<Lane> list = Chartmaker.main.CurrentChart.Lanes;
                 int index = list.IndexOf(lane);
 
-                ChartmakerRearrangeLaneAction rearrangeLaneAction(Lane adjacent, string group) => new () {
+                ChartmakerArrangeLaneAction rearrangeLaneAction(Lane adjacent, string group) => new () {
                     Target = lane,
                     BeforeAdjacent = index > 0 ? list[index - 1] : null,
                     BeforeGroup = lane.Group,
@@ -549,7 +549,7 @@ public class HierarchyPanel : MonoBehaviour
                 List<LaneGroup> list = Chartmaker.main.CurrentChart.Groups;
                 int index = list.IndexOf(group);
 
-                ChartmakerRearrangeLaneGroupAction rearrangeGroupAction(LaneGroup adjacent, string parent) => 
+                ChartmakerArrangeLaneGroupAction rearrangeGroupAction(LaneGroup adjacent, string parent) => 
                     IsLaneGroupDraggingIntoSelf(group, parent) ? null : new () {
                         Target = group,
                         BeforeAdjacent = index > 0 ? list[index - 1] : null,

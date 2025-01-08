@@ -1,7 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 
-public class ChartmakerRearrangeLaneAction: IChartmakerAction
+public class ChartmakerArrangeLaneAction: IChartmakerAction
 {
     public Lane Target;
 
@@ -12,7 +12,7 @@ public class ChartmakerRearrangeLaneAction: IChartmakerAction
 
     public string GetName()
     {
-        return "Rearrange Lane";
+        return "Arrange Lane";
     }
 
     public void Do(Lane adjacent, string group) 

@@ -14,14 +14,23 @@ public class ChartmakerTimelineDragBeatPositionAction: IChartmakerAction
 
     public void Undo() 
     {
-        System.Reflection.FieldInfo field = Targets[0].GetType().GetField("Offset");
-        foreach (object item in Targets)
-            field.SetValue(item, (BeatPosition)field.GetValue(item) - Value);
+        Do(-Value);
     }
     public void Redo() 
     {
+        Do(Value);
+    }
+
+    void Do(BeatPosition value) 
+    {
         System.Reflection.FieldInfo field = Targets[0].GetType().GetField("Offset");
         foreach (object item in Targets)
-            field.SetValue(item, (BeatPosition)field.GetValue(item) + Value);
+        {
+            field.SetValue(item, (BeatPosition)field.GetValue(item) + value);
+            if (item is Storyboardable sb) foreach (Timestamp ts in sb.Storyboard.Timestamps) 
+            {
+                ts.Offset += value;
+            }
+        }
     }
 }
