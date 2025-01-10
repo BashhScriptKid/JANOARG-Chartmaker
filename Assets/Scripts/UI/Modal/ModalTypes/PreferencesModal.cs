@@ -209,10 +209,11 @@ public class PreferencesModal : Modal
                 storage.Set("FM:FileSizeBase", (int)x); IsDirty = true;
                 prefs.FileSizeBase = (FileSizeBase)x;
             });
-            fsbDropdown.ValidValues.Add(FileSizeBase.Decimal, "Decimal (1 KB = 1,000 B)");
-            fsbDropdown.ValidValues.Add(FileSizeBase.Binary, "Binary (1 KiB = 1,024 B)");
+            fsbDropdown.ValidValues.Add(FileSizeBase.Decimal, "Decimal");
+            fsbDropdown.ValidValues.Add(FileSizeBase.Binary, "Binary");
 
             SpawnForm<FormEntryHeader>("FFT");
+            
             var windowDropdown = SpawnForm<FormEntryDropdown, object>("Window Function", () => prefs.FFTWindow, x => {
                 storage.Set("AL:FFTWindow", prefs.FFTWindow = (FFTWindow)x); IsDirty = true;
                 if (TimelinePanel.main.Options.WaveformMode >= 2) TimelinePanel.main.DiscardWaveform();
@@ -230,8 +231,6 @@ public class PreferencesModal : Modal
                 storage.Set("AL:FrequencyScale", prefs.FrequencyScale = (FrequencyScale)x); IsDirty = true;
                 if (TimelinePanel.main.Options.WaveformMode == 2) TimelinePanel.main.DiscardWaveform();
             }).TargetEnum(typeof(FrequencyScale));
-
-            SpawnForm<FormEntryHeader>("Spectrogram");
 
             SpawnForm<FormEntryVector2, Vector2>("Frequency Range", () => new (prefs.FrequencyMin, prefs.FrequencyMax), x => {
                 if (prefs.FrequencyMin != x[0]) prefs.FrequencyMin = Math.Clamp(x[0], 0, prefs.FrequencyMax - 1);

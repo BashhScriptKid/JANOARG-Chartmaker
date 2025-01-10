@@ -858,7 +858,8 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                 float[] data = new float[Mathf.CeilToInt(Math.Min(density, 1024) / clip.channels) * clip.channels];
                 float denY = 1f / tex.height * clip.channels;
                 float[] lastMin = new float[clip.channels], lastMax = new float[clip.channels];
-                color *= new Color(1, 1, 1, .5f);
+
+                float darkAlpha = Mathf.Clamp(Mathf.Sqrt(5 / density), 0.5f, 0.8f);
 
                 for (int a = 0; a < clip.channels; a++)
                 {
@@ -872,6 +873,7 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                     if (waveBaked[sLine]) continue;
                     sec = waveTime + (x + waveOffset) * step;
                     float[] min = new float[clip.channels], max = new float[clip.channels];
+                    float[] rms = new float[clip.channels];
                     int pos = (int)(sec * clip.frequency);
                     if (pos >= 0 && pos < clip.samples - data.Length)
                     {
@@ -883,15 +885,17 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                         }
                         for (int a = 0; a < data.Length; a++)
                         {
-                            int chan = (a + pos) % clip.channels;
+                            int chan = (a) % clip.channels;
                             min[chan] = Math.Min(min[chan], data[a]);
                             max[chan] = Math.Max(max[chan], data[a]);
+                            rms[chan] += data[a] * data[a];
                         }
                         for (int a = 0; a < clip.channels; a++)
                         {
                             float temp;
                             min[a] = Math.Min(lastMax[a], temp = min[a]) * .8f;
                             max[a] = Math.Max(lastMin[a], lastMax[a] = max[a]) * .8f;
+                            rms[a] = Mathf.Sqrt(rms[a] / data.Length * clip.channels) * .8f;
                             lastMin[a] = temp;
                         }
                     }
@@ -900,7 +904,10 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                     {
                         int channel = Mathf.FloorToInt(sPos);
                         float window = 1 - (sPos % 1) * 2f;
-                        lineBuffer[y] = window >= min[channel] - denY && window <= max[channel] + denY ? color : Color.clear;
+                        color.a = window >= min[channel] - denY && window <= max[channel] + denY ? (
+                            Mathf.Abs(window) < rms[channel] - denY ? 0.8f : darkAlpha
+                        ) : 0;
+                        lineBuffer[y] = color;
                         sPos += denY;
                     }
                     tex.SetPixels(sLine, 0, 1, tex.height, lineBuffer);
@@ -968,76 +975,6 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                     }
                 }
             } break;
-
-            case 3: {
-                int resolution = 512;
-
-                float[] data = new float[resolution * clip.channels];
-                float[][] fft = new float[clip.channels][];
-                float[][] chroma = new float[clip.channels][];
-                float denY = 1f / tex.height * clip.channels;
-
-                for (int i = 0; i < clip.channels; i++) 
-                {
-                    fft[i] = new float[resolution];
-                }
-
-                const float freqAnchor = 440;
-                // Mathf.Pow(2, 1 / 12f)
-                const float freqStep = 1.0594630943592953f;
-                
-                for (int x = 0; x < tex.width; x++) 
-                {
-                    int sLine = ((x + waveOffset) % tex.width + tex.width) % tex.width;
-                    if (waveBaked[sLine]) continue;
-                    sec = waveTime + (x + waveOffset) * step;
-                    int pos = (int)(sec * clip.frequency - resolution / 2);
-                    for (int y = 0; y < fft.Length; y++) chroma[y] = new float[12];
-                    if (pos >= 0 && pos < clip.samples - data.Length)
-                    {
-                        clip.GetData(data, pos);
-                        for (int y = 0; y < data.Length; y++) 
-                        {
-                            int chan = (pos + y) % clip.channels;
-                            int p = y / clip.channels;
-                            fft[chan][p] = data[y];
-                        }
-                        for (int y = 0; y < fft.Length; y++) 
-                        {
-                            FFT.Transform(fft[y], Chartmaker.Preferences.FFTWindow);
-                            chroma[y] = new float[12];
-                            for (int z = fft[y].Length / 128; z < fft[y].Length / 2; z++) 
-                            {
-                                float freq = (float)(z + 1) / resolution * clip.frequency;
-                                float pitch = Mathf.Log(freq / freqAnchor, freqStep);
-                                int chromaPos = (int)(pitch % 12 + 12) % 12;
-                                int octave = Mathf.FloorToInt(pitch / 12);
-                                float chromaOfs = (int)(pitch % 1 + 1) % 1;
-                                
-                                float multi = FrequencyScaling.AWeight(freq);
-                                chroma[y][chromaPos] += fft[y][z] * multi * (1 - chromaOfs) / 240;
-                                chroma[y][(chromaPos + 1) % 12] += fft[y][z] * multi * chromaOfs / 240;
-                            }
-                        }
-                    }
-                    float sPos = 0;
-                    for (int y = 0; y < tex.height; y++) 
-                    {
-                        int channel = Mathf.FloorToInt(sPos);
-                        int cPos = Mathf.FloorToInt((sPos % 1 - 0.05f) * 1.1f * 12);
-                        float value = cPos >= 0 && cPos < 12 ? chroma[channel][cPos] / 2 : 0;
-                        lineBuffer[y] = color * new Color(1, 1, 1, value);
-                        sPos += denY;
-                    }
-                    tex.SetPixels(sLine, 0, 1, tex.height, lineBuffer);
-                    waveBaked[sLine] = true;
-                    if (timeout())
-                    {
-                        waveTimeouted = true;
-                        break;
-                    }
-                }
-            } break;
         }
 
         tex.Apply();
@@ -1048,7 +985,7 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
         var waveRT = WaveformImage.rectTransform;
         Destroy(WaveformImage.texture);
         WaveformImage.texture = new Texture2D((int)waveRT.rect.width, (int)waveRT.rect.height);
-        waveBaked = new bool[waveBaked.Length];
+        if (waveBaked != null) waveBaked = new bool[waveBaked.Length];
         waveTimeouted = true;
     }
 

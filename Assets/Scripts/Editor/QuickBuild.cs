@@ -10,7 +10,7 @@ public class QuickBuild
     {
         string path = Path.Combine(Path.GetDirectoryName(Application.dataPath), "Builds");
 
-        Directory.Delete(path, true);
+        if (Directory.Exists(path)) Directory.Delete(path, true);
         Directory.CreateDirectory(path);
 
         // Build for Windows
