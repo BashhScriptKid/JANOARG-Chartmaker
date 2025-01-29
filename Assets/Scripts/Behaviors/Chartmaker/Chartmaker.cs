@@ -540,16 +540,16 @@ public class Chartmaker : MonoBehaviour
 
     public static string GetItemName(object item) => item switch
     {
-        IList list =>   list.Count > 0 ? (list.Count > 1 ? list.Count + " " + GetItemName(list[0]) + "s" : GetItemName(list[0])) : "Empty List",
-        Chart =>        "Chart",
-        BPMStop =>      "BPM Stop",
-        HitStyle =>     "Hit Style",
-        LaneStyle =>    "Lane Style",
-        LaneGroup =>    "Lane Group",
-        Lane =>         "Lane",
-        LaneStep =>     "Lane Step",
-        HitObject =>    "Hit Object",
-        _ =>            item.ToString()
+        IList list =>       list.Count > 0 ? (list.Count > 1 ? list.Count + " " + GetItemName(list[0]) + "s" : GetItemName(list[0])) : "Empty List",
+        Chart =>            "Chart",
+        BPMStop =>          "BPM Stop",
+        HitStyle =>         "Hit Style",
+        LaneStyle =>        "Lane Style",
+        LaneGroup =>        "Lane Group",
+        Lane =>             "Lane",
+        LaneStep =>         "Lane Step",
+        HitObject =>        "Hit Object",
+        _ =>                item.ToString()
     };
 
     public void OnHistoryDo()
@@ -621,10 +621,22 @@ public class Chartmaker : MonoBehaviour
 
     public void DeleteItem(object obj, bool setNull = true)
     {
-        ChartmakerDeleteAction action = new ChartmakerDeleteAction {
-            Target = GetListTarget(obj),
-            Item = obj,
-        };
+        IList list = obj is IList li ? li : new [] { obj };
+        bool listType<T>() => list[0] is T;
+        IChartmakerAction action;
+        if (obj is Lane || listType<Lane>()) {
+            SortedDictionary<int, Lane> items = new ();
+            foreach (object item in list) items.Add(CurrentChart.Lanes.IndexOf((Lane)item), (Lane)item);
+            action = new ChartmakerIndexedDeleteAction<Lane> {
+                Target = CurrentChart.Lanes,
+                Items = items,
+            };
+        } else {
+            action = new ChartmakerDeleteAction {
+                Target = GetListTarget(obj),
+                Item = obj,
+            };
+        }
         DoAction(action);
         if (setNull) InspectorPanel.main.UnsetObject();
     }
