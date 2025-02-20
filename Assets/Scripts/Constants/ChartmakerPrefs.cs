@@ -14,7 +14,7 @@ public class ChartmakerPrefs
     public bool CustomCursors = true;
     public bool UseDefaultWindow;
 
-    public FileSizeBase FileSizeBase = FileSizeBase.Decimal;
+    public FileSizeBase FileSizeBase = Application.platform == RuntimePlatform.WindowsPlayer ? FileSizeBase.Binary : FileSizeBase.Decimal;
     public FFTWindow FFTWindow = FFTWindow.Hann;
     public float FrequencyMin = 50;
     public float FrequencyMax = 20000;

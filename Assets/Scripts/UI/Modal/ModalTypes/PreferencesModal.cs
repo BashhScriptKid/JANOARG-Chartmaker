@@ -41,6 +41,8 @@ public class PreferencesModal : Modal
 
         ClearForm();
 
+        FormEntry entry;
+
         // -------------------------------------------------- General
         if (tab == 0)
         {
@@ -81,10 +83,10 @@ public class PreferencesModal : Modal
             foreach (var cat in categories)
             {
                 SpawnForm<FormEntryHeader>(cat.Key);
-                foreach (var entry in cat.Value)
+                foreach (var ent in cat.Value)
                 {
-                    var field = SpawnForm<FormEntryKeybind, Keybind>(entry.Value.Name, () => entry.Value.Keybind, x => {
-                        Chartmaker.main.KeybindingsStorage.Set(entry.Key, (entry.Value.Keybind = x).ToSaveString());
+                    var field = SpawnForm<FormEntryKeybind, Keybind>(ent.Value.Name, () => ent.Value.Keybind, x => {
+                        Chartmaker.main.KeybindingsStorage.Set(ent.Key, (ent.Value.Keybind = x).ToSaveString());
                         IsDirty = true;
                     });
                     field.Category = cat.Key;
@@ -172,11 +174,10 @@ public class PreferencesModal : Modal
             var storage = Chartmaker.PreferencesStorage;
             
             SpawnForm<FormEntryHeader>("Fun<i>!</i> :D");
-            FormEntry entry = SpawnForm<FormEntryBool, bool>("More Perfect Hitsounds", () => prefs.PerfectHitsounds, x => {
+            entry = SpawnForm<FormEntryBool, bool>("More Perfect Hitsounds", () => prefs.PerfectHitsounds, x => {
                 storage.Set("BO:PerfectHitsounds", prefs.PerfectHitsounds = x); IsDirty = true;
             });
-            TooltipTarget tooltip = entry.TitleLabel.gameObject.AddComponent<TooltipTarget>();
-            tooltip.Text = "(Use optimized hitsounds for Jersey Club and Future Bass tracks)";
+            Tooltipify(entry, "Use optimized hitsounds for Jersey Club and Future Bass tracks");
         }
         // -------------------------------------------------- Graphics
         else if (tab == 4)
@@ -185,9 +186,10 @@ public class PreferencesModal : Modal
             var storage = Chartmaker.PreferencesStorage;
 
             SpawnForm<FormEntryHeader>("Display");
-            SpawnForm<FormEntryBool, bool>("Vertical Sync", () => QualitySettings.vSyncCount > 0, x => {
+            entry = SpawnForm<FormEntryBool, bool>("Vertical Sync", () => QualitySettings.vSyncCount > 0, x => {
                 storage.Set("GS:VSync", QualitySettings.vSyncCount = x ? 1 : 0); IsDirty = true;
             });
+            Tooltipify(entry, "Sync app's frame update with that of device screen/monitor. Disabling this will likely increase power consumption.");
 
             SpawnForm<FormEntryHeader>("Quality");
             var cursorDropdown = SpawnForm<FormEntryDropdown, object>("Anti-Aliasing", () => QualitySettings.antiAliasing, x => {
@@ -197,6 +199,7 @@ public class PreferencesModal : Modal
             cursorDropdown.ValidValues.Add(2, "2x MSAA");
             cursorDropdown.ValidValues.Add(4, "4x MSAA");
             cursorDropdown.ValidValues.Add(8, "8x MSAA");
+            Tooltipify(cursorDropdown, "Smooth edges of objects on screen. Higher levels of anti-aliasing make edges look smoother but consume more power.");
         }
         // -------------------------------------------------- Analysis
         else if (tab == 5)
@@ -211,6 +214,11 @@ public class PreferencesModal : Modal
             });
             fsbDropdown.ValidValues.Add(FileSizeBase.Decimal, "Decimal");
             fsbDropdown.ValidValues.Add(FileSizeBase.Binary, "Binary");
+            Tooltipify(fsbDropdown, 
+                "Determines set of prefixes to use for file sizes."
+                + "\n- Decimal: 1kB = 1,000 bytes; 1MB = 1,000kB..."
+                + "\n- Binary: 1KiB = 1,024 bytes; 1MiB = 1,024KiB..."
+            );
 
             SpawnForm<FormEntryHeader>("FFT");
             
@@ -254,4 +262,10 @@ public class PreferencesModal : Modal
 
     T SpawnForm<T, U>(string title, Func<U> get, Action<U> set) where T : FormEntry<U>
         => Formmaker.main.Spawn<T, U>(FormHolder, title, get, set);
+
+    void Tooltipify(FormEntry entry, string text) 
+    {
+        TooltipTarget tooltip = entry.TitleLabel.gameObject.AddComponent<TooltipTarget>();
+        tooltip.Text = text;
+    }
 }
