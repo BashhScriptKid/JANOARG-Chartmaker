@@ -122,7 +122,7 @@ public class PlayerView : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         }
         else 
         {
-            targetAspect = 3 / 2f;
+            targetAspect = 7 / 4f;
         }
 
         if (safeZone.width / safeZone.height > targetAspect)
