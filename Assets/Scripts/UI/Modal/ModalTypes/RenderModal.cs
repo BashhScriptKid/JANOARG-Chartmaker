@@ -324,7 +324,7 @@ public class RenderModal : Modal
             float time = TimeRange.x;
             int frames = 1, frags = 1;
             float delta = 1 / Prefs.FrameRate;
-            float camHeight = Math.Min(1, 3 / 2f * tex.width / tex.height) * 0.9f;
+            float camHeight = Math.Min(1, 7 / 4f * tex.width / tex.height) * 0.9f;
             float fov = Mathf.Atan2(Mathf.Tan(30 * Mathf.Deg2Rad), camHeight) * 2 * Mathf.Rad2Deg;
             int queuedFrames = 1, busyFrags = 0;
             RenderFormat format = formats[Prefs.OutputType];
