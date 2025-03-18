@@ -32,6 +32,9 @@ public class PlayableSong
 [Serializable]
 public class Cover
 {
+    public string ArtistName = "";
+    public string AltArtistName = "";
+
     public string IconTarget = "icon.png";
     public Sprite IconCover;
     public Vector2 IconCenter;

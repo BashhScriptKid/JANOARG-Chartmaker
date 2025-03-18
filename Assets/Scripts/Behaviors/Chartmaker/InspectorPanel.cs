@@ -222,10 +222,10 @@ public class InspectorPanel : MonoBehaviour
 
                 SpawnForm<FormEntryHeader>("Metadata");
                 SpawnForm<FormEntryString, string>("Song Name", () => song.SongName, x => Chartmaker.main.SetItem(song, "SongName", x));
-                SpawnForm<FormEntryString, string>("Alt Name", () => song.AltSongName, x => Chartmaker.main.SetItem(song, "AltSongName", x));
+                SpawnForm<FormEntryString, string>("Alt. Name", () => song.AltSongName, x => Chartmaker.main.SetItem(song, "AltSongName", x));
                 SpawnForm<FormEntrySpace>("");
                 SpawnForm<FormEntryString, string>("Song Artist", () => song.SongArtist, x => Chartmaker.main.SetItem(song, "SongArtist", x));
-                SpawnForm<FormEntryString, string>("Alt Artist", () => song.AltSongArtist, x => Chartmaker.main.SetItem(song, "AltSongArtist", x));
+                SpawnForm<FormEntryString, string>("Alt. Artist", () => song.AltSongArtist, x => Chartmaker.main.SetItem(song, "AltSongArtist", x));
                 SpawnForm<FormEntrySpace>("");
                 SpawnForm<FormEntryString, string>("Genre", () => song.Genre, x => Chartmaker.main.SetItem(song, "Genre", x));
                 SpawnForm<FormEntryString, string>("Location", () => song.Location, x => Chartmaker.main.SetItem(song, "Location", x));
@@ -243,6 +243,12 @@ public class InspectorPanel : MonoBehaviour
                 }
 
                 FormTitle.text = "Cover";
+
+                SpawnForm<FormEntryHeader>("Metadata");
+                SpawnForm<FormEntryString, string>("Artist Name", () => cover.ArtistName, 
+                    x => Chartmaker.main.SetItem(cover, "ArtistName", x));
+                SpawnForm<FormEntryString, string>("Alt. Name", () => cover.AltArtistName, 
+                    x => Chartmaker.main.SetItem(cover, "AltArtistName", x));
 
                 SpawnForm<FormEntryHeader>("Colors");
                 var bgColor = SpawnForm<FormEntryColor, Color>("Background", () => cover.BackgroundColor, x => {

@@ -140,7 +140,9 @@ public class JAPSDecoder
                     }
                     else if (currentObject is Cover cover)
                     {
-                             if (key == "Background")   cover.BackgroundColor = ParseColor(value);
+                             if (key == "Artist")       cover.ArtistName = value;
+                        else if (key == "Alt Artist")   cover.AltArtistName = value;
+                        else if (key == "Background")   cover.BackgroundColor = ParseColor(value);
                         else if (key == "Icon")         cover.IconTarget = value;
                         else if (key == "Icon Center")  cover.IconCenter = ParseVector(value);
                         else if (key == "Icon Size")    cover.IconSize = ParseFloat(value);

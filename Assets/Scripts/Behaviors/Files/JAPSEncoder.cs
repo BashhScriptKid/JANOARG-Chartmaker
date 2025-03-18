@@ -34,6 +34,9 @@ public class JAPSEncoder
         str += "\nClip: " + clipName;
         
         str += "\n\n[COVER]";
+        str += "\nArtist: " + song.Cover.ArtistName;
+        if (!string.IsNullOrWhiteSpace(song.Cover.AltArtistName))
+            str += "\nAlt Artist: " + song.Cover.AltArtistName;
         str += "\nBackground: " + EncodeColor(song.Cover.BackgroundColor);
         str += "\nIcon: " + song.Cover.IconTarget;
         str += "\nIcon Center: " + EncodeVector(song.Cover.IconCenter);
