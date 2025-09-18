@@ -13,32 +13,35 @@ public class HueCircle : MaskableGraphic, IPointerDownHandler, IDragHandler
 
     public ColorPicker Picker;
 
-    protected override void OnPopulateMesh(VertexHelper vh)
+    protected override void OnPopulateMesh(VertexHelper vertexHelper)
     {
         Vector2 center = rectTransform.rect.center;
         Vector2 radius = new Vector2(rectTransform.rect.width / 2, rectTransform.rect.height / 2);
 
-        vh.Clear();
+        vertexHelper.Clear();
 
         UIVertex vert = UIVertex.simpleVert;
         vert.color = color;
 
-        if (Resolution > 1000) Resolution = 1000;
+        if (Resolution > 1000) 
+            Resolution = 1000;
 
         for (int a = 0; a <= Resolution; a++) 
         {
             float angle = (float)a / Resolution * Mathf.PI * 2;
             
             vert.color = Color.HSVToRGB(angle / Mathf.PI / 2, 1, 1);
+        
             vert.position = new Vector2(Mathf.Cos(angle) * radius.x * InsideRadius, Mathf.Sin(angle) * radius.y * InsideRadius) + center;
-            vh.AddVert(vert);
+            vertexHelper.AddVert(vert);
+          
             vert.position = new Vector2(Mathf.Cos(angle) * radius.x, Mathf.Sin(angle) * radius.y) + center;
-            vh.AddVert(vert);
+            vertexHelper.AddVert(vert);
 
             if (a > 0) 
             {
-                vh.AddTriangle(a * 2 - 1, a * 2 + 1, a * 2);
-                vh.AddTriangle(a * 2 - 1, a * 2, a * 2 - 2);
+                vertexHelper.AddTriangle(a * 2 - 1, a * 2 + 1, a * 2);
+                vertexHelper.AddTriangle(a * 2 - 1, a * 2, a * 2 - 2);
             }
         }
     }
@@ -53,9 +56,12 @@ public class HueCircle : MaskableGraphic, IPointerDownHandler, IDragHandler
     {
         Vector3[] corners = new Vector3[4];
         rectTransform.GetWorldCorners(corners);
+       
         Rect worldRect = new Rect(corners[0], corners[2] - corners[0]);
         Vector2 offset = (Vector2)eventData.position - worldRect.center;
+     
         Picker.CurrentHSV.x = (Mathf.Atan2(offset.y, offset.x) / Mathf.PI / 2 + 1) % 1;
+     
         Picker.UpdateRGB();
         Picker.UpdateHex();
         Picker.UpdateUI();

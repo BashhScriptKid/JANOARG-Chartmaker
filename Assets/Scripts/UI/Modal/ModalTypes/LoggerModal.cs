@@ -38,24 +38,27 @@ public class LoggerModal : Modal
 
     public void Awake()
     {
-        if (main) Close();
-        else main = this;
+        if (main) 
+            Close();
+        else 
+            main = this;
     }
 
     public new void Start()
     {
         base.Start();
+      
         UpdateLogger();
     }
 
     float lastPos;
     public void Update()
     {
-        if (lastPos != EntryHolder.anchoredPosition.y)
-        {
-            lastPos = EntryHolder.anchoredPosition.y;
-            UpdateLogger();
-        }
+        if (lastPos == EntryHolder.anchoredPosition.y) 
+            return;
+
+        lastPos = EntryHolder.anchoredPosition.y;
+        UpdateLogger();
     }
 
     public void UpdateLogger() 
@@ -69,11 +72,15 @@ public class LoggerModal : Modal
         void AddItem(BorderlessWindow.LoggerEntry entry)
         {
             LoggerEntry item;
-            if (Entries.Count <= count) Entries.Add(item = Instantiate(EntrySample, EntryHolder));
-            else item = Entries[count];
+          
+            if (Entries.Count <= count) 
+                Entries.Add(item = Instantiate(EntrySample, EntryHolder));
+            else 
+                item = Entries[count];
 
             bool active = activeEntry == entry;
             item.SetItem(entry, offset, active, this);
+          
             if (active) 
             {
                 if (item.rectTransform.rect.height == itemHeight) 
@@ -89,32 +96,45 @@ public class LoggerModal : Modal
         }
 
         int infoCount = 0, warnCount = 0, errCount = 0;
-        var logger = BorderlessWindow.Logger.FindAll(x => {
+     
+        var logger = BorderlessWindow.Logger.FindAll(x => 
+        {
             // ???????????????
             bool a(int x, bool y) => y;
-            return x.LogType == LogType.Log ? a(infoCount++, InfoToggle.isOn) :
-                x.LogType == LogType.Warning ? a(warnCount++, WarningToggle.isOn) :
-                a(errCount++, ErrorToggle.isOn);
+            
+            return x.LogType switch
+            {
+                LogType.Log     => a(infoCount++,    InfoToggle.isOn),
+                LogType.Warning => a(warnCount++, WarningToggle.isOn),
+                _               => a(errCount++ ,   ErrorToggle.isOn)
+            };
         });
+     
         float listHeight = logger.Count * itemHeight;
         int activeIndex = BorderlessWindow.Logger.IndexOf(activeEntry);
+       
         if (activeIndex >= 0) 
         {
             listHeight += activeEntryHeight - itemHeight;
+            
             if (index > activeIndex)
             {
                 index = Mathf.Max((int)((EntryHolder.anchoredPosition.y - activeEntryHeight) / itemHeight + 1), activeIndex);
                 offset = index * itemHeight;
-                if (index > activeIndex) offset += activeEntryHeight - itemHeight;
+              
+                if (index > activeIndex) 
+                    offset += activeEntryHeight - itemHeight;
             }
         }
         
-        EntryHolder.sizeDelta = new (EntryHolder.sizeDelta.x, listHeight);
+        EntryHolder.sizeDelta = new Vector2(EntryHolder.sizeDelta.x, listHeight);
+       
         while (offset < offsetMax && index < logger.Count) 
         {
             AddItem(BorderlessWindow.Logger[index]);
             index++;
         }
+      
         InfoCountLabel.text = infoCount.ToString();
         WarningCountLabel.text = warnCount.ToString();
         ErrorCountLabel.text = errCount.ToString();
@@ -129,9 +149,12 @@ public class LoggerModal : Modal
     public void LoadEntry(BorderlessWindow.LoggerEntry entry, LoggerEntry item)
     {
         activeEntry = entry;
+       
         item.SetItem(entry, item.rectTransform.rect.y, true, this);
+       
         LayoutRebuilder.ForceRebuildLayoutImmediate(item.rectTransform);
         LayoutRebuilder.MarkLayoutForRebuild(EntryScroll);
+      
         activeEntryHeight = item.rectTransform.rect.height;
         
         UpdateLogger();
@@ -140,6 +163,7 @@ public class LoggerModal : Modal
     public void Clear() 
     {
         BorderlessWindow.Logger.Clear();
+      
         UpdateLogger();
     }
 

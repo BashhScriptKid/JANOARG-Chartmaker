@@ -71,9 +71,12 @@ public class NewSongModal : Modal
                         Mathf.Floor(seconds / 60).ToString("00") 
                 + ":" + Mathf.Floor(seconds % 60).ToString("00") 
                 + "s" + Mathf.Floor(seconds * 1000 % 1000).ToString("000");
+          
             PreviewSlider.SetValueWithoutNotify(PreviewSource.time / PreviewSource.clip.length);
+            
             PreviewSongLengthLabel.text = formatTime(PreviewSource.clip.length);
             PreviewSongPositionLabel.text = formatTime(PreviewSource.time);
+            
             PreviewPlayIcon.SetActive(!PreviewSource.isPlaying);
             PreviewPauseIcon.SetActive(PreviewSource.isPlaying);
         }
@@ -84,12 +87,14 @@ public class NewSongModal : Modal
         FormEntryString title = null, artist = null, genre = null;
         FormEntryFloat bpm = null;
 
-        var codename = SpawnForm<FormEntryString, string>("Codename", () => Codename, x => Codename = x);
+        FormEntryString codename = SpawnForm<FormEntryString, string>("Codename", () => Codename, x => Codename = x);
         codename.Field.contentType = TMP_InputField.ContentType.Alphanumeric;
-        var audio = SpawnForm<FormEntryFile, string>("Audio File", () => AudioPath, x => {
+      
+        FormEntryFile audio = SpawnForm<FormEntryFile, string>("Audio File", () => AudioPath, x => {
             StartCoroutine(LoadAudio(x));
             AudioPath = x;
         });
+      
         audio.AcceptedTypes = new List<FileModalFileType> {
             new("Supported audio files", "mp3", "wav", "ogg"),
             new("All files"),
@@ -97,89 +102,95 @@ public class NewSongModal : Modal
 
         SpawnForm<FormEntryHeader>("Metadata");
         
-        title = SpawnForm<FormEntryString, string>("Song Name", () => InitialValues.SongName, x => InitialValues.SongName = x);
-        SpawnForm<FormEntryString, string>("Alt Song Name", () => InitialValues.AltSongName, x => InitialValues.AltSongName = x);
-        artist = SpawnForm<FormEntryString, string>("Song Artist", () => InitialValues.SongArtist, x => InitialValues.SongArtist = x);
-        SpawnForm<FormEntryString, string>("Alt Song Artist", () => InitialValues.AltSongArtist, x => InitialValues.AltSongArtist = x);
+        title = SpawnForm<FormEntryString, string>("Song Name",     () => InitialValues.SongName,    x => InitialValues.SongName    = x);
+        SpawnForm        <FormEntryString, string>("Alt Song Name", () => InitialValues.AltSongName, x => InitialValues.AltSongName = x);
+      
+        artist = SpawnForm<FormEntryString, string>("Song Artist",     () => InitialValues.SongArtist,    x => InitialValues.SongArtist    = x);
+        SpawnForm         <FormEntryString, string>("Alt Song Artist", () => InitialValues.AltSongArtist, x => InitialValues.AltSongArtist = x);
+     
         genre = SpawnForm<FormEntryString, string>("Genre", () => InitialValues.Genre, x => InitialValues.Genre = x);
+        
         SpawnForm<FormEntryString, string>("Location", () => InitialValues.Location, x => InitialValues.Location = x);
         
-        SpawnForm<FormEntryHeader>("Colors");
+        SpawnForm<FormEntryHeader>      ("Colors");
         SpawnForm<FormEntryColor, Color>("Background", () => InitialValues.BackgroundColor, x => InitialValues.BackgroundColor = x);
-        SpawnForm<FormEntryColor, Color>("Interface", () => InitialValues.InterfaceColor, x => InitialValues.InterfaceColor = x);
+        SpawnForm<FormEntryColor, Color>("Interface",  () => InitialValues.InterfaceColor,  x => InitialValues.InterfaceColor  = x);
         
-        SpawnForm<FormEntryHeader>("Timing");
-        bpm = SpawnForm<FormEntryFloat, float>("Base BPM", () => InitialValues.Timing.Stops[0].BPM, x => InitialValues.Timing.Stops[0].BPM = x);
-        SpawnForm<FormEntryFloat, float>("Base Offset", () => InitialValues.Timing.Stops[0].Offset, x => InitialValues.Timing.Stops[0].Offset = x);
-        SpawnForm<FormEntryInt, int>("Base Signature", () => InitialValues.Timing.Stops[0].Signature, x => InitialValues.Timing.Stops[0].Signature = x);
+        SpawnForm<FormEntryHeader>            ("Timing");
+        bpm = SpawnForm<FormEntryFloat, float>("Base BPM",       () => InitialValues.Timing.Stops[0].BPM,       x  => InitialValues.Timing.Stops[0].BPM       = x);
+        SpawnForm      <FormEntryFloat, float>("Base Offset",    () => InitialValues.Timing.Stops[0].Offset,    x  => InitialValues.Timing.Stops[0].Offset    = x);
+        SpawnForm      <FormEntryInt,     int>("Base Signature", () => InitialValues.Timing.Stops[0].Signature, x    => InitialValues.Timing.Stops[0].Signature = x);
 
         LayoutRebuilder.ForceRebuildLayoutImmediate(FormHolder);
         FormLayout.preferredHeight = FormHolderLayout.preferredHeight;
 
-        OnMetadataRead = (SongMetadata) => {
+        OnMetadataRead = (SongMetadata) =>
+        {
             InitialValues.SongName = string.IsNullOrEmpty(SongMetadata.Title) ? "" : SongMetadata.Title;
             title.Start();
+        
             InitialValues.SongArtist = string.IsNullOrEmpty(SongMetadata.Artist) ? "" : SongMetadata.Artist;
             artist.Start();
+            
             InitialValues.Genre = string.IsNullOrEmpty(SongMetadata.Type) ? "Genreless" : SongMetadata.Type;
             genre.Start();
+            
             InitialValues.Timing.Stops[0].BPM = SongMetadata.BeatsPerMinute <= 0 ? 140 : SongMetadata.BeatsPerMinute;
             bpm.Start();
 
             Destroy(PreviewCover.sprite);
+            
             Debug.Log("attachment count = " + SongMetadata.Attachments.Count);
+            
             if (SongMetadata.Attachments.Count > 0) 
             {
-                Texture2D tex = new (1, 1);
-                tex.LoadImage(SongMetadata.Attachments[0].Data);
-                Sprite spr = Sprite.Create(tex, new (0, 0, tex.width, tex.height), new (.5f, .5f));
-                PreviewCover.sprite = spr;
+                Texture2D texture = new (1, 1);
+                texture.LoadImage(SongMetadata.Attachments[0].Data);
+                Sprite sprite = Sprite.Create(texture, new (0, 0, texture.width, texture.height), new (.5f, .5f));
+                PreviewCover.sprite = sprite;
                 PreviewCover.gameObject.SetActive(true);
             }
             else 
-            {
                 PreviewCover.gameObject.SetActive(false);
-            }
         };
     }
 
     public string Execute()
     {
         if (string.IsNullOrWhiteSpace(Codename))
-        {
             throw new Exception("Please specify a codename for the Song.");
-        }
+        
         if (string.IsNullOrWhiteSpace(AudioPath))
-        {
             throw new Exception("Please specify an audio file.");
-        }
 
         string path = Helper.GetSongFolder();
 
-        if (!Directory.Exists(path)) Directory.CreateDirectory(path);
-        path += "/" + Codename;
-        if (Directory.Exists(path)) 
-        {
-            if (File.Exists(path + "/" + Codename + ".japs")) 
-            {
-                throw new Exception("There is already a Playable Song with the same codename as you choose for this Song. Please change the codename to a different value.");
-            }
-        } 
-        else 
-        {
+        if (!Directory.Exists(path))
             Directory.CreateDirectory(path);
-        }
+        
+        path += "/" + Codename;
+        
+        if (Directory.Exists(path))
+            if (File.Exists(path + "/" + Codename + ".japs"))
+                throw new Exception("There is already a Playable Song with the same codename as you choose for this Song. Please change the codename to a different value.");
+            else ;
+        else 
+            Directory.CreateDirectory(path);
+        
         string audioPath = Path.ChangeExtension(path + "/" + Codename, Path.GetExtension(AudioPath));
         File.Copy(AudioPath, audioPath);
+        
         InitialValues.ClipPath = Path.GetRelativePath(path, audioPath);
         InitialValues.Cover.BackgroundColor = InitialValues.BackgroundColor;
+        
         File.WriteAllText(path + "/" + Codename + ".japs", JAPSEncoder.Encode(InitialValues, InitialValues.ClipPath));
+        
         return path;
     }
 
     public Task<string> ExecuteAsync()
     {
-        return Task.Run(() => Execute());
+        return Task.Run(Execute);
     }
     
     public IEnumerator ExecuteRoutine() {
@@ -195,6 +206,7 @@ public class NewSongModal : Modal
 
         Task<string> task = ExecuteAsync(); 
         yield return new WaitUntil(() => task.IsCompleted);
+ 
         if (!task.IsCompletedSuccessfully) 
         {
             Chartmaker.main.Loader.SetActive(false);
@@ -234,9 +246,7 @@ public class NewSongModal : Modal
         Debug.Log(stream.url);
         stream.SendWebRequest();
         while (!stream.isDone) 
-        {
             yield return null;
-        }
 
         if (stream.result != UnityWebRequest.Result.Success)
         {
@@ -277,8 +287,10 @@ public class NewSongModal : Modal
 
     public void TogglePlay()
     {
-        if (PreviewSource.isPlaying) PreviewSource.Pause();
-        else PreviewSource.Play();
+        if (PreviewSource.isPlaying) 
+            PreviewSource.Pause();
+        else
+            PreviewSource.Play();
     }
 
     public void SetPlayerTime(float time) 

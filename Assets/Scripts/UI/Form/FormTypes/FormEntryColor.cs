@@ -26,7 +26,8 @@ public class FormEntryColor : FormEntry<Color>
     {
         ColorPicker.main.CurrentColor = CurrentValue;
         ColorPicker.main.Open();
-        ColorPicker.main.OnSet = () => {
+        ColorPicker.main.OnSet = () => 
+        {
             SetValue(ColorPicker.main.CurrentColor);
             Reset();
         };

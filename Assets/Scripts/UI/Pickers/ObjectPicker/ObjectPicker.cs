@@ -47,36 +47,51 @@ public class ObjectPicker : Picker
 
     public void UpdateItems() 
     {
-        foreach (var item in Items) Destroy(item.gameObject);
+        foreach (var item in Items)
+            Destroy(item.gameObject);
+        
         Items.Clear();
 
         void AddItem(object obj, string name, Sprite icon) 
         {
             var item = Instantiate(ItemSample, ItemHolder);
+           
             item.Icon.sprite = icon;
             item.Icon.gameObject.SetActive(icon != null);
             item.SetItem(obj, name);
+            
             Items.Add(item);
         }
 
         AddItem(null, "None", null);
 
-        if (Type == ObjectPickerType.LaneStyle) 
+        switch (Type)
         {
-            int index = 0;
-            foreach (LaneStyle style in Chartmaker.main.CurrentChart.Palette.LaneStyles)
+            case ObjectPickerType.LaneStyle:
             {
-                AddItem(style, string.IsNullOrEmpty(style.Name) ? "Lane Style " + index : style.Name, LaneStyleIcon);
-                index++;
+                int index = 0;
+          
+                foreach (LaneStyle style in Chartmaker.main.CurrentChart.Palette.LaneStyles)
+                {
+                    AddItem(style, string.IsNullOrEmpty(style.Name) ? "Lane Style " + index : style.Name, LaneStyleIcon);
+               
+                    index++;
+                }
+                break;
             }
-        }
-        else if (Type == ObjectPickerType.HitStyle) 
-        {
-            int index = 0;
-            foreach (HitStyle style in Chartmaker.main.CurrentChart.Palette.HitStyles)
+            
+            case ObjectPickerType.HitStyle:
             {
-                AddItem(style, string.IsNullOrEmpty(style.Name) ? "Hit Style " + index : style.Name, HitStyleIcon);
-                index++;
+                int index = 0;
+               
+                foreach (HitStyle style in Chartmaker.main.CurrentChart.Palette.HitStyles)
+                {
+                    AddItem(style, string.IsNullOrEmpty(style.Name) ? "Hit Style " + index : style.Name, HitStyleIcon);
+                   
+                    index++;
+                }
+
+                break;
             }
         }
 
@@ -87,6 +102,7 @@ public class ObjectPicker : Picker
     {
         string query = SearchField.text;
         bool isSearch = !string.IsNullOrEmpty(query);
+       
         SearchIcon.SetActive(!isSearch);
         SearchClear.SetActive(isSearch);
 
@@ -101,6 +117,7 @@ public class ObjectPicker : Picker
     public void Select(object obj) 
     {
         CurrentObject = obj;
+       
         OnSet.Invoke();
 
         UpdateVisibility();

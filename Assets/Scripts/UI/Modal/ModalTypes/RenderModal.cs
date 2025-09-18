@@ -30,6 +30,10 @@ public class RenderModal : Modal
     public RectTransform FFmpegFieldHolder;
     [Space]
     public GameObject FFmpegDisclaimer;
+    public TMP_Text FFmpegDisclaimerDownloadText;
+    
+    [NonSerialized] private string FFmpegDownloadLink;
+    
     public GameObject BusyDisclaimer;
     public TMP_Text BusyLabel;
 
@@ -38,20 +42,21 @@ public class RenderModal : Modal
 
     string FFmpegVersion;
 
-    RenderFormat[] formats = new [] {
-        new RenderFormat () {
+    RenderFormat[] formats =
+    {
+        new RenderFormat {
             Extension = "mp4",
             VideoFormat = "h264",
             AudioFormat = "mp3",
             CRFRange = new (26, 16),
         },
-        new RenderFormat () {
+        new RenderFormat {
             Extension = "mp4",
             VideoFormat = "h264",
             AudioFormat = "aac",
             CRFRange = new (26, 16),
         },
-        new RenderFormat () {
+        new RenderFormat {
             Extension = "webm",
             VideoFormat = "vp8",
             AudioFormat = "libvorbis",
@@ -79,12 +84,41 @@ public class RenderModal : Modal
         base.Start();
         Prefs.Load(Chartmaker.PreferencesStorage);
 
+        CustomiseFFmpegDisclaimer();
+
         TimeRange = new (-5, Chartmaker.main.CurrentSong.Clip.length + 5);
-        if (!String.IsNullOrWhiteSpace(Prefs.FFmpegPath)) CheckFFmpeg();
+        if (!String.IsNullOrWhiteSpace(Prefs.FFmpegPath)) 
+            CheckFFmpeg();
 
         InitForm();
     }
-    
+
+    private void CustomiseFFmpegDisclaimer()
+    {
+        switch (Application.platform)
+        {
+            case RuntimePlatform.WindowsPlayer:
+            case RuntimePlatform.WindowsEditor:
+                FFmpegDisclaimerDownloadText.text = "Download FFmpeg builds for Windows";
+                FFmpegDownloadLink = "https://www.gyan.dev/ffmpeg/builds/";
+
+                break;
+            
+            case RuntimePlatform.LinuxPlayer:
+            case RuntimePlatform.LinuxEditor:
+                FFmpegDisclaimerDownloadText.text = "Download FFmpeg builds for Linux";
+                FFmpegDownloadLink = "https://www.ffmpeg.org/download.html#build-linux";
+
+                break;
+            
+            default:
+                FFmpegDisclaimerDownloadText.text = "Get FFmpeg";
+                FFmpegDownloadLink = "https://www.ffmpeg.org/download.html";
+
+                break;
+        }
+    }
+
     public void InitForm()
     {
         var ffmpeg = Formmaker.main.Spawn<FormEntryFile, string>(
@@ -92,6 +126,7 @@ public class RenderModal : Modal
             "FFmpeg Path", () => Prefs.FFmpegPath, x => {
                 Prefs.FFmpegPath = x;
                 PrefsDirty = true;
+                
                 CheckFFmpeg();
             }
         );
@@ -131,6 +166,7 @@ public class RenderModal : Modal
             {
                 resField.FieldX.text = (Prefs.Resolution.y * ratio).ToString("0");
             }
+            
             ContextMenuListAction getItem(string name, float ratio) 
                 => new (name + " (" + ratio.ToString("0.####") + ")", () => setRatio(ratio), _checked: Math.Abs(ratio - Prefs.Resolution.x / (float)Prefs.Resolution.y) < 0.001f);
 
@@ -138,17 +174,21 @@ public class RenderModal : Modal
                 new ContextMenuListAction("Standard", () => {}, _enabled: false),
                 getItem(   "5:4",       5 / 4f),
                 getItem(   "4:3",       4 / 3f),
+                
                 new ContextMenuListSeparator(),
+                
                 new ContextMenuListAction("Wide", () => {}, _enabled: false),
                 getItem(   "16:10",    16 / 10f),
-                getItem(   "16:9",     16 / 9f),
+                getItem(   "16:9",      16 / 9f),
+                
                 new ContextMenuListSeparator(),
+                
                 new ContextMenuListAction("Ultra-wide", () => {}, _enabled: false),
                 getItem(   "256:135", 256 / 135f),
-                getItem(   "21:9",     21 / 9f),
-                getItem(   "64:27",    64 / 27f),
-                getItem(   "12:5",     12 / 5f),
-                getItem(   "32:9",     32 / 9f)
+                getItem(   "21:9",       21 / 9f),
+                getItem(   "64:27",     64 / 27f),
+                getItem(   "12:5",       12 / 5f),
+                getItem(   "32:9",       32 / 9f)
             ), (RectTransform)ratioBtn.transform); 
         });
         // --
@@ -164,14 +204,14 @@ public class RenderModal : Modal
                 => new (name, () => setRes(res), _checked: Prefs.Resolution.y == res);
 
             ContextMenuHolder.main.OpenRoot(new ContextMenuList(
-                getItem(   "240p",          240),
-                getItem(   "480p (SD)",     480),
-                getItem(   "720p (HD)",     720),
-                getItem(  "1080p (FHD)",    1080),
-                getItem(  "1440p (QHD)",    1440),
-                getItem(  "2160p (4K UHD)", 2160),
-                getItem(  "2880p (5K)",     2880),
-                getItem(  "4320p (8K UHD)", 4320)
+                getItem(   "240p",            240),
+                getItem(   "480p (SD)",       480),
+                getItem(   "720p (HD)",       720),
+                getItem(   "1080p (FHD)",    1080),
+                getItem(   "1440p (QHD)",    1440),
+                getItem(   "2160p (4K UHD)", 2160),
+                getItem(   "2880p (5K)",     2880),
+                getItem(   "4320p (8K UHD)", 4320)
             ), (RectTransform)resActions.Button.transform);     
         });
 
@@ -188,27 +228,27 @@ public class RenderModal : Modal
                 => new (name, () => setFPS(fps), _checked: Prefs.FrameRate == fps);
 
             ContextMenuHolder.main.OpenRoot(new ContextMenuList(
-                getItem(   "16fps", 16),
-                getItem(   "20fps", 20),
-                getItem(   "24fps (Film)", 24),
-                getItem(   "25fps (PAL)", 25),
-                getItem("29.97fps (NTSC)", 29.97f),
-                getItem(   "30fps (Standard SD)", 30),
-                getItem(   "48fps (Film HD)", 48),
-                getItem(   "50fps (PAL HD)", 50),
-                getItem("59.94fps (NTSC HD)", 59.94f),
-                getItem(   "60fps (Standard HD)", 60),
-                getItem(   "72fps", 72),
-                getItem(  "100fps", 100),
-                getItem(  "120fps", 120),
-                getItem(  "144fps", 144),
-                getItem(  "240fps", 240),
-                getItem(  "288fps", 288),
-                getItem(  "300fps", 300)
+                getItem(  "16fps",                     16),
+                getItem(  "20fps",                     20),
+                getItem(  "24fps (Film)",              24),
+                getItem(  "25fps (PAL)",               25),
+                getItem(  "29.97fps (NTSC)",       29.97f),
+                getItem(  "30fps (Standard SD)",       30),
+                getItem(  "48fps (Film HD)",           48),
+                getItem(  "50fps (PAL HD)",            50),
+                getItem(  "59.94fps (NTSC HD)",    59.94f),
+                getItem(  "60fps (Standard HD)",       60),
+                getItem(  "72fps",                     72),
+                getItem(  "100fps",                   100),
+                getItem(  "120fps",                   120),
+                getItem(  "144fps",                   144),
+                getItem(  "240fps",                   240),
+                getItem(  "288fps",                   288),
+                getItem(  "300fps",                   300)
             ), (RectTransform)fpsPresets.Button.transform);
         });
 
-        SpawnForm<FormEntrySpace>("");
+        SpawnForm<FormEntrySpace>();
         var vqualField = SpawnForm<FormEntryRange, float>("Video Quality", () => Prefs.VideoQuality * 100, x => {
             Prefs.VideoQuality = x / 100; PrefsDirty = true;
         });
@@ -227,12 +267,13 @@ public class RenderModal : Modal
 
     public void DownloadFFmpeg() 
     {
-        Application.OpenURL("https://www.gyan.dev/ffmpeg/builds/");
+        Application.OpenURL(FFmpegDownloadLink);
     }
 
     public void CheckFFmpeg()
     {
-        if (!IsAnimating) StartCoroutine(CheckFFmpegRoutine());
+        if (!IsAnimating) 
+            StartCoroutine(CheckFFmpegRoutine());
     }
 
     public IEnumerator CheckFFmpegRoutine()
@@ -287,8 +328,8 @@ public class RenderModal : Modal
         long sessionID = Random.Range(0, 2147483647) << 32 | Random.Range(0, 2147483647);
         string 
             sessionDir = Path.Combine(Path.GetTempPath(), $"JANOARG Chartmaker/Render_{sessionID:X16}"),
-            framesDir = Path.Combine(sessionDir, $"Frames"),
-            fragmentsDir = Path.Combine(sessionDir, $"Fragments"),
+            framesDir = Path.Combine(sessionDir, "Frames"),
+            fragmentsDir = Path.Combine(sessionDir, "Fragments"),
             outputPath = "";
 
         // TODO: handle rendering errors
@@ -308,6 +349,7 @@ public class RenderModal : Modal
             float camHeight = Math.Min(1, 7 / 4f * tex.width / tex.height) * 0.9f;
             float fov = Mathf.Atan2(Mathf.Tan(30 * Mathf.Deg2Rad), camHeight) * 2 * Mathf.Rad2Deg;
             int queuedFrames = 1, busyFrags = 0;
+           
             RenderFormat format = formats[Prefs.OutputType];
 
             int totalFrames = (int)((TimeRange.y - TimeRange.x) * Prefs.FrameRate);
@@ -320,14 +362,16 @@ public class RenderModal : Modal
                 int frag = frags;
                 frags++;
                 busyFrags++;
+               
                 string args = 
                     $"-start_number {start} -r {Prefs.FrameRate} "
-                    + "-i \"" + Path.Combine(framesDir, $"%d.png") + "\" "
+                    + "-i \"" + Path.Combine(framesDir, "%d.png") + "\" "
                     + $"-vframes {end - start + 1} -r {Prefs.FrameRate} -pix_fmt yuv420p "
                     + $"-vcodec {format.VideoFormat} "
                     + $"-crf {crf} " 
-                    + "\"" + Path.Combine(fragmentsDir, $"{frag}.{format.Extension}") + $"\" ";
+                    + "\"" + Path.Combine(fragmentsDir, $"{frag}.{format.Extension}") + "\" ";
                 // Debug.Log(args);
+                
                 Task<ProcessOutput> task = ffmpeg(args, x => Debug.Log(x));
                 yield return new WaitUntil(() => task.IsCompleted);
                 for (int a = start; a <= end; a++) File.Delete(Path.Combine(framesDir, $"{a}.png"));
@@ -362,7 +406,7 @@ public class RenderModal : Modal
             }
             StartCoroutine(makeFragment(queuedFrames, frames - 1));
 
-            Chartmaker.main.LoaderPanel.ProgressLabel.text = $"Outputting video...";
+            Chartmaker.main.LoaderPanel.ProgressLabel.text = "Outputting video...";
             yield return new WaitUntil(() => busyFrags <= 0);
             
             string folder = Helper.GetRenderFolder();
@@ -372,21 +416,21 @@ public class RenderModal : Modal
                 (string.IsNullOrWhiteSpace(OutputPath) ? DateTimeOffset.UtcNow.ToUnixTimeSeconds() : OutputPath) + "." + format.Extension
             );
 
-            using(var stream = File.OpenWrite(Path.Combine(sessionDir, $"demux.txt")))
+            using(var stream = File.OpenWrite(Path.Combine(sessionDir, "demux.txt")))
             using(var writer = new StreamWriter(stream))
             {
                 for (int a = 1; a < frags; a++) writer.WriteLine("file '" + Path.Combine(fragmentsDir, $"{a}.{format.Extension}") + "'");
             }
             {
                 string args = 
-                    $" -f concat -safe 0 " 
-                    + "-i \"" + Path.Combine(sessionDir, $"demux.txt") + "\" "
+                    " -f concat -safe 0 " 
+                    + "-i \"" + Path.Combine(sessionDir, "demux.txt") + "\" "
                     + $"-ss {TimeRange.x} -t {TimeRange.y - TimeRange.x} " 
                     + "-i \"" + Path.Combine(Path.GetDirectoryName(Chartmaker.main.CurrentSongPath), Chartmaker.main.CurrentSong.ClipPath) + "\" "
                     + $"-r {Prefs.FrameRate} "
                     + $"-vcodec {format.VideoFormat} -acodec {format.AudioFormat} "
                     + $"-crf {crf} -b:a {Prefs.AudioBitRate}k "
-                    + "\"" + outputPath + $"\" ";
+                    + "\"" + outputPath + "\" ";
                 Task<ProcessOutput> task = ffmpeg(args, x => Debug.Log(x));
                 yield return new WaitUntil(() => task.IsCompleted);
                 Debug.Log(task.Result);

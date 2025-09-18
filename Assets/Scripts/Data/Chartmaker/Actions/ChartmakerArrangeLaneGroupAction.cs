@@ -19,7 +19,9 @@ public class ChartmakerArrangeLaneGroupAction: IChartmakerAction
     public void Do(LaneGroup adjacent, string group) 
     {
         List<LaneGroup> list = Chartmaker.main.CurrentChart.Groups;
+      
         Target.Group = group;
+       
         list.Remove(Target);
         list.Insert(list.IndexOf(adjacent) + 1, Target);
     }

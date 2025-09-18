@@ -4,30 +4,30 @@ using UnityEngine;
 public class ChartmakerMoveLaneAction : ChartmakerMoveAction<Lane>
 {
 
-    public override string GetName()
-    {
-        return "Move Lane";
-    }
+    public override string GetName() => 
+        "Move Lane";
 
-    public override void Do(Vector3 offset) 
+    protected override void Do(Vector3 offset) 
     {
         Item.Position += offset;
-        foreach (Timestamp ts in Item.Storyboard.Timestamps)
+        foreach (Timestamp timestamp in Item.Storyboard.Timestamps)
         {
-            if (ts.ID == TimestampIDs.Offset_X)
+            switch (timestamp.ID)
             {
-                ts.From += offset.x;
-                ts.Target += offset.x;
-            }
-            if (ts.ID == TimestampIDs.Offset_Y)
-            {
-                ts.From += offset.y;
-                ts.Target += offset.y;
-            }
-            if (ts.ID == TimestampIDs.Offset_Z)
-            {
-                ts.From += offset.z;
-                ts.Target += offset.z;
+                case TimestampIDs.Offset_X:
+                    timestamp.From += offset.x;
+                    timestamp.Target += offset.x;
+                    break;
+                
+                case TimestampIDs.Offset_Y:
+                    timestamp.From += offset.y;
+                    timestamp.Target += offset.y;
+                    break;
+                
+                case TimestampIDs.Offset_Z:
+                    timestamp.From += offset.z;
+                    timestamp.Target += offset.z;
+                    break;
             }
         }
     }

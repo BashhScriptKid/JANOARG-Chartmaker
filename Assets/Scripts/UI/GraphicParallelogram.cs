@@ -27,14 +27,19 @@ public class GraphicParallelogram : MaskableGraphic
         
         UIVertex vert = UIVertex.simpleVert;
         vert.color = color;
+        
         vert.position = new(min.x + (ExpandStart ? Mathf.Min(-offsetStart, 0) : Mathf.Max(-offsetStart, 0)), min.y); 
         vh.AddVert(vert);
+        
         vert.position = new(min.x + (ExpandStart ? Mathf.Min(offsetStart, 0) : Mathf.Max(offsetStart, 0)), max.y); 
         vh.AddVert(vert);
+        
         vert.position = new(max.x + (ExpandEnd ? Mathf.Max(-offsetEnd, 0) : Mathf.Min(-offsetEnd, 0)), min.y);
         vh.AddVert(vert);
+        
         vert.position = new(max.x + (ExpandEnd ? Mathf.Max(offsetEnd, 0) : Mathf.Min(offsetEnd, 0)), max.y); 
         vh.AddVert(vert);
+        
         vh.AddTriangle(0, 2, 3);
         vh.AddTriangle(0, 3, 1);
     }

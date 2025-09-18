@@ -26,6 +26,7 @@ public class SliderGradient : MaskableGraphic
             vert.position = new Vector2(Mathf.Sin(angle) * radius.x, Mathf.Cos(angle) * radius.y) + center;
             vh.AddVert(vert);
         }
+        
         vh.AddTriangle(0, 1, 2);
         vh.AddTriangle(0, 2, 3);
     }

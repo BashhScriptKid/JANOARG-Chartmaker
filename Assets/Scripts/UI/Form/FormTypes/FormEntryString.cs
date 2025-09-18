@@ -9,5 +9,6 @@ public class FormEntryString : FormEntry<string>
         base.Start();
         Reset();
     }
-    public void Reset() => Field.SetTextWithoutNotify(CurrentValue);
+    public void Reset()
+        => Field.SetTextWithoutNotify(CurrentValue);
 }

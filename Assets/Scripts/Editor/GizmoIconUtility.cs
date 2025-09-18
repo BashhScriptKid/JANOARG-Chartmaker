@@ -18,24 +18,31 @@ public class GizmoIconUtility
 
 		Object obj = AssetDatabase.LoadAssetAtPath<Object>(assetPath);
 
-        if (rect.height > rect.width) rect.height = rect.width;
-        else rect.width = rect.height;
-        if (rect.height == 16) rect.x += 3;
+        if (rect.height > rect.width)
+	        rect.height = rect.width;
+        else
+	        rect.width = rect.height;
+        
+        if (Mathf.Approximately(rect.height, 16)) 
+	        rect.x += 3;
 
-		if (obj is ExternalPlayableSong)
+		switch (obj)
 		{
-			EditorGUI.DrawRect(rect, Color.black);
+			case ExternalPlayableSong:
+				EditorGUI.DrawRect(rect, Color.black); break;
+			
+			case ExternalChart item:
+			{
+				EditorGUI.DrawRect(rect, Color.white);
+
+				GUIStyle diffStyle = new GUIStyle("label");
+				diffStyle.alignment = TextAnchor.MiddleCenter;
+				diffStyle.normal.textColor = Color.black;
+				diffStyle.fontSize = Mathf.RoundToInt(rect.height / 2);
+
+				GUI.Label(rect, item.Data.DifficultyLevel, diffStyle);
+				break;
+			}
 		}
-		else if (obj is ExternalChart item)
-        {
-            EditorGUI.DrawRect(rect, Color.white);
-
-            GUIStyle diffStyle = new GUIStyle("label");
-            diffStyle.alignment = TextAnchor.MiddleCenter;
-            diffStyle.normal.textColor = Color.black;
-            diffStyle.fontSize = Mathf.RoundToInt(rect.height / 2);
-
-            GUI.Label(rect, item.Data.DifficultyLevel, diffStyle);
-        }
     }
 }

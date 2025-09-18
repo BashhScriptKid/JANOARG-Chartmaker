@@ -64,41 +64,41 @@ public class TimelineOptionsPanel : MonoBehaviour
         if (isDirty)
         {
             isDirty = false;
-            Storage str = Chartmaker.PreferencesStorage;
+            Storage config = Chartmaker.PreferencesStorage;
 
-            str.Set("PB:Speed", Speed);
-            str.Set("TL:SeparationFactor", SeparationFactor);
+            config.Set("PB:Speed", Speed);
+            config.Set("TL:SeparationFactor", SeparationFactor);
 
-            str.Set("TL:LaneFilterMode", LaneFilterMode);
-            str.Set("TL:HOVerticalScale", VerticalScale);
-            str.Set("TL:HOVerticalOffset", VerticalOffset);
-            str.Set("TL:NewHitObjectLength", NewHitObjectLength);
+            config.Set("TL:LaneFilterMode", LaneFilterMode);
+            config.Set("TL:HOVerticalScale", VerticalScale);
+            config.Set("TL:HOVerticalOffset", VerticalOffset);
+            config.Set("TL:NewHitObjectLength", NewHitObjectLength);
 
-            str.Set("TL:FollowSeekLine", FollowSeekLine);
-            str.Set("TL:WaveformIdle", WaveformIdle);
-            str.Set("TL:WaveformMode", WaveformMode);
+            config.Set("TL:FollowSeekLine", FollowSeekLine);
+            config.Set("TL:WaveformIdle", WaveformIdle);
+            config.Set("TL:WaveformMode", WaveformMode);
             Chartmaker.main.StartSavePrefsRoutine();
         }
     }
 
     public void GetValues()
     {
-        Storage str = Chartmaker.PreferencesStorage;
+        Storage config = Chartmaker.PreferencesStorage;
 
-        Speed = str.Get("PB:Speed", 1f);
-        SeparationFactor = str.Get("TL:SeparationFactor", 2);
+        Speed = config.Get("PB:Speed", 1f);
+        SeparationFactor = config.Get("TL:SeparationFactor", 2);
 
-        LaneFilterMode = str.Get("TL:LaneFilterMode", LaneFilterMode.All);
-        VerticalScale = str.Get("TL:HOVerticalScale", 1f);
-        VerticalOffset = str.Get("TL:HOVerticalOffset", 0f);
-        NewHitObjectLength = str.Get("TL:NewHitObjectLength", 0.25f);
+        LaneFilterMode = config.Get("TL:LaneFilterMode", LaneFilterMode.All);
+        VerticalScale = config.Get("TL:HOVerticalScale", 1f);
+        VerticalOffset = config.Get("TL:HOVerticalOffset", 0f);
+        NewHitObjectLength = config.Get("TL:NewHitObjectLength", 0.25f);
 
-        FollowSeekLine = str.Get("TL:FollowSeekLine", true);
-        WaveformIdle = str.Get("TL:WaveformIdle", 1);
-        WaveformMode = str.Get("TL:WaveformMode", 1);
+        FollowSeekLine = config.Get("TL:FollowSeekLine", true);
+        WaveformIdle = config.Get("TL:WaveformIdle", 1);
+        WaveformMode = config.Get("TL:WaveformMode", 1);
     }
 
-    public void SetValues()
+    private void SetValues()
     {
         Chartmaker.main.SongSource.pitch = Speed;
         bool timelineDirty = false;
@@ -112,12 +112,12 @@ public class TimelineOptionsPanel : MonoBehaviour
             TimelinePanel.main.LaneFilterMode = LaneFilterMode;
             timelineDirty = true;
         }
-        if (TimelinePanel.main.VerticalScale != VerticalScale)
+        if (!Mathf.Approximately(TimelinePanel.main.VerticalScale, VerticalScale))
         {
             TimelinePanel.main.VerticalScale = VerticalScale;
             timelineDirty = true;
         }
-        if (TimelinePanel.main.VerticalOffset != VerticalOffset)
+        if (!Mathf.Approximately(TimelinePanel.main.VerticalOffset, VerticalOffset))
         {
             TimelinePanel.main.VerticalOffset = VerticalOffset;
             timelineDirty = true;
@@ -133,11 +133,15 @@ public class TimelineOptionsPanel : MonoBehaviour
         VerticalOffsetField.text = VerticalOffset.ToString();
         NewHitObjectLengthField.text = NewHitObjectLength.ToString();
         FollowSeekLineToggle.isOn = FollowSeekLine;
-        for (int a = 0; a < WaveformIdleToggles.Count; a++) WaveformIdleToggles[a].isOn = a == WaveformIdle;
-        for (int a = 0; a < WaveformModeToggles.Count; a++) WaveformModeToggles[a].isOn = a == WaveformMode;
+        
+        for (int a = 0; a < WaveformIdleToggles.Count; a++) 
+            WaveformIdleToggles[a].isOn = a == WaveformIdle;
+        
+        for (int a = 0; a < WaveformModeToggles.Count; a++) 
+            WaveformModeToggles[a].isOn = a == WaveformMode;
     }
 
-    public void UpdateUI() 
+    private void UpdateUI() 
     {
         LaneFilterModeActiveIcon.SetActive(LaneFilterMode != LaneFilterMode.All);
         LaneFilterModeInactiveIcon.SetActive(LaneFilterMode == LaneFilterMode.All);
@@ -145,7 +149,9 @@ public class TimelineOptionsPanel : MonoBehaviour
 
     public void OnFieldSet()
     {
-        if (recursionBuster) return;
+        if (recursionBuster) 
+            return;
+        
         recursionBuster = true;
 
         float.TryParse(SpeedField.text, out Speed);
@@ -155,19 +161,25 @@ public class TimelineOptionsPanel : MonoBehaviour
         float.TryParse(NewHitObjectLengthField.text, out NewHitObjectLength);
 
         SeparationFactor = Mathf.Max(SeparationFactor, 2);
-        VerticalScale = VerticalScale <= 0 ? 1 : VerticalScale;
+        VerticalScale = VerticalScale <= 0 
+            ? 1 : VerticalScale;
         FollowSeekLine = FollowSeekLineToggle.isOn;
 
-        bool waveformDirty = false;
-        if (!WaveformIdleToggles[WaveformIdle].isOn) waveformDirty = true;
-        for (int a = 0; a < WaveformIdleToggles.Count; a++) if (WaveformIdleToggles[a].isOn) WaveformIdle = a;
-        if (!WaveformModeToggles[WaveformMode].isOn) waveformDirty = true;
-        for (int a = 0; a < WaveformModeToggles.Count; a++) if (WaveformModeToggles[a].isOn) WaveformMode = a;
+        bool waveformDirty = !WaveformIdleToggles[WaveformIdle].isOn;
+        
+        for (int a = 0; a < WaveformIdleToggles.Count; a++) 
+            if (WaveformIdleToggles[a].isOn)
+                WaveformIdle = a;
+        
+        if (!WaveformModeToggles[WaveformMode].isOn) 
+            waveformDirty = true;
+        
+        for (int a = 0; a < WaveformModeToggles.Count; a++) 
+            if (WaveformModeToggles[a].isOn)
+                WaveformMode = a;
 
         if (waveformDirty)
-        {
             TimelinePanel.main.DiscardWaveform();
-        } 
 
         SetValues();
         recursionBuster = false;
@@ -182,7 +194,7 @@ public class TimelineOptionsPanel : MonoBehaviour
 
     public void OpenLaneFilterModePopup() 
     {
-        ContextMenuListAction option(String label, LaneFilterMode value) {
+        ContextMenuListAction Option(String label, LaneFilterMode value) {
             return new ContextMenuListAction(label, () => {
                 if (value == LaneFilterMode) return;
                 LaneFilterMode = value;
@@ -192,8 +204,8 @@ public class TimelineOptionsPanel : MonoBehaviour
             }, _checked: LaneFilterMode == value);
         }
         ContextMenuHolder.main.OpenRoot(new ContextMenuList(
-            option("Show all Lanes", LaneFilterMode.All),
-            option("Show Lanes visible in the Hierarchy", LaneFilterMode.HierarchyVisible)
+            Option("Show all Lanes", LaneFilterMode.All),
+            Option("Show Lanes visible in the Hierarchy", LaneFilterMode.HierarchyVisible)
         ), LaneFilterModeButton, ContextMenuDirection.Up);
     }
 }

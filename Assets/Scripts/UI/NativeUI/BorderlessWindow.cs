@@ -21,29 +21,36 @@ public class BorderlessWindow
 
     static IntPtr CurrentWindow;
     
-    static WinProc newWndProcDelegate = null;
-    static IntPtr newWndProc = IntPtr.Zero;
-    static IntPtr oldWndProc = IntPtr.Zero;
+    static WinProc newWindowsProcessDelegate = null;
+    static IntPtr newWindowsProcess = IntPtr.Zero;
+    static IntPtr oldWindowsProcess = IntPtr.Zero;
     
     delegate IntPtr WinProc(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 
     [DllImport("kernel32.dll")]
     static extern uint GetCurrentThreadId();
+    
     [DllImport("user32.dll")]
     static extern bool EnumThreadWindows(uint dwThreadId, EnumWinProc lpEnumFunc, IntPtr lParam);
     delegate bool EnumWinProc(IntPtr hWnd, IntPtr lParam);
+    
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     static extern int GetClassName(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+    
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     static extern bool SetWindowText(IntPtr hWnd, string lpString);
+    
     [DllImport("user32.dll")]
     static extern IntPtr GetActiveWindow();
     [DllImport("user32.dll")]
-    static extern IntPtr FindWindowA(string lpClassName, string lpWindowName);
+    static extern IntPtr FindWindowA(string lpClassName, string lpWindowName)
+        ;
     [DllImport("user32.dll")]
     static extern IntPtr SetWindowLong(IntPtr hWnd, int nIndex, uint dwNewLong);
+    
     [DllImport("user32.dll", EntryPoint = "SetWindowLong", CharSet = CharSet.Auto)]
     static extern IntPtr SetWindowLong32(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+    
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtr", CharSet = CharSet.Auto)]
     static extern IntPtr SetWindowLong64(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
     [DllImport("user32.dll")]
@@ -218,26 +225,26 @@ public class BorderlessWindow
 
     public static void HookWindowProc()
     {
-        newWndProcDelegate = new WinProc(WindowProc);
-        newWndProc = Marshal.GetFunctionPointerForDelegate(newWndProcDelegate);
-        oldWndProc = SetWindowLong(CurrentWindow, GWL_WINPROC, newWndProc);
+        newWindowsProcessDelegate = new WinProc(WindowProc);
+        newWindowsProcess = Marshal.GetFunctionPointerForDelegate(newWindowsProcessDelegate);
+        oldWindowsProcess = SetWindowLong(CurrentWindow, GWL_WINPROC, newWindowsProcess);
     }
 
     public static void UnhookWindowProc()
     {
-        oldWndProc = SetWindowLong(CurrentWindow, GWL_WINPROC, oldWndProc);
+        oldWindowsProcess = SetWindowLong(CurrentWindow, GWL_WINPROC, oldWindowsProcess);
     }
 
     static IntPtr WindowProc(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam)
     { 
         if (msg == WM_SIZING) 
         {
-            if (IsFramed) return CallWindowProc(oldWndProc, hWnd, msg, wParam, lParam);
+            if (IsFramed) return CallWindowProc(oldWindowsProcess, hWnd, msg, wParam, lParam);
 
             GetWindowRect(CurrentWindow, out WinRect winRect);
             MoveWindowDelta(Vector2.one, true);
             MoveWindowDelta(-Vector2.one, true);
-            return CallWindowProc(oldWndProc, hWnd, msg, wParam, lParam);
+            return CallWindowProc(oldWindowsProcess, hWnd, msg, wParam, lParam);
         }
         else if (msg == WM_STYLECHANGED) 
         {
@@ -248,7 +255,7 @@ public class BorderlessWindow
                 OnWindowUpdate.Invoke();
             }
 
-            return CallWindowProc(oldWndProc, hWnd, msg, wParam, lParam);
+            return CallWindowProc(oldWindowsProcess, hWnd, msg, wParam, lParam);
         }
         else if (msg == WM_SIZE) 
         {
@@ -272,7 +279,7 @@ public class BorderlessWindow
                 OnWindowUpdate.Invoke();
             }
 
-            return CallWindowProc(oldWndProc, hWnd, msg, wParam, lParam);
+            return CallWindowProc(oldWindowsProcess, hWnd, msg, wParam, lParam);
         }
         else if (msg == WM_GETMINMAXINFO) 
         {
@@ -286,7 +293,7 @@ public class BorderlessWindow
         }
         else if (msg == WM_NCCALCSIZE) 
         {
-            if (IsFramed) return CallWindowProc(oldWndProc, hWnd, msg, wParam, lParam);
+            if (IsFramed) return CallWindowProc(oldWindowsProcess, hWnd, msg, wParam, lParam);
 
             if (wParam != IntPtr.Zero)
             {
@@ -315,7 +322,7 @@ public class BorderlessWindow
         }
         else if (msg == WM_SETCURSOR || msg == WM_MOUSEMOVE) 
         {
-            var proc = CallWindowProc(oldWndProc, hWnd, msg, wParam, lParam);
+            var proc = CallWindowProc(oldWindowsProcess, hWnd, msg, wParam, lParam);
             if (CursorChanger.Cursors.Count <= 0) return proc;
 
             UpdateCursor();
@@ -323,7 +330,7 @@ public class BorderlessWindow
         }
         else if (msg == WM_SETCURSOR || msg == WM_MOUSEMOVE) 
         {
-            var proc = CallWindowProc(oldWndProc, hWnd, msg, wParam, lParam);
+            var proc = CallWindowProc(oldWindowsProcess, hWnd, msg, wParam, lParam);
             if (CursorChanger.Cursors.Count <= 0) return proc;
 
             UpdateCursor();
@@ -331,7 +338,7 @@ public class BorderlessWindow
         }
         else if (msg == WM_NCHITTEST) 
         {
-            var proc = CallWindowProc(oldWndProc, hWnd, msg, wParam, lParam);
+            var proc = CallWindowProc(oldWindowsProcess, hWnd, msg, wParam, lParam);
             if (IsFramed) return proc;
             return CurrentWindowZone == WindowZone.Client ? proc : (IntPtr)CurrentWindowZone;
         }
@@ -339,11 +346,11 @@ public class BorderlessWindow
         {
             IsActive = wParam != IntPtr.Zero;
             OnWindowUpdate.Invoke();
-            return CallWindowProc(oldWndProc, hWnd, msg, wParam, lParam);
+            return CallWindowProc(oldWindowsProcess, hWnd, msg, wParam, lParam);
         }
         else 
         {
-            return CallWindowProc(oldWndProc, hWnd, msg, wParam, lParam);
+            return CallWindowProc(oldWindowsProcess, hWnd, msg, wParam, lParam);
         }
     }
 

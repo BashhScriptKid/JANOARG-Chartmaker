@@ -19,7 +19,9 @@ public class ChartmakerArrangeLaneAction: IChartmakerAction
     public void Do(Lane adjacent, string group) 
     {
         List<Lane> list = Chartmaker.main.CurrentChart.Lanes;
+      
         Target.Group = group;
+      
         list.Remove(Target);
         list.Insert(list.IndexOf(adjacent) + 1, Target);
         list.Sort((x, y) => x.LaneSteps[0].Offset.CompareTo(y.LaneSteps[0].Offset));

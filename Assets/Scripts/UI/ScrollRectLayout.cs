@@ -13,10 +13,9 @@ public class ScrollRectLayout : LayoutElement, ILayoutElement {
 
     protected override void OnEnable()
     {
-        if (!Application.IsPlaying(gameObject))
-        {
-            if (!ScrollRect) ScrollRect = GetComponent<ScrollRect>();
-        }
+        if (!Application.IsPlaying(gameObject) && !ScrollRect)
+            ScrollRect = GetComponent<ScrollRect>();
+        
         base.OnEnable();
     }
 
@@ -35,6 +34,7 @@ public class ScrollRectLayout : LayoutElement, ILayoutElement {
 public class ScrollRectLayoutEditor : Editor {
     public override void OnInspectorGUI() {
         ScrollRectLayout target = (ScrollRectLayout)this.target;
+       
         EditorGUILayout.ObjectField("Scroll Rect", target, typeof(ScrollRectLayout), true);
     }
 }

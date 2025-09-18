@@ -42,20 +42,20 @@ public class PlayOptionsPanel : MonoBehaviour
         if (isDirty)
         {
             isDirty = false;
-            Storage str = Chartmaker.PreferencesStorage;
-            str.Set("PB:Volume:Main", MainVolume);
-            str.Set("PB:Volume:Metronome", MetronomeVolume);
-            str.Set("PB:Volume:Hitsounds", HitsoundsVolume);
+            Storage config = Chartmaker.PreferencesStorage;
+            config.Set("PB:Volume:Main", MainVolume);
+            config.Set("PB:Volume:Metronome", MetronomeVolume);
+            config.Set("PB:Volume:Hitsounds", HitsoundsVolume);
             Chartmaker.main.StartSavePrefsRoutine();
         }
     }
 
     public void GetValues()
     {
-        Storage str = Chartmaker.PreferencesStorage;
-        MainVolume = str.Get("PB:Volume:Main", 1f);
-        MetronomeVolume = str.Get("PB:Volume:Metronome", 0f);
-        HitsoundsVolume = str.Get("PB:Volume:Hitsounds", 1f);
+        Storage config = Chartmaker.PreferencesStorage;
+        MainVolume = config.Get("PB:Volume:Main", 1f);
+        MetronomeVolume = config.Get("PB:Volume:Metronome", 0f);
+        HitsoundsVolume = config.Get("PB:Volume:Hitsounds", 1f);
     }
 
     public void SetValues()
@@ -79,29 +79,41 @@ public class PlayOptionsPanel : MonoBehaviour
 
     public void OnSliderSet()
     {
-        if (recursionBuster) return;
+        if (recursionBuster)
+            return;
+        
         recursionBuster = true;
+       
         MainVolume = MainVolumeSlider.value;
         MetronomeVolume = MetronomeVolumeSlider.value;
         HitsoundsVolume = HitsoundsVolumeSlider.value;
+      
         SetValues();
         UpdateFields();
+        
         recursionBuster = false;
         isDirty = true;
     }
 
     public void OnFieldSet()
     {
-        if (recursionBuster) return;
+        if (recursionBuster)
+            return;
+        
         recursionBuster = true;
+        
         float.TryParse(MainVolumeField.text, out MainVolume);
         MainVolume = Mathf.Clamp01(MainVolume / 100);
+        
         float.TryParse(MetronomeVolumeField.text, out MetronomeVolume);
         MetronomeVolume = Mathf.Clamp01(MetronomeVolume / 100);
+        
         float.TryParse(HitsoundsVolumeField.text, out HitsoundsVolume);
         HitsoundsVolume = Mathf.Clamp01(HitsoundsVolume / 100);
+        
         SetValues();
         UpdateSliders();
+        
         recursionBuster = false;
         isDirty = true;
     }

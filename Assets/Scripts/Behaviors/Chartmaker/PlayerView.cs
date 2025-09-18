@@ -32,9 +32,9 @@ public class PlayerView : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     [Space]
     [Header("World")]
     public Transform Holder;
-    public CMLanePlayer LanePlayerSample;
-    public List<CMLanePlayer> LanePlayers { get; private set; } = new();
-    public CMHitPlayer HitPlayerSample;
+    public ChartmakerLanePlayer LanePlayerSample;
+    public List<ChartmakerLanePlayer> LanePlayers { get; private set; } = new();
+    public ChartmakerHitPlayer HitPlayerSample;
     public MeshRenderer HoldMeshSample;
     [Space]
     public Mesh FreeFlickIndicator;
@@ -110,21 +110,19 @@ public class PlayerView : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         );
 
         float targetAspect;
-        if (HierarchyPanel.main.CurrentMode == HierarchyMode.PlayableSong) 
+        if (HierarchyPanel.main.CurrentMode == HierarchyMode.PlayableSong)
         {
             safeZone.yMin += 32;
-            switch (CurrentCoverViewMode)
+
+            targetAspect = CurrentCoverViewMode switch
             {
-                case CoverViewMode.Panorama: targetAspect = 880 / 200f; break;
-                case CoverViewMode.Icon: targetAspect = 1; break;
-                default: targetAspect = 880 / 200f; break;
-            }
-            
+                CoverViewMode.Panorama => 880 / 200f,
+                CoverViewMode.Icon => 1,
+                _ => 880 / 200f
+            };
         }
         else 
-        {
             targetAspect = 7 / 4f;
-        }
 
         if (safeZone.width / safeZone.height > targetAspect)
         {
@@ -143,7 +141,7 @@ public class PlayerView : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         float camRatio = safeZone.height / bound.height;
         MainCamera.fieldOfView = Mathf.Atan2(Mathf.Tan(30 * Mathf.Deg2Rad), camRatio) * 2 * Mathf.Rad2Deg;
 
-        if (CurrentTime != Chartmaker.main.SongSource.time || targetAspect != lastTargetAspect) UpdateObjects();
+        if (!Mathf.Approximately(CurrentTime, Chartmaker.main.SongSource.time) || !Mathf.Approximately(targetAspect, lastTargetAspect)) UpdateObjects();
         lastTargetAspect = targetAspect;
     }
 
@@ -154,16 +152,15 @@ public class PlayerView : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (Chartmaker.main.CurrentChart != null)
         {
             if (Chartmaker.main.CurrentChart != Manager?.CurrentChart) 
-            {
                 Manager = new ChartManager(
-                    Chartmaker.main.CurrentSong, Chartmaker.main.CurrentChart,
-                    121, InformationBar.main.sec, InformationBar.main.beat
+                    Chartmaker.main.CurrentSong,
+                    Chartmaker.main.CurrentChart,
+                    speed: 121, 
+                    time:  InformationBar.main.sec, 
+                    pos:   InformationBar.main.beat
                 );
-            } else {
-                Manager.Update(
-                    InformationBar.main.sec, InformationBar.main.beat
-                );
-            }
+            else 
+                Manager.Update(InformationBar.main.sec, InformationBar.main.beat);
             
             MainCamera.transform.position = Manager.Camera.CameraPivot;
             MainCamera.transform.eulerAngles = Manager.Camera.CameraRotation; 
@@ -174,9 +171,12 @@ public class PlayerView : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
             for (int a = 0; a < Manager.Lanes.Count; a++)
             {
-                if (LanePlayers.Count <= a) LanePlayers.Add(Instantiate(LanePlayerSample, Holder));
+                if (LanePlayers.Count <= a) 
+                    LanePlayers.Add(Instantiate(LanePlayerSample, Holder));
+                
                 LanePlayers[a].UpdateObjects(Manager.Lanes[a]);
             }
+            
             while (LanePlayers.Count > Manager.Lanes.Count)
             {
                 Destroy(LanePlayers[Manager.Lanes.Count].gameObject);
@@ -186,17 +186,13 @@ public class PlayerView : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             if (Chartmaker.main.SongSource.isPlaying && !TimelinePanel.main.isDragged && PlayOptions.HitsoundsVolume > 0)
             {
                 if (Manager.HitObjectsRemaining[0] < HitObjectsRemaining[0])
-                {
                     SoundPlayer.PlayOneShot(Chartmaker.Preferences.PerfectHitsounds ? AltNormalHitSound : NormalHitSound, PlayOptions.HitsoundsVolume);
-                }
+                
                 if (Manager.HitObjectsRemaining[1] < HitObjectsRemaining[1])
-                {
                     SoundPlayer.PlayOneShot(Chartmaker.Preferences.PerfectHitsounds ? AltCatchHitSound : CatchHitSound, PlayOptions.HitsoundsVolume);
-                }
+               
                 if (Manager.FlicksRemaining < FlicksRemaining && !Chartmaker.Preferences.PerfectHitsounds)
-                {
                     SoundPlayer.PlayOneShot(FlickSound, PlayOptions.HitsoundsVolume);
-                }
             }
             HitObjectsRemaining = Manager.HitObjectsRemaining;
             FlicksRemaining = Manager.FlicksRemaining;
@@ -209,56 +205,62 @@ public class PlayerView : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             DarkBackground.SetActive(true);
             CoverToolbar.SetActive(true);
 
-            switch (CurrentCoverViewMode) 
+            CoverBackground.rectTransform.sizeDelta = CurrentCoverViewMode switch
             {
-                case CoverViewMode.Panorama:
-                    CoverBackground.rectTransform.sizeDelta = new (880, 200);
-                    break;
-                case CoverViewMode.Icon:
-                    CoverBackground.rectTransform.sizeDelta = Vector2.one * Chartmaker.main.CurrentSong.Cover.IconSize;
-                    break;
-            }
+                CoverViewMode.Panorama => new(880, 200),
+                CoverViewMode.Icon => Vector2.one * Chartmaker.main.CurrentSong.Cover.IconSize,
+                _ => CoverBackground.rectTransform.sizeDelta
+            };
 
             float scale = CoverBackground.rectTransform.localScale.x;
             Vector2 parallaxOffset = CoverPosition / scale;
-            if (CurrentCoverViewMode == CoverViewMode.Icon) parallaxOffset -= Chartmaker.main.CurrentSong.Cover.IconCenter / scale;
+            
+            if (CurrentCoverViewMode == CoverViewMode.Icon)
+                parallaxOffset -= Chartmaker.main.CurrentSong.Cover.IconCenter / scale;
 
             BoundingBox.color = NotificationText.color = NotificationBox.color = Color.white;
             BoundingBox.rectTransform.anchoredPosition = new Vector2 (0, 16) + CoverPosition;
+            
             CoverBackground.rectTransform.localScale = Vector3.one * (BoundingBox.rectTransform.rect.width / CoverBackground.rectTransform.sizeDelta.x);
             CoverBackground.rectTransform.anchoredPosition = BoundingBox.rectTransform.anchoredPosition;
             CoverBackground.color = Chartmaker.main.CurrentSong.Cover.BackgroundColor;
 
             int index = 0;
-            foreach (CoverLayer layer in Chartmaker.main.CurrentSong.Cover.Layers) {
+            foreach (CoverLayer layer in Chartmaker.main.CurrentSong.Cover.Layers)
+            {
+                
                 RawImage image;
+                
                 if (CoverLayers.Count <= index)
                 {
                     image = Instantiate(CoverLayerSample, CoverBackground.rectTransform);
                     CoverLayers.Add(image);
                 }
                 else 
-                {
                     image = CoverLayers[index];
-                }
 
                 image.texture = layer.Texture;
+                
                 if (layer.Tiling)
                 {
                     image.rectTransform.sizeDelta = CoverBackground.rectTransform.sizeDelta;
                     image.rectTransform.anchoredPosition = Vector2.zero;
-                    Vector2 imgSize = new Vector2(1, (float)layer.Texture.height / layer.Texture.width) * 880 * layer.Scale;
-                    image.uvRect = Rect2UV(new (
-                        -CoverBackground.rectTransform.sizeDelta * .5f,
-                        CoverBackground.rectTransform.sizeDelta
-                    ), new (
-                        layer.Position - parallaxOffset * layer.ParallaxFactor - imgSize * .5f,
-                        imgSize
-                    ));
+                    
+                    Vector2 imgSize = new Vector2(1, (float)layer.Texture.height / layer.Texture.width) * (880 * layer.Scale);
+                    
+                    image.uvRect = Rect2UV(
+                        new (
+                            -CoverBackground.rectTransform.sizeDelta * .5f, 
+                            CoverBackground.rectTransform.sizeDelta
+                            ), 
+                        new (
+                            layer.Position - parallaxOffset * layer.ParallaxFactor - imgSize * .5f, 
+                            imgSize
+                            ));
                 }
                 else 
                 {
-                    image.rectTransform.sizeDelta = new Vector2(1, (float)layer.Texture.height / layer.Texture.width) * layer.Scale * 880;
+                    image.rectTransform.sizeDelta = new Vector2(1, (float)layer.Texture.height / layer.Texture.width) * (layer.Scale * 880);
                     image.rectTransform.anchoredPosition = layer.Position - parallaxOffset * layer.ParallaxFactor;
                     image.uvRect = new (0, 0, 1, 1);
                 }
@@ -282,7 +284,7 @@ public class PlayerView : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         }
     }
 
-    public void UpdateCoverToolbar()
+    private void UpdateCoverToolbar()
     {
         MaskButtonHighlight.SetActive(CoverMask.enabled);
 
@@ -305,164 +307,192 @@ public class PlayerView : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         EndHandle.gameObject.SetActive(false);
 
         if (Chartmaker.main.SongSource.isPlaying)
-        {
             return;
-        }
-        if (HierarchyPanel.main.CurrentMode == HierarchyMode.PlayableSong)
+        
+        switch (HierarchyPanel.main.CurrentMode)
         {
-            switch (InspectorPanel.main.CurrentObject)
-            {
-                case CoverLayer layer: 
+            case HierarchyMode.PlayableSong:
+                switch (InspectorPanel.main.CurrentObject)
                 {
-                    float scale = CoverBackground.rectTransform.localScale.x;
-                    Vector2 offset = new Vector2(0, 16) + CoverPosition * (1 - layer.ParallaxFactor);
-                    if (CurrentCoverViewMode == CoverViewMode.Icon) offset -=
-                        (1 - layer.ParallaxFactor) / scale * Chartmaker.main.CurrentSong.Cover.IconCenter;
-                    
-                    Vector2 center = layer.Position * scale + offset;
-                    CenterHandle.gameObject.SetActive(CurrentDragMode is HandleDragMode.None or HandleDragMode.Center);
-                    CenterHandle.anchoredPosition = center;
-                    
-                    Vector2 left = Vector2.right * 440 * layer.Scale * scale + center;
-                    StartHandle.gameObject.SetActive(CurrentDragMode is HandleDragMode.None or HandleDragMode.Start);
-                    StartHandle.anchoredPosition = left;
-                    
-                    SelectedItemLine.gameObject.SetActive(CurrentDragMode is HandleDragMode.None or HandleDragMode.Start);
-                    SelectedItemLine.anchoredPosition = (center + left) / 2;
-                    SelectedItemLine.sizeDelta = new(440 * layer.Scale * scale, SelectedItemLine.sizeDelta.y);
-                    SelectedItemLine.eulerAngles = Vector2.zero;
-                } break;
-            }
-
-        // TODO: Maybe implement this? What is this for?
-#pragma warning disable CS0164 // This label has not been referenced
-        endSel: ;
-#pragma warning restore CS0164 // This label has not been referenced
-        }
-        if (HierarchyPanel.main.CurrentMode == HierarchyMode.Chart) 
-        {
-            {
-                if (Chartmaker.main.CurrentChart != null && InspectorPanel.main.CurrentHierarchyObject is Lane currentLane)
-                {
-                    int index = Chartmaker.main.CurrentChart.Lanes.IndexOf(currentLane);
-                    if (index < 0) goto endLane;
-                    LaneManager man = Manager.Lanes[index];
-                    if ((man.CurrentMesh?.vertexCount ?? 0) > 2)
+                    case CoverLayer layer: 
                     {
-                        Vector2 start = MainCamera.WorldToScreenPoint(man.StartPos);
-                        Vector2 end = MainCamera.WorldToScreenPoint(man.EndPos);
-                        CurrentLaneLine.gameObject.SetActive(true);
-                        CurrentLaneLine.position = (start + end) / 2;
-                        CurrentLaneLine.sizeDelta = new(Vector2.Distance(start, end), CurrentLaneLine.sizeDelta.y);
-                        CurrentLaneLine.eulerAngles = new(0, 0, Vector2.SignedAngle(Vector2.left, end - start));
+                        float scale = CoverBackground.rectTransform.localScale.x;
+                        Vector2 offset = new Vector2(0, 16) + CoverPosition * (1 - layer.ParallaxFactor);
+                        if (CurrentCoverViewMode == CoverViewMode.Icon) 
+                            offset -= (1 - layer.ParallaxFactor) / scale * Chartmaker.main.CurrentSong.Cover.IconCenter;
+                    
+                        Vector2 center = layer.Position * scale + offset;
+                        CenterHandle.gameObject.SetActive(CurrentDragMode is HandleDragMode.None or HandleDragMode.Center);
+                        CenterHandle.anchoredPosition = center;
+                    
+                        Vector2 left = Vector2.right * (440 * layer.Scale * scale) + center;
+                        StartHandle.gameObject.SetActive(CurrentDragMode is HandleDragMode.None or HandleDragMode.Start);
+                        StartHandle.anchoredPosition = left;
+                    
+                        SelectedItemLine.gameObject.SetActive(CurrentDragMode is HandleDragMode.None or HandleDragMode.Start);
+                        SelectedItemLine.anchoredPosition = (center + left) / 2;
+                        SelectedItemLine.sizeDelta = new(440 * layer.Scale * scale, SelectedItemLine.sizeDelta.y);
+                        SelectedItemLine.eulerAngles = Vector2.zero;
+                    } break;
+                }
+
+                // TODO: Maybe implement this? What is this for?
+#pragma warning disable CS0164 // This label has not been referenced
+                endSel: ;
+#pragma warning restore CS0164 // This label has not been referenced
+                break;
+            case HierarchyMode.Chart:
+            {
+                {
+                    if (Chartmaker.main.CurrentChart != null && InspectorPanel.main.CurrentHierarchyObject is Lane currentLane)
+                    {
+                        int index = Chartmaker.main.CurrentChart.Lanes.IndexOf(currentLane);
+                        if (index < 0) 
+                            goto endLane;
+                    
+                        LaneManager laneManager = Manager.Lanes[index];
+                        if ((laneManager.CurrentMesh?.vertexCount ?? 0) > 2)
+                        {
+                            Vector2 start = MainCamera.WorldToScreenPoint(laneManager.StartPos);
+                            Vector2 end = MainCamera.WorldToScreenPoint(laneManager.EndPos);
+                        
+                            CurrentLaneLine.gameObject.SetActive(true);
+                            CurrentLaneLine.position = (start + end) / 2;
+                            CurrentLaneLine.sizeDelta = new(Vector2.Distance(start, end), CurrentLaneLine.sizeDelta.y);
+                            CurrentLaneLine.eulerAngles = new(0, 0, Vector2.SignedAngle(Vector2.left, end - start));
+                        }
                     }
                 }
-            }
 
-            endLane: 
+                endLane: 
 
-            switch (InspectorPanel.main.CurrentObject)
-            {
-                case Lane lane: 
+                switch (InspectorPanel.main.CurrentObject)
                 {
-                    int index = Chartmaker.main.CurrentChart.Lanes.IndexOf(lane);
-                    if (index < 0) goto endSel;
-                    LaneManager man = Manager.Lanes[index];
+                    case Lane lane: 
+                    {
+                        int index = Chartmaker.main.CurrentChart!.Lanes.IndexOf(lane);
+                        if (index < 0)
+                            goto endSelect;
                     
-                    Vector2 center = MainCamera.WorldToScreenPoint(man.FinalPosition);
-                    CenterHandle.gameObject.SetActive(CurrentDragMode is HandleDragMode.None or HandleDragMode.Center);
-                    CenterHandle.position = center;
-
-                    if ((man.CurrentMesh?.vertexCount ?? 0) > 2)
-                    {
-                        Vector2 start = MainCamera.WorldToScreenPoint(man.StartPos);
-                        Vector2 end = MainCamera.WorldToScreenPoint(man.EndPos);
-                        SelectedItemLine.gameObject.SetActive(true);
-                        SelectedItemLine.position = (start + end) / 2;
-                        SelectedItemLine.sizeDelta = new(Vector2.Distance(start, end), SelectedItemLine.sizeDelta.y);
-                        SelectedItemLine.eulerAngles = new(0, 0, Vector2.SignedAngle(Vector3.left, end - start));
-                        if (SelectedItemLine.sizeDelta.x > 20) 
-                        {
-                            StartHandle.gameObject.SetActive(CurrentDragMode is HandleDragMode.None or HandleDragMode.Start);
-                            StartHandle.position = start;
-                            EndHandle.gameObject.SetActive(CurrentDragMode is HandleDragMode.None or HandleDragMode.End);
-                            EndHandle.position = end;
-                            EndHandle.eulerAngles = new(0, 0, Vector2.SignedAngle(Vector2.up, end - start));
-                        }
-                    }
-                } break;
-                case LaneStep step: 
-                {
-                    if (InspectorPanel.main.CurrentHierarchyObject is not Lane currentLane) return;
-
-                    int lindex = Chartmaker.main.CurrentChart.Lanes.IndexOf(currentLane);
-                    if (lindex < 0) goto endSel;
-                    LaneManager lman = Manager.Lanes[lindex];
-
-                    int index = currentLane.LaneSteps.IndexOf(step);
-                    if (index < 0) goto endSel;
-                    LaneStepManager man = lman.Steps[index];
-
-                    if (man.Offset >= Chartmaker.main.SongSource.time)
-                    {
-                        Vector3 offset = lman.FinalRotation * Vector3.forward * (man.Distance - lman.CurrentDistance) + lman.FinalPosition;
-                        Vector2 wcenter = (man.CurrentStep.StartPointPosition + man.CurrentStep.EndPointPosition) / 2;
-                        Vector2 start = MainCamera.WorldToScreenPoint(lman.FinalRotation * man.CurrentStep.StartPointPosition + offset);
-                        Vector2 end = MainCamera.WorldToScreenPoint(lman.FinalRotation * man.CurrentStep.EndPointPosition + offset);
-                        Vector2 center = MainCamera.WorldToScreenPoint(lman.FinalRotation * wcenter + offset);
-                        SelectedItemLine.gameObject.SetActive(true);
-                        SelectedItemLine.position = (start + end) / 2;
-                        SelectedItemLine.sizeDelta = new(Vector2.Distance(start, end), SelectedItemLine.sizeDelta.y);
-                        SelectedItemLine.eulerAngles = new(0, 0, Vector2.SignedAngle(Vector3.left, end - start));
+                        LaneManager laneManager = Manager.Lanes[index];
+                    
+                        Vector2 center = MainCamera.WorldToScreenPoint(laneManager.FinalPosition);
                         CenterHandle.gameObject.SetActive(CurrentDragMode is HandleDragMode.None or HandleDragMode.Center);
                         CenterHandle.position = center;
-                        if (SelectedItemLine.sizeDelta.x > 20) 
+
+                        if ((laneManager.CurrentMesh?.vertexCount ?? 0) > 2)
                         {
-                            StartHandle.gameObject.SetActive(CurrentDragMode is HandleDragMode.None or HandleDragMode.Start);
-                            StartHandle.position = start;
-                            EndHandle.gameObject.SetActive(CurrentDragMode is HandleDragMode.None or HandleDragMode.End);
-                            EndHandle.position = end;
-                            EndHandle.eulerAngles = new(0, 0, Vector2.SignedAngle(Vector2.up, end - start));
+                            Vector2 start = MainCamera.WorldToScreenPoint(laneManager.StartPos);
+                            Vector2 end = MainCamera.WorldToScreenPoint(laneManager.EndPos);
+                        
+                            SelectedItemLine.gameObject.SetActive(true);
+                            SelectedItemLine.position = (start + end) / 2;
+                            SelectedItemLine.sizeDelta = new(Vector2.Distance(start, end), SelectedItemLine.sizeDelta.y);
+                            SelectedItemLine.eulerAngles = new(0, 0, Vector2.SignedAngle(Vector3.left, end - start));
+                        
+                            if (SelectedItemLine.sizeDelta.x > 20) 
+                            {
+                                StartHandle.gameObject.SetActive(CurrentDragMode is HandleDragMode.None or HandleDragMode.Start);
+                                StartHandle.position = start;
                             
+                                EndHandle.gameObject.SetActive(CurrentDragMode is HandleDragMode.None or HandleDragMode.End);
+                                EndHandle.position = end;
+                                EndHandle.eulerAngles = new(0, 0, Vector2.SignedAngle(Vector2.up, end - start));
+                            }
                         }
-                    }
-                } break;
-                case HitObject hit: 
-                {
-                    if (InspectorPanel.main.CurrentHierarchyObject is not Lane currentLane) return;
-
-                    int lindex = Chartmaker.main.CurrentChart.Lanes.IndexOf(currentLane);
-                    if (lindex < 0) goto endSel;
-                    LaneManager lman = Manager.Lanes[lindex];
-
-                    int index = currentLane.Objects.IndexOf(hit);
-                    if (index < 0) goto endSel;
-                    HitObjectManager man = lman.Objects[index];
-
-                    if (man.TimeEnd >= Chartmaker.main.SongSource.time)
+                    } break;
+                    case LaneStep step: 
                     {
-                        Vector2 start = MainCamera.WorldToScreenPoint(lman.FinalRotation * (man.StartPos + lman.CurrentDistance * Vector3.back) + lman.FinalPosition);
-                        Vector2 end = MainCamera.WorldToScreenPoint(lman.FinalRotation * (man.EndPos + lman.CurrentDistance * Vector3.back) + lman.FinalPosition);
-                        Vector2 center = MainCamera.WorldToScreenPoint(lman.FinalRotation * (man.Position + lman.CurrentDistance * Vector3.back) + lman.FinalPosition);
-                        SelectedItemLine.gameObject.SetActive(true);
-                        SelectedItemLine.position = (start + end) / 2;
-                        SelectedItemLine.sizeDelta = new(Vector2.Distance(start, end), SelectedItemLine.sizeDelta.y);
-                        SelectedItemLine.eulerAngles = new(0, 0, Vector2.SignedAngle(Vector3.left, end - start));
-                        CenterHandle.gameObject.SetActive(CurrentDragMode is HandleDragMode.None or HandleDragMode.Center);
-                        CenterHandle.position = center;
-                        if (SelectedItemLine.sizeDelta.x > 20) 
+                        if (InspectorPanel.main.CurrentHierarchyObject is not Lane currentLane) return;
+
+                        int laneIndex = Chartmaker.main.CurrentChart!.Lanes.IndexOf(currentLane);
+                        if (laneIndex < 0)
+                            goto endSelect;
+                    
+                        LaneManager laneManager = Manager.Lanes[laneIndex];
+
+                        int index = currentLane.LaneSteps.IndexOf(step);
+                        if (index < 0)
+                            goto endSelect;
+                    
+                        LaneStepManager laneStepManager = laneManager.Steps[index];
+
+                        if (laneStepManager.Offset >= Chartmaker.main.SongSource.time)
                         {
-                            StartHandle.gameObject.SetActive(CurrentDragMode is HandleDragMode.None or HandleDragMode.Start);
-                            StartHandle.position = start;
-                            EndHandle.gameObject.SetActive(CurrentDragMode is HandleDragMode.None or HandleDragMode.End);
-                            EndHandle.position = end;
-                            EndHandle.eulerAngles = new(0, 0, Vector2.SignedAngle(Vector2.up, end - start));
+                            Vector3 offset = laneManager.FinalRotation * Vector3.forward * (laneStepManager.Distance - laneManager.CurrentDistance) + laneManager.FinalPosition;
+                            Vector2 middlePointPosition = (laneStepManager.CurrentStep.StartPointPosition + laneStepManager.CurrentStep.EndPointPosition) / 2;
+                        
+                            Vector2 start = MainCamera.WorldToScreenPoint(laneManager.FinalRotation * laneStepManager.CurrentStep.StartPointPosition + offset);
+                            Vector2 end  = MainCamera.WorldToScreenPoint(laneManager.FinalRotation * laneStepManager.CurrentStep.EndPointPosition + offset);
+                            Vector2 center = MainCamera.WorldToScreenPoint(laneManager.FinalRotation * middlePointPosition + offset);
+                        
+                            SelectedItemLine.gameObject.SetActive(true);
+                            SelectedItemLine.position = (start + end) / 2;
+                            SelectedItemLine.sizeDelta = new(Vector2.Distance(start, end), SelectedItemLine.sizeDelta.y);
+                            SelectedItemLine.eulerAngles = new(0, 0, Vector2.SignedAngle(Vector3.left, end - start));
+                        
+                            CenterHandle.gameObject.SetActive(CurrentDragMode is HandleDragMode.None or HandleDragMode.Center);
+                            CenterHandle.position = center;
+                        
+                            if (SelectedItemLine.sizeDelta.x > 20) 
+                            {
+                                StartHandle.gameObject.SetActive(CurrentDragMode is HandleDragMode.None or HandleDragMode.Start);
+                                StartHandle.position = start;
+                           
+                                EndHandle.gameObject.SetActive(CurrentDragMode is HandleDragMode.None or HandleDragMode.End);
+                                EndHandle.position = end;
+                                EndHandle.eulerAngles = new(0, 0, Vector2.SignedAngle(Vector2.up, end - start));
+                            
+                            }
                         }
-                    }
-                } break;
-            }
+                    } break;
+                    case HitObject hit: 
+                    {
+                        if (InspectorPanel.main.CurrentHierarchyObject is not Lane currentLane) return;
+
+                        int laneIndex = Chartmaker.main.CurrentChart!.Lanes.IndexOf(currentLane);
+                        if (laneIndex < 0)
+                            goto endSelect;
+                    
+                        LaneManager laneManager = Manager.Lanes[laneIndex];
+
+                        int index = currentLane.Objects.IndexOf(hit);
+                        if (index < 0) 
+                            goto endSelect;
+                    
+                        HitObjectManager hitObjectManager = laneManager.Objects[index];
+
+                        if (hitObjectManager.TimeEnd >= Chartmaker.main.SongSource.time)
+                        {
+                            Vector2 start = MainCamera.WorldToScreenPoint(laneManager.FinalRotation * (hitObjectManager.StartPos + laneManager.CurrentDistance * Vector3.back) + laneManager.FinalPosition);
+                            Vector2 end = MainCamera.WorldToScreenPoint(laneManager.FinalRotation * (hitObjectManager.EndPos + laneManager.CurrentDistance * Vector3.back) + laneManager.FinalPosition);
+                            Vector2 center = MainCamera.WorldToScreenPoint(laneManager.FinalRotation * (hitObjectManager.Position + laneManager.CurrentDistance * Vector3.back) + laneManager.FinalPosition);
+                        
+                            SelectedItemLine.gameObject.SetActive(true);
+                            SelectedItemLine.position = (start + end) / 2;
+                            SelectedItemLine.sizeDelta = new(Vector2.Distance(start, end), SelectedItemLine.sizeDelta.y);
+                            SelectedItemLine.eulerAngles = new(0, 0, Vector2.SignedAngle(Vector3.left, end - start));
+                        
+                            CenterHandle.gameObject.SetActive(CurrentDragMode is HandleDragMode.None or HandleDragMode.Center);
+                            CenterHandle.position = center;
+                        
+                            if (SelectedItemLine.sizeDelta.x > 20) 
+                            {
+                                StartHandle.gameObject.SetActive(CurrentDragMode is HandleDragMode.None or HandleDragMode.Start);
+                                StartHandle.position = start;
+                        
+                                EndHandle.gameObject.SetActive(CurrentDragMode is HandleDragMode.None or HandleDragMode.End);
+                                EndHandle.position = end;
+                                EndHandle.eulerAngles = new(0, 0, Vector2.SignedAngle(Vector2.up, end - start));
+                            }
+                        }
+                    } break;
+                }
             
-            endSel: ;
+                endSelect: ;
+
+                break;
+            }
         }
     }
 
@@ -504,21 +534,27 @@ public class PlayerView : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     {
         if (isAnimating) return;
 
-        bool contains(RectTransform rt) => rt.gameObject.activeInHierarchy && RectTransformUtility.RectangleContainsScreenPoint(rt, eventData.pressPosition, eventData.pressEventCamera);
+        bool Contains(RectTransform rt) => rt.gameObject.activeInHierarchy && RectTransformUtility.RectangleContainsScreenPoint(rt, eventData.pressPosition, eventData.pressEventCamera);
 
         CurrentDragMode = HandleDragMode.None;
 
-        if (contains((RectTransform)CoverToolbar.transform)) CurrentDragMode = HandleDragMode.None;
-        else if (contains(StartHandle)) CurrentDragMode = HandleDragMode.Start;
-        else if (contains(CenterHandle)) CurrentDragMode = HandleDragMode.Center;
-        else if (contains(EndHandle)) CurrentDragMode = HandleDragMode.End;
-        else if (HierarchyPanel.main.CurrentMode == HierarchyMode.PlayableSong) CurrentDragMode = HandleDragMode.Background;
+        if (Contains((RectTransform)CoverToolbar.transform)) 
+            CurrentDragMode = HandleDragMode.None;
+        else if (Contains(StartHandle))
+            CurrentDragMode = HandleDragMode.Start;
+        else if (Contains(CenterHandle)) 
+            CurrentDragMode = HandleDragMode.Center;
+        else if (Contains(EndHandle))
+            CurrentDragMode = HandleDragMode.End;
+        else if (HierarchyPanel.main.CurrentMode == HierarchyMode.PlayableSong)
+            CurrentDragMode = HandleDragMode.Background;
 
         if (CurrentDragMode == HandleDragMode.None) return;
 
         if (HierarchyPanel.main.CurrentMode == HierarchyMode.PlayableSong && CurrentDragMode == HandleDragMode.Background)
         {
-            OnDragEvent += (ev) => {
+            OnDragEvent += (ev) =>
+            {
                 CoverPosition += ev.delta;
             };
         }
@@ -530,15 +566,15 @@ public class PlayerView : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 float scale = CoverBackground.rectTransform.localScale.x;
                 Vector2 offset = new (0, 16);
 
-                OnDragEvent += (ev) => {
+                OnDragEvent += (ev) => 
+                {
                     ChartmakerHistory history = Chartmaker.main.History;
-                    if (CurrentDragMode == HandleDragMode.Center)
+                    switch (CurrentDragMode)
                     {
-                        history.SetItem(layer, "Position", layer.Position + ev.delta / scale);
-                    }
-                    else if (CurrentDragMode == HandleDragMode.Start)
-                    {
-                        history.SetItem(layer, "Scale", layer.Scale + ev.delta.x / 440 / scale);
+                        case HandleDragMode.Center:
+                            history.SetItem(layer, "Position", layer.Position + ev.delta / scale); break;
+                        case HandleDragMode.Start:
+                            history.SetItem(layer, "Scale", layer.Scale + ev.delta.x / 440 / scale); break;
                     }
                     Chartmaker.main.OnHistoryUpdate();
                 };
@@ -549,84 +585,110 @@ public class PlayerView : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             {
                 int index = Chartmaker.main.CurrentChart.Lanes.IndexOf(lane);
                 if (index < 0) return;
-                LaneManager man = Manager.Lanes[index];
-                LaneGroupManager group = null;
-                bool hasGroup = !string.IsNullOrEmpty(man.CurrentLane.Group) 
-                    && Manager.Groups.TryGetValue(man.CurrentLane.Group, out group);
+                LaneManager laneManager = Manager.Lanes[index];
+                LaneGroupManager laneGroupManager = null;
+                bool hasGroup = !string.IsNullOrEmpty(laneManager.CurrentLane.Group) 
+                    && Manager.Groups.TryGetValue(laneManager.CurrentLane.Group, out laneGroupManager);
                 
-                Vector3 inv(Vector3 x) => Quaternion.Inverse(man.FinalRotation) * (x - man.FinalPosition);
-                Vector3 groupInv(Vector3 x) => hasGroup ? Quaternion.Inverse(group.FinalRotation) * (x - group.FinalPosition) : x;
+                Vector3 Inv(Vector3 x) => Quaternion.Inverse(laneManager.FinalRotation) * (x - laneManager.FinalPosition);
+                Vector3 GroupInv(Vector3 x) => hasGroup ? Quaternion.Inverse(laneGroupManager.FinalRotation) * (x - laneGroupManager.FinalPosition) : x;
 
                 Func<Vector3> get = 
-                    CurrentDragMode == HandleDragMode.Start ? (() => inv(man.StartPos)) : 
-                    CurrentDragMode == HandleDragMode.Center ? (() => groupInv(man.FinalPosition)) : 
-                    CurrentDragMode == HandleDragMode.End ? (() => inv(man.EndPos)) : null;
+                    CurrentDragMode switch
+                    {
+                        HandleDragMode.Start => (() => Inv(laneManager.StartPos)),
+                        HandleDragMode.Center => (() => GroupInv(laneManager.FinalPosition)),
+                        HandleDragMode.End => (() => Inv(laneManager.EndPos)),
+                        _ => null
+                    };
                     
                 Vector3 gizmoAnchor = get();
                 
                 OnDragEvent += (ev) => {
                     Vector3? dragPosNull = CurrentDragMode == HandleDragMode.Center 
                         ? (hasGroup
-                            ? RaycastScreenToPlane(ev.position, group.FinalPosition + group.FinalRotation * Vector3.forward * get().z, group.FinalRotation)
+                            ? RaycastScreenToPlane(ev.position, laneGroupManager!.FinalPosition + laneGroupManager.FinalRotation * Vector3.forward * get().z, laneGroupManager.FinalRotation)
                             : RaycastScreenToPlane(ev.position, Vector3.forward * get().z, Quaternion.identity))
-                        : RaycastScreenToPlane(ev.position, man.FinalPosition + man.FinalRotation * Vector3.forward * get().z, man.FinalRotation);
+                        : RaycastScreenToPlane(ev.position, laneManager.FinalPosition + laneManager.FinalRotation * Vector3.forward * get().z, laneManager.FinalRotation);
                     Vector3 dragPos;
                     if (dragPosNull != null)
                     {
-                        if (CurrentDragMode is HandleDragMode.Center) dragPos = groupInv((Vector3)dragPosNull);
-                        else dragPos = inv((Vector3)dragPosNull);
+                        if (CurrentDragMode is HandleDragMode.Center)
+                            dragPos = GroupInv((Vector3)dragPosNull);
+                        else
+                            dragPos = Inv((Vector3)dragPosNull);
+                        
                         if (GridSize[0] > 0)
                         {
                             Vector3 des = new();
-                            for (int x = 0; x < 3; x++) des[x] = Mathf.Round(dragPos[x] / GridSize[0]) * GridSize[0];
+                            
+                            for (int x = 0; x < 3; x++) 
+                                des[x] = Mathf.Round(dragPos[x] / GridSize[0]) * GridSize[0];
+                            
                             dragPos = des;
                         }
                     }
                     else
-                    {
                         dragPos = gizmoAnchor;
-                    }
                 
-                    if (CurrentDragMode == HandleDragMode.Start) 
-                        DoMove<ChartmakerMoveLaneStartAction, Lane>(lane, (Vector3)dragPos - get());
-                    else if (CurrentDragMode == HandleDragMode.Center) 
-                        DoMove<ChartmakerMoveLaneAction, Lane>(lane, (Vector3)dragPos - get());
-                    else if (CurrentDragMode == HandleDragMode.End) 
-                        DoMove<ChartmakerMoveLaneEndAction, Lane>(lane, (Vector3)dragPos - get());
+                    switch (CurrentDragMode)
+                    {
+                        case HandleDragMode.Start:
+                            DoMove<ChartmakerMoveLaneStartAction, Lane>(lane, (Vector3)dragPos - get()); break;
+                        case HandleDragMode.Center:
+                            DoMove<ChartmakerMoveLaneAction, Lane>(lane, (Vector3)dragPos - get()); break;
+                        case HandleDragMode.End:
+                            DoMove<ChartmakerMoveLaneEndAction, Lane>(lane, (Vector3)dragPos - get()); break;
+                    }
                 };                  
             } 
             break;
             
             case LaneStep step:
             {
-                if (InspectorPanel.main.CurrentHierarchyObject is not Lane currentLane) return;
+                if (InspectorPanel.main.CurrentHierarchyObject is not Lane currentLane) 
+                    return;
 
-                int lindex = Chartmaker.main.CurrentChart.Lanes.IndexOf(currentLane);
-                if (lindex < 0) return;
-                LaneManager lman = Manager.Lanes[lindex];
+                int laneIndex = Chartmaker.main.CurrentChart.Lanes.IndexOf(currentLane);
+                if (laneIndex < 0) 
+                    return;
+                
+                LaneManager laneManager = Manager.Lanes[laneIndex];
 
                 int index = currentLane.LaneSteps.IndexOf(step);
-                if (index < 0) return;
-                LaneStepManager man = lman.Steps[index];
+                if (index < 0) 
+                    return;
+                
+                LaneStepManager laneStepManager = laneManager.Steps[index];
 
-                Vector3 inv(Vector3 x) => Quaternion.Inverse(lman.FinalRotation) * (x - lman.FinalPosition);
+                Vector3 Inv(Vector3 x) => Quaternion.Inverse(laneManager.FinalRotation) * (x - laneManager.FinalPosition);
 
                 Func<Vector3> get = 
-                    CurrentDragMode == HandleDragMode.Start ? (() => man.CurrentStep.StartPointPosition) : 
-                    CurrentDragMode == HandleDragMode.Center ? (() => (man.CurrentStep.StartPointPosition + man.CurrentStep.EndPointPosition) / 2) : 
-                    CurrentDragMode == HandleDragMode.End ? (() => man.CurrentStep.EndPointPosition) : null;
+                    CurrentDragMode switch
+                    {
+                        HandleDragMode.Start => (() => laneStepManager.CurrentStep.StartPointPosition),
+                        HandleDragMode.Center => (() => (laneStepManager.CurrentStep.StartPointPosition + laneStepManager.CurrentStep.EndPointPosition) / 2),
+                        HandleDragMode.End => (() => laneStepManager.CurrentStep.EndPointPosition),
+                        _ => null
+                    };
                     
-                Vector3 gizmoAnchor = get();
+                Vector3 gizmoAnchor = get!();
 
                 OnDragEvent += (ev) => {
-                    Vector3? dragPos = RaycastScreenToPlane(ev.position, lman.FinalPosition + lman.FinalRotation * Vector3.forward * (man.Distance - lman.CurrentDistance), lman.FinalRotation);
+                    Vector3? dragPos = 
+                        RaycastScreenToPlane(ev.position, laneManager.FinalPosition + laneManager.FinalRotation * Vector3.forward * (laneStepManager.Distance - laneManager.CurrentDistance), laneManager.FinalRotation);
+                    
                     if (dragPos != null)
                     {
-                        dragPos = inv((Vector3)dragPos);
+                        dragPos = Inv((Vector3)dragPos);
+                        
                         if (GridSize[0] > 0)
                         {
                             Vector3 des = new();
-                            for (int x = 0; x < 3; x++) des[x] = Mathf.Round((dragPos?[x] ?? 0) / GridSize[0]) * GridSize[0];
+                            
+                            for (int x = 0; x < 3; x++)
+                                des[x] = Mathf.Round((dragPos?[x] ?? 0) / GridSize[0]) * GridSize[0];
+                            
                             dragPos = des;
                         } 
                     }
@@ -635,46 +697,65 @@ public class PlayerView : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                         dragPos = gizmoAnchor;
                     }
                 
-                    if (CurrentDragMode == HandleDragMode.Start) 
-                        DoMove<ChartmakerMoveLaneStepStartAction, LaneStep>(step, (Vector3)dragPos - get());
-                    else if (CurrentDragMode == HandleDragMode.Center) 
-                        DoMove<ChartmakerMoveLaneStepAction, LaneStep>(step, (Vector3)dragPos - get());
-                    else if (CurrentDragMode == HandleDragMode.End) 
-                        DoMove<ChartmakerMoveLaneStepEndAction, LaneStep>(step, (Vector3)dragPos - get());
+                    switch (CurrentDragMode)
+                    {
+                        case HandleDragMode.Start:
+                            DoMove<ChartmakerMoveLaneStepStartAction, LaneStep>(step, (Vector3)dragPos - get()); break;
+                        case HandleDragMode.Center:
+                            DoMove<ChartmakerMoveLaneStepAction, LaneStep>(step, (Vector3)dragPos - get()); break;
+                        case HandleDragMode.End:
+                            DoMove<ChartmakerMoveLaneStepEndAction, LaneStep>(step, (Vector3)dragPos - get()); break;
+                    }
                 };
             }
             break;
             
             case HitObject hit:
             {
-                if (InspectorPanel.main.CurrentHierarchyObject is not Lane lane) return;
+                if (InspectorPanel.main.CurrentHierarchyObject is not Lane lane) 
+                    return;
 
                 int lindex = Chartmaker.main.CurrentChart.Lanes.IndexOf(lane);
-                if (lindex < 0) return;
-                LaneManager lman = Manager.Lanes[lindex];
+                
+                if (lindex < 0)
+                    return;
+                
+                LaneManager laneManager = Manager.Lanes[lindex];
 
                 int index = lane.Objects.IndexOf(hit);
-                if (index < 0) return;
-                HitObjectManager man = lman.Objects[index];
+                if (index < 0)
+                    return;
                 
-                Vector3 inv(Vector3 x)
+                HitObjectManager hitObjectManager = laneManager.Objects[index];
+                
+                Vector3 Inv(Vector3 x)
                 {
-                    Vector3 point = Quaternion.Inverse(lman.FinalRotation) * (x - lman.FinalPosition) - Vector3.forward * (man.Position.z - lman.CurrentDistance);
-                    return Vector3.right * (Quaternion.Euler(0, 0, Vector2.SignedAngle(lman.EndPosLocal - lman.StartPosLocal, Vector2.right)) * (point - lman.StartPosLocal)).x / Vector2.Distance(lman.StartPosLocal, lman.EndPosLocal);
+                    Vector3 point = Quaternion.Inverse(laneManager.FinalRotation) * (x - laneManager.FinalPosition) - Vector3.forward * (hitObjectManager.Position.z - laneManager.CurrentDistance);
+                    return Vector3.right * (Quaternion.Euler(0, 0, Vector2.SignedAngle(laneManager.EndPosLocal - laneManager.StartPosLocal, Vector2.right)) * (point - laneManager.StartPosLocal)).x / Vector2.Distance(laneManager.StartPosLocal, laneManager.EndPosLocal);
                 }
 
-                Func<Vector3> get = 
-                    CurrentDragMode == HandleDragMode.Start ? (() => Vector3.right * man.CurrentHit.Position) : 
-                    CurrentDragMode == HandleDragMode.Center ? (() => Vector3.right * (man.CurrentHit.Position + man.CurrentHit.Length / 2)) : 
-                    CurrentDragMode == HandleDragMode.End ? (() => Vector3.right * (man.CurrentHit.Position + man.CurrentHit.Length)) : null;
+                Func<Vector3> get = CurrentDragMode switch
+                    {
+                        HandleDragMode.Start => (() => Vector3.right * hitObjectManager.CurrentHit.Position),
+                        HandleDragMode.Center => (() => Vector3.right * (hitObjectManager.CurrentHit.Position + hitObjectManager.CurrentHit.Length / 2)),
+                        HandleDragMode.End => (() => Vector3.right * (hitObjectManager.CurrentHit.Position + hitObjectManager.CurrentHit.Length)),
+                        _ => null
+                    };
                     
-                Vector3 gizmoAnchor = get();
+                Vector3 gizmoAnchor = get!();
 
-                OnDragEvent += (ev) => {
-                    Vector3? dragPos = RaycastScreenToPlane(ev.position, lman.FinalPosition + lman.FinalRotation * Vector3.forward * (man.Position.z - lman.CurrentDistance), lman.FinalRotation);
+                OnDragEvent += (PointerEventData ev) => 
+                {
+                    Vector3? dragPos = 
+                        RaycastScreenToPlane(
+                            ev.position, 
+                            laneManager.FinalPosition + laneManager.FinalRotation * Vector3.forward * (hitObjectManager.Position.z - laneManager.CurrentDistance), 
+                            laneManager.FinalRotation);
+                   
                     if (dragPos != null)
                     {
-                        dragPos = inv((Vector3)dragPos);
+                        dragPos = Inv((Vector3)dragPos);
+                        
                         if (GridSize[0] > 0)
                         {
                             Vector3 des = new();
@@ -683,16 +764,17 @@ public class PlayerView : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                         } 
                     }
                     else
-                    {
                         dragPos = gizmoAnchor;
-                    }
                 
-                    if (CurrentDragMode == HandleDragMode.Start) 
-                        DoMove<ChartmakerMoveHitObjectStartAction, HitObject>(hit, (Vector3)dragPos - get());
-                    else if (CurrentDragMode == HandleDragMode.Center) 
-                        DoMove<ChartmakerMoveHitObjectAction, HitObject>(hit, (Vector3)dragPos - get());
-                    else if (CurrentDragMode == HandleDragMode.End) 
-                        DoMove<ChartmakerMoveHitObjectEndAction, HitObject>(hit, (Vector3)dragPos - get());
+                    switch (CurrentDragMode)
+                    {
+                        case HandleDragMode.Start:
+                            DoMove<ChartmakerMoveHitObjectStartAction, HitObject>(hit, (Vector3)dragPos - get()); break;
+                        case HandleDragMode.Center:
+                            DoMove<ChartmakerMoveHitObjectAction, HitObject>(hit, (Vector3)dragPos - get()); break;
+                        case HandleDragMode.End:
+                            DoMove<ChartmakerMoveHitObjectEndAction, HitObject>(hit, (Vector3)dragPos - get()); break;
+                    }
                 };
             }
             break;
@@ -863,8 +945,8 @@ public class PlayerView : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (Manager == null) return;
         Manager.Dispose();
         Manager = null;
-        foreach (CMLanePlayer lane in LanePlayers) {
-            foreach (CMHitPlayer hit in lane.HitPlayers) Destroy (hit.gameObject);
+        foreach (ChartmakerLanePlayer lane in LanePlayers) {
+            foreach (ChartmakerHitPlayer hit in lane.HitPlayers) Destroy (hit.gameObject);
             Destroy(lane.gameObject);
         }
         LanePlayers.Clear();

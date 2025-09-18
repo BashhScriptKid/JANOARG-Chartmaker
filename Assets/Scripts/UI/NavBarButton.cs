@@ -14,14 +14,13 @@ public class NavBarButton : Button
     public override void OnPointerDown(PointerEventData eventData)
     {
         if (eventData.button == PointerEventData.InputButton.Left) 
-        {
             onClick.Invoke();
-        }
     }
 
     public override void OnPointerEnter(PointerEventData eventData)
     {
         base.OnPointerEnter(eventData);
+        
         if (ContextMenuHolder.main.ContextMenus.Count > 0 
             && ContextMenuHolder.main.ContextMenus[0].isOpen
             && ContextMenuHolder.main.ContextMenus[0].currentTarget.parent == transform.parent)
@@ -41,7 +40,9 @@ public class NavBarButton : Button
 
     protected override void DoStateTransition(SelectionState state, bool instant)
     {
-        if (isMenuActive) state = SelectionState.Highlighted;
+        if (isMenuActive) 
+            state = SelectionState.Highlighted;
+        
         base.DoStateTransition(state, instant);
     }
 }

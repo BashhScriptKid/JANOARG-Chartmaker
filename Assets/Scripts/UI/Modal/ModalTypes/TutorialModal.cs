@@ -42,21 +42,26 @@ public class TutorialModal : Modal
 
     public void Awake()
     {
-        if (main) Close();
-        else main = this;
+        if (main) 
+            Close();
+        else 
+            main = this;
     }
     
     public new void Start()
     {
         base.Start();
+        
         transform.SetParent(ModalHolder.main.PriorityModalHolder);
         FocusIndicator.SetParent(transform.parent);
+        
         foreach (Tutorial tut in Tutorials.tutorials) 
         {
             TutorialEntry entry = Instantiate(EntrySample, EntryHolder);
             entry.Label.text = tut.Name;
             entry.Button.onClick.AddListener(() => StartTutorial(tut));
         }
+        
         UpdateUI();
     }
 
@@ -66,8 +71,11 @@ public class TutorialModal : Modal
     }
 
     public void Update() {
-        var condition = CurrentTutorial?.Steps[CurrentStep].NextCondition;
-        if (condition != null && condition()) NextStep();
+       
+        Func<bool> condition = CurrentTutorial?.Steps[CurrentStep].NextCondition;
+        
+        if (condition != null && condition())
+            NextStep();
 
         float lerp = 1 - Mathf.Pow(0.01f, Time.deltaTime);
         TutorialProgress.value = Mathf.Lerp(TutorialProgress.value, CurrentStep, lerp);
@@ -77,12 +85,16 @@ public class TutorialModal : Modal
         {
             Vector3[] corners = new Vector3[4];
             CurrentFocusItem.GetWorldCorners(corners);
+            
             Vector2 center = (corners[0] + corners[2]) / 2;
+            
             Vector2 size = corners[2] - corners[0];
 
             FocusIndicator.position = Vector2.Lerp(FocusIndicator.position, center, lerp);
             FocusIndicator.sizeDelta = Vector2.Lerp(FocusIndicator.sizeDelta, size + new Vector2(4, 4), lerp);
+           
             float lerp2 = 1 - Mathf.Pow(0.02f, Time.deltaTime);
+           
             FocusIndicator2.rectTransform.position = Vector2.Lerp(FocusIndicator2.rectTransform.position, center, lerp2);
             FocusIndicator2.rectTransform.sizeDelta = Vector2.Lerp(FocusIndicator2.rectTransform.sizeDelta, size + new Vector2(8, 8), lerp2);
             FocusIndicator2.color = Color.HSVToRGB(Time.time % 1, 1, 1);
@@ -92,85 +104,115 @@ public class TutorialModal : Modal
     public void UpdateUI() 
     {
         bool isActive = CurrentTutorial != null;
+        
         ListSectionHolder.SetActive(!isActive);
         TutorialSectionHolder.SetActive(isActive);
+        
         TitleLabel.text = isActive 
-            ? CurrentTutorial.Name 
-            : "Tutorials";
+            ? CurrentTutorial.Name : "Tutorials";
+        
         CurrentFocusItem = null;
-        if (isActive)
+
+        if (!isActive) 
+            return;
+
+        TutorialStep step = CurrentTutorial.Steps[CurrentStep];
+        
+        bool isLastStep = CurrentStep >= CurrentTutorial.Steps.Length - 1;
+        
+        TutorialProgress.maxValue = CurrentTutorial.Steps.Length - 1;
+        
+        ContentLabel.text = step.Content;
+        
+        NextButton.gameObject.SetActive(step.NextCondition == null && !isLastStep);
+        
+        NextConditionLabel.gameObject.SetActive(step.NextCondition != null);
+        NextConditionLabel.text = step.NextConditionLabel;
+        
+        LastStepActionsHolder.SetActive(isLastStep);
+
+        if (!string.IsNullOrWhiteSpace(step.FocusItemPath)) 
         {
-            TutorialStep step = CurrentTutorial.Steps[CurrentStep];
-            bool isLastStep = CurrentStep >= CurrentTutorial.Steps.Length - 1;
-            TutorialProgress.maxValue = CurrentTutorial.Steps.Length - 1;
-            ContentLabel.text = step.Content;
-            NextButton.gameObject.SetActive(step.NextCondition == null && !isLastStep);
-            NextConditionLabel.gameObject.SetActive(step.NextCondition != null);
-            NextConditionLabel.text = step.NextConditionLabel;
-            LastStepActionsHolder.SetActive(isLastStep);
-
-            if (!string.IsNullOrWhiteSpace(step.FocusItemPath)) 
+            string[] paths = step.FocusItemPath.Split("->");
+            
+            GameObject obj = GameObject.Find(paths[0]);
+            
+            CurrentFocusItem = obj 
+                ? (RectTransform)obj.transform : null;
+            
+            for (int i = 1; i < paths.Length; i++) 
             {
-                string[] paths = step.FocusItemPath.Split("->");
-                GameObject obj = GameObject.Find(paths[0]);
-                CurrentFocusItem = obj ? (RectTransform)obj.transform : null;
-                for (int i = 1; i < paths.Length; i++) 
-                {
-                    CurrentFocusItem = (RectTransform)FindRecursive(CurrentFocusItem, paths[i]);
-                    if (!CurrentFocusItem) break;
-                }
-                FocusIndicator2.rectTransform.position = FocusIndicator.position = new Vector2(Screen.width, Screen.height) / 2;
-                FocusIndicator2.rectTransform.sizeDelta = FocusIndicator.sizeDelta = new Vector2(Screen.width, Screen.height);
+                CurrentFocusItem = (RectTransform)FindRecursive(CurrentFocusItem, paths[i]);
+               
+                if (!CurrentFocusItem) 
+                    break;
             }
-            Debug.Log(CurrentFocusItem);
-
-            if (isLastStep) 
-            {
-                int index = Array.IndexOf(Tutorials.tutorials, CurrentTutorial);
-                bool isLastTutorial = index + 1 >= Tutorials.tutorials.Length;
-
-                NextTutorialButton.SetActive(true);
-                if (isLastTutorial) NextTutorialLabel.text = "Close Tutorial";
-                else NextTutorialLabel.text = "Continue to " + Tutorials.tutorials[index + 1].Name;
-            }
+            
+            FocusIndicator2.rectTransform.position = FocusIndicator.position = new Vector2(Screen.width, Screen.height) / 2;
+            FocusIndicator2.rectTransform.sizeDelta = FocusIndicator.sizeDelta = new Vector2(Screen.width, Screen.height);
         }
+        Debug.Log(CurrentFocusItem);
+
+        if (!isLastStep) 
+            return;
+
+        int index = Array.IndexOf(Tutorials.tutorials, CurrentTutorial);
+        bool isLastTutorial = index + 1 >= Tutorials.tutorials.Length;
+
+        NextTutorialButton.SetActive(true);
+        if (isLastTutorial) 
+            NextTutorialLabel.text = "Close Tutorial";
+        else 
+            NextTutorialLabel.text = "Continue to " + Tutorials.tutorials[index + 1].Name;
     }
 
     public void StartTutorial(Tutorial tutorial)
     {
-        if (tutorial.Checker(() => StartTutorial(tutorial)))
-        {
-            CurrentTutorial = tutorial;
-            TutorialProgress.value = CurrentStep = 0;
-            UpdateUI();
-        }
+        if (!tutorial.Checker(() => StartTutorial(tutorial))) 
+            return;
+
+        CurrentTutorial = tutorial;
+        TutorialProgress.value = CurrentStep = 0;
+       
+        UpdateUI();
     }
 
     public void StartNextTutorial()
     {
         int index = Array.IndexOf(Tutorials.tutorials, CurrentTutorial);
-        if (index + 1 >= Tutorials.tutorials.Length) { Close(); return; }
+
+        if (index + 1 >= Tutorials.tutorials.Length)
+        {
+            Close();
+            return;
+        }
+        
         StartTutorial(Tutorials.tutorials[index + 1]);
     }
 
     public void NextStep() 
     {
         CurrentStep++;
+        
         base.Start();
+        
         UpdateUI();
     }
 
     Transform FindRecursive(Transform parent, string name)
     {
-        if (parent == null) return null;
+        if (parent == null)
+            return null;
 
         Transform res = parent.Find(name);
-        if (res) return res;
+        if (res) 
+            return res;
 
         foreach (Transform child in parent) 
         {
             res = FindRecursive(child, name);
-            if (res) return res;
+            if (res) 
+                return res;
         }
 
         return null;

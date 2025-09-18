@@ -4,26 +4,26 @@ using UnityEngine;
 public class ChartmakerMoveHitObjectStartAction : ChartmakerMoveAction<HitObject>
 {
 
-    public override string GetName()
-    {
-        return "Move Hit Object Start";
-    }
+    public override string GetName() => 
+        "Move Hit Object Start";
 
-    public override void Do(Vector3 offset) 
+    protected override void Do(Vector3 offset) 
     {
         Item.Position += offset.x;
         Item.Length -= offset.x;
-        foreach (Timestamp ts in Item.Storyboard.Timestamps)
+        foreach (Timestamp timestamp in Item.Storyboard.Timestamps)
         {
-            if (ts.ID == TimestampIDs.Position)
+            switch (timestamp.ID)
             {
-                ts.From += offset.x;
-                ts.Target += offset.x;
-            }
-            else if (ts.ID == TimestampIDs.Length)
-            {
-                ts.From -= offset.x;
-                ts.Target -= offset.x;
+                case TimestampIDs.Position:
+                    timestamp.From += offset.x;
+                    timestamp.Target += offset.x;
+                    break;
+                
+                case TimestampIDs.Length:
+                    timestamp.From -= offset.x;
+                    timestamp.Target -= offset.x;
+                    break;
             }
         }
     }

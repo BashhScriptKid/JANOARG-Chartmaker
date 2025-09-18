@@ -8,7 +8,7 @@ public class QuickBuild
     [MenuItem("JANOARG/Quick Build", priority = 1000)]
     public static void Build ()
     {
-        string path = Path.Combine(Path.GetDirectoryName(Application.dataPath), "Builds");
+        string path = Path.Combine(Path.GetDirectoryName(Application.dataPath)!, "Builds");
 
         if (Directory.Exists(path)) Directory.Delete(path, true);
         Directory.CreateDirectory(path);
@@ -51,8 +51,10 @@ public class QuickBuild
             Debug.Log(process.StandardError.ReadToEnd());
             process.WaitForExit();
             Debug.Log("zip exit code = " + process.ExitCode);
-            if (process.ExitCode == 0) File.Delete(scriptPath);
-            else Debug.LogWarning("zip.sh execution failed - please run the script file manually");
+            if (process.ExitCode == 0) 
+                File.Delete(scriptPath);
+            else 
+                Debug.LogWarning("zip.sh execution failed - please run the script file manually");
         #endif
 
         Application.OpenURL("file://" + path);

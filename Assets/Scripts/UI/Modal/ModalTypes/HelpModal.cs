@@ -115,147 +115,158 @@ public class HelpModal : Modal
 
         foreach (string line in page.Lines)
         {
-            if (line == "$title")
+            switch (line)
             {
-                currentLabel = Instantiate(TitleLabel, ContentHolder);
-                currentLabel.text = "";
-                currentMode = "title";
-            } 
-            else if (line == "$t2")
-            {
-                currentLabel = Instantiate(Title2Label, ContentHolder);
-                currentLabel.text = "";
-                currentMode = "t2";
-            } 
-            else if (line == "$")
-            {
-                currentLabel = Instantiate(ContentLabel, ContentHolder);
-                currentLabel.text = "";
-                currentMode = "p";
-            }
-            else if (line == "$pre")
-            {
-                currentLabel = Instantiate(ContentLabel, ContentHolder);
-                currentLabel.text = "";
-                currentMode = "pre";
-            }
-            else if (line == "$layout")
-            {
-                currentLayout = Instantiate(LayoutHolder, ContentHolder);
-                currentMode = "layout";
-            }
-            else if (line == "$n")
-            {
-                currentLabel.text += "\n";
-            }
-            else 
-            {
-                if (currentMode == "layout") 
+                case "$title":
+                    currentLabel = Instantiate(TitleLabel, ContentHolder);
+                    currentLabel.text = "";
+                    currentMode = "title";
+
+                    break;
+                case "$t2":
+                    currentLabel = Instantiate(Title2Label, ContentHolder);
+                    currentLabel.text = "";
+                    currentMode = "t2";
+
+                    break;
+                case "$":
+                    currentLabel = Instantiate(ContentLabel, ContentHolder);
+                    currentLabel.text = "";
+                    currentMode = "p";
+
+                    break;
+                case "$pre":
+                    currentLabel = Instantiate(ContentLabel, ContentHolder);
+                    currentLabel.text = "";
+                    currentMode = "pre";
+
+                    break;
+                case "$layout":
+                    currentLayout = Instantiate(LayoutHolder, ContentHolder);
+                    currentMode = "layout";
+
+                    break;
+                case "$n":
+                    currentLabel.text += "\n";
+
+                    break;
+                default:
                 {
-                    string[] cmds = line.Split(' ');
-                    if (cmds.Length <= 0) continue;
-
-                    if (cmds[0] == "Box") currentBox = Instantiate(LayoutBox, currentLayout.transform);
-                    else continue;
-
-                    Vector2 position = new();
-                    float.TryParse(cmds[1], out position.x);
-                    position.x += 10;
-                    float.TryParse(cmds[2], out position.y);
-                    position.y = -position.y - 10;
-                    currentBox.rectTransform.anchoredPosition = position;
-
-                    Vector2 size = new();
-                    float.TryParse(cmds[3], out size.x);
-                    float.TryParse(cmds[4], out size.y);
-                    currentBox.rectTransform.sizeDelta = size;
-
-                    currentLayout.minHeight = Mathf.Max(currentLayout.minHeight, size.y - position.y + 6);
-
-                    int pos = 5;
-                    currentBox.gameObject.SetActive(false);
-                    while (pos < cmds.Length)
+                    if (currentMode == "layout") 
                     {
-                        if (cmds[pos] == "color")
-                        {
-                            GraphicThemeable themeable = currentBox.gameObject.AddComponent<GraphicThemeable>();
-                            themeable.Target = currentBox;
-                            themeable.ID = cmds[pos+1];
-                            pos += 2;
-                        }
-                        else if (cmds[pos] == "text")
-                        {
-                            TMP_Text text = Instantiate(LayoutText, currentBox.transform);
-                            text.rectTransform.anchoredPosition = Vector2.zero;
-                            
-                            GraphicThemeable themeable = currentBox.gameObject.AddComponent<GraphicThemeable>();
-                            themeable.Target = text;
-                            themeable.ID = cmds[pos+1];
-                            
-                            pos += 2;
+                        string[] cmds = line.Split(' ');
+                        
+                        if (cmds.Length <= 0)
+                            continue;
 
-                            if (cmds[pos].StartsWith('"'))
+                        if (cmds[0] == "Box") 
+                            currentBox = Instantiate(LayoutBox, currentLayout.transform);
+                        else 
+                            continue;
+
+                        Vector2 position = new();
+                     
+                        float.TryParse(cmds[1], out position.x);
+                        position.x += 10;
+                        
+                        float.TryParse(cmds[2], out position.y);
+                        position.y = -position.y - 10;
+                        currentBox.rectTransform.anchoredPosition = position;
+
+                        Vector2 size = new();
+                        float.TryParse(cmds[3], out size.x);
+                        float.TryParse(cmds[4], out size.y);
+                        currentBox.rectTransform.sizeDelta = size;
+
+                        currentLayout.minHeight = Mathf.Max(currentLayout.minHeight, size.y - position.y + 6);
+
+                        int pos = 5;
+                        currentBox.gameObject.SetActive(false);
+                        while (pos < cmds.Length)
+                        {
+                            if (cmds[pos] == "color")
                             {
-                                text.text = cmds[pos][1..];
-                                pos++;
-                                while (pos < cmds.Length)
+                                GraphicThemeable themeable = currentBox.gameObject.AddComponent<GraphicThemeable>();
+                                themeable.Target = currentBox;
+                                themeable.ID = cmds[pos+1];
+                                pos += 2;
+                            }
+                            else if (cmds[pos] == "text")
+                            {
+                                TMP_Text text = Instantiate(LayoutText, currentBox.transform);
+                                text.rectTransform.anchoredPosition = Vector2.zero;
+                            
+                                GraphicThemeable themeable = currentBox.gameObject.AddComponent<GraphicThemeable>();
+                                themeable.Target = text;
+                                themeable.ID = cmds[pos+1];
+                            
+                                pos += 2;
+
+                                if (cmds[pos].StartsWith('"'))
                                 {
-                                    if (cmds[pos].EndsWith('"'))
+                                    text.text = cmds[pos][1..];
+                                    pos++;
+                                    while (pos < cmds.Length)
                                     {
-                                        text.text += " " + cmds[pos][..^1];
-                                        pos++;
-                                        break;
-                                    }
-                                    else 
-                                    {
-                                        text.text += " " + cmds[pos];
-                                        pos++;
+                                        if (cmds[pos].EndsWith('"'))
+                                        {
+                                            text.text += " " + cmds[pos][..^1];
+                                            pos++;
+                                            break;
+                                        }
+                                        else 
+                                        {
+                                            text.text += " " + cmds[pos];
+                                            pos++;
+                                        }
                                     }
                                 }
+                                else 
+                                {
+                                    text.text = cmds[pos];
+                                    pos++;
+                                }
+
+                            }
+                            else if (cmds[pos] == "border")
+                            {
+                                var border = Instantiate(LayoutBorder, currentBox.transform);
+                                border.rectTransform.anchoredPosition = Vector2.zero;
+                                border.rectTransform.sizeDelta = Vector2.zero;
+
+                                GraphicThemeable themeable = border.gameObject.AddComponent<GraphicThemeable>();
+                                themeable.Target = border;
+                                themeable.ID = cmds[pos+1];
+
+                                pos += 2;
+                            }
+                            else if (cmds[pos] == "shadow")
+                            {
+                                var shadow = currentBox.gameObject.AddComponent<Shadow>();
+                                shadow.effectDistance = new(2, -2);
+
+                                ShadowThemeable themeable = currentBox.gameObject.AddComponent<ShadowThemeable>();
+                                themeable.Target = shadow;
+                                themeable.ID = cmds[pos+1];
+                            
+                                currentLayout.minHeight = Mathf.Max(currentLayout.minHeight, size.y - position.y + 8);
+
+                                pos += 2;
                             }
                             else 
                             {
-                                text.text = cmds[pos];
-                                pos++;
+                                break;
                             }
-
                         }
-                        else if (cmds[pos] == "border")
-                        {
-                            var border = Instantiate(LayoutBorder, currentBox.transform);
-                            border.rectTransform.anchoredPosition = Vector2.zero;
-                            border.rectTransform.sizeDelta = Vector2.zero;
-
-                            GraphicThemeable themeable = border.gameObject.AddComponent<GraphicThemeable>();
-                            themeable.Target = border;
-                            themeable.ID = cmds[pos+1];
-
-                            pos += 2;
-                        }
-                        else if (cmds[pos] == "shadow")
-                        {
-                            var shadow = currentBox.gameObject.AddComponent<Shadow>();
-                            shadow.effectDistance = new(2, -2);
-
-                            ShadowThemeable themeable = currentBox.gameObject.AddComponent<ShadowThemeable>();
-                            themeable.Target = shadow;
-                            themeable.ID = cmds[pos+1];
-                            
-                            currentLayout.minHeight = Mathf.Max(currentLayout.minHeight, size.y - position.y + 8);
-
-                            pos += 2;
-                        }
-                        else 
-                        {
-                            break;
-                        }
+                        currentBox.gameObject.SetActive(true);
                     }
-                    currentBox.gameObject.SetActive(true);
-                }
-                else 
-                {
-                    currentLabel.text += line;
-                    if (currentMode == "pre") currentLabel.text += "\n";
+                    else 
+                    {
+                        currentLabel.text += line;
+                        if (currentMode == "pre") currentLabel.text += "\n";
+                    }
+
+                    break;
                 }
             }
         }

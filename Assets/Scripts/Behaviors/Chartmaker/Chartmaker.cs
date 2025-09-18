@@ -55,7 +55,7 @@ public class Chartmaker : MonoBehaviour
     [Space]
     public Themer Themer;
 
-    public Task ActiveTask;
+    private Task ActiveTask;
 
     bool lastPlayed;
 
@@ -128,16 +128,16 @@ public class Chartmaker : MonoBehaviour
 
     public void OpenSongModal() 
     {
-        FileModal modal = ModalHolder.main.Spawn<FileModal>();
-        modal.AcceptedTypes = new List<FileModalFileType> {
+        FileModal dialogModal = ModalHolder.main.Spawn<FileModal>();
+        dialogModal.AcceptedTypes = new List<FileModalFileType> {
             new("JANOARG Playable Song file", "japs"),
             new("All files"),
         };
-        modal.HeaderLabel.text = "Select a Playable Song...";
-        modal.SelectLabel.text = "Open";
-        modal.OnSelect.AddListener(() => {
+        dialogModal.HeaderLabel.text = "Select a Playable Song...";
+        dialogModal.SelectLabel.text = "Open";
+        dialogModal.OnSelect.AddListener(() => {
             LoaderPanel.SetNoSong();
-            StartCoroutine(OpenSongRoutine(modal.SelectedEntry.Path));
+            StartCoroutine(OpenSongRoutine(dialogModal.SelectedEntry.Path));
         });
     }
 
@@ -171,7 +171,7 @@ public class Chartmaker : MonoBehaviour
         else if (index >= 0) list.RemoveAt(index);
         list.Insert(0, new RecentSong {
             Path = CurrentSongPath,
-            IconPath = Path.Combine(Path.GetDirectoryName(CurrentSongPath), CurrentSong.Cover.IconTarget),
+            IconPath = Path.Combine(Path.GetDirectoryName(CurrentSongPath)!, CurrentSong.Cover.IconTarget),
             SongName = CurrentSong.SongName,
             SongArtist = CurrentSong.SongArtist,
             BackgroundColor = CurrentSong.BackgroundColor,
@@ -211,8 +211,8 @@ public class Chartmaker : MonoBehaviour
         if (!ActiveTask.IsCompletedSuccessfully) 
         {
             Loader.SetActive(false);
-            DialogModal modal = ModalHolder.main.Spawn<DialogModal>();
-            modal.SetDialog("Parsing Error", ActiveTask.Exception.Message, new string[] {"Ok"}, _ => {});
+            DialogModal dialogModal = ModalHolder.main.Spawn<DialogModal>();
+            dialogModal.SetDialog("Parsing Error", ActiveTask.Exception!.Message, new string[] {"Ok"}, _ => {});
             yield break;
         }
 
@@ -223,7 +223,7 @@ public class Chartmaker : MonoBehaviour
         LoaderPanel.ProgressLabel.text = "Loading audio file...";
         LoaderPanel.ProgressBar.value = .2f;
 
-        UnityWebRequest stream = UnityWebRequestMultimedia.GetAudioClip("file://" + Path.Combine(Path.GetDirectoryName(path), CurrentSong.ClipPath).Replace("+", "%2B"), AudioType.UNKNOWN);
+        UnityWebRequest stream = UnityWebRequestMultimedia.GetAudioClip("file://" + Path.Combine(Path.GetDirectoryName(path)!, CurrentSong!.ClipPath).Replace("+", "%2B"), AudioType.UNKNOWN);
         Debug.Log(stream.url);
         stream.SendWebRequest();
         while (!stream.isDone) 
@@ -235,8 +235,8 @@ public class Chartmaker : MonoBehaviour
         if (stream.result != UnityWebRequest.Result.Success)
         {
             Loader.SetActive(false);
-            DialogModal modal = ModalHolder.main.Spawn<DialogModal>();
-            modal.SetDialog("Fetch Error", "Couldn't fetch the audio file!\n" + stream.error, new string[] {"Ok"}, _ => {});
+            DialogModal dialogModal = ModalHolder.main.Spawn<DialogModal>();
+            dialogModal.SetDialog("Fetch Error", "Couldn't fetch the audio file!\n" + stream.error, new string[] {"Ok"}, _ => {});
             yield break;
         }
         else
@@ -248,8 +248,8 @@ public class Chartmaker : MonoBehaviour
             catch (Exception e)
             {
                 Loader.SetActive(false);
-                DialogModal modal = ModalHolder.main.Spawn<DialogModal>();
-                modal.SetDialog("Fetch Error", "Couldn't fetch the audio file!\n" + e.Message, new string[] {"Ok"}, _ => {});
+                DialogModal dialogModal = ModalHolder.main.Spawn<DialogModal>();
+                dialogModal.SetDialog("Fetch Error", "Couldn't fetch the audio file!\n" + e.Message, new string[] {"Ok"}, _ => {});
                 yield break;
             }
         }
@@ -262,7 +262,7 @@ public class Chartmaker : MonoBehaviour
             bool isError = false;
             string error = "";
 
-            string coverPath = Path.Combine(Path.GetDirectoryName(path), layer.Target);
+            string coverPath = Path.Combine(Path.GetDirectoryName(path)!, layer.Target);
             if (!File.Exists(coverPath))
             {
                 error = "The target file does not exist in song folder. Are you trying to delete it?";
@@ -274,46 +274,50 @@ public class Chartmaker : MonoBehaviour
             yield return new WaitUntil(() => ActiveTask.IsCompleted);
             if (!ActiveTask.IsCompletedSuccessfully) 
             {
-                error = ActiveTask.Exception.Message;
+                error = ActiveTask.Exception!.Message;
                 isError = true;
                 goto layerLoadEnd;
             }
 
             Texture2D texture = new (1, 1);
-            ImageConversion.LoadImage(texture, ((Task<byte[]>)ActiveTask).Result);
+            texture.LoadImage(((Task<byte[]>)ActiveTask).Result);
             layer.Texture = texture;
 
             // I tried to use a try-catch block but id didn't go well with yield statements
             layerLoadEnd:
             if (isError) 
             {
-                DialogModal modal = ModalHolder.main.Spawn<DialogModal>();
-                IEnumerator thing()
+                DialogModal dialogModal = ModalHolder.main.Spawn<DialogModal>();
+                IEnumerator ModalSetParent()
                 {
                     yield return null;
-                    modal.transform.SetParent(Loader.transform);
+                    dialogModal.transform.SetParent(Loader.transform);
                 }
-                StartCoroutine(thing());
+                StartCoroutine(ModalSetParent());
                 int choice = 0;
-                modal.SetDialog("Error", 
+                dialogModal.SetDialog("Error", 
                     "Cover Layer \"" + layer.Target + "\" failed to load:\n" + error + "\n\nWhat would you like to do?", 
-                    new string[] {"Cancel Loading", "", "Remove Layer", "Try Again"}, 
+                    new[] {"Cancel Loading", "", "Remove Layer", "Try Again"}, 
                     x => choice = x);
-                yield return new WaitUntil(() => !modal);
-                if (choice == 0) 
+                yield return new WaitUntil(() => !dialogModal);
+                switch (choice)
                 {
-                    Loader.SetActive(false);
-                    yield break;
-                }
-                else if (choice == 2) 
-                {
-                    CurrentSong.Cover.Layers.RemoveAt(i);
-                    InspectorPanel.main.IsCoverDirty = false;
-                    i--;
-                }
-                else if (choice == 3) 
-                {
-                    i--;
+                    // Cancel loading
+                    case 0:
+                        Loader.SetActive(false);
+                        yield break;
+                    // Remove layer
+                    case 2:
+                        CurrentSong.Cover.Layers.RemoveAt(i);
+                        InspectorPanel.main.IsCoverDirty = false;
+                        i--;
+
+                        break;
+                    // Try again
+                    case 3:
+                        i--;
+
+                        break;
                 }
             }
             
@@ -322,20 +326,29 @@ public class Chartmaker : MonoBehaviour
         }
 
         Loader.SetActive(false);
-        if (HomeModal.main) HomeModal.main.Close();
+        
+        if (HomeModal.main) 
+            HomeModal.main.Close();
 
         SongSource.time = 0;
+        
         InformationBar.main.UpdateSongButton();
         InformationBar.main.UpdateChartButton();
+        
         InspectorPanel.main.UpdateButtons();
         InspectorPanel.main.SetObject(null);
         InspectorPanel.main.CurrentHierarchyObject = null;
+        
         HierarchyPanel.main.SetMode(HierarchyMode.PlayableSong);
+        
         TimelinePanel.main.UpdatePeekLimit();
         TimelinePanel.main.UpdateItems();
+        
         PlayerView.main.UpdateObjects();
+        
         History = new();
         OnHistoryUpdate();
+        
         ClipboardItem = null;
         OnClipboardUpdate();
 
@@ -347,7 +360,7 @@ public class Chartmaker : MonoBehaviour
 
     public void OpenChart(ExternalChartMeta chart)
     {
-        string path = Path.Combine(Path.GetDirectoryName(CurrentSongPath), chart.Target + ".jac");
+        string path = Path.Combine(Path.GetDirectoryName(CurrentSongPath)!, chart.Target + ".jac");
         CurrentChart = JACDecoder.Decode(File.ReadAllText(path));
         CurrentChartPath = path;
         CurrentChartMeta = chart;
@@ -376,8 +389,8 @@ public class Chartmaker : MonoBehaviour
         if (!ActiveTask.IsCompletedSuccessfully) 
         {
             Loader.SetActive(false);
-            DialogModal modal = ModalHolder.main.Spawn<DialogModal>();
-            modal.SetDialog("Parsing Error", ActiveTask.Exception.Message, new string[] {"Ok"}, _ => {});
+            DialogModal dialogModal = ModalHolder.main.Spawn<DialogModal>();
+            dialogModal.SetDialog("Parsing Error", ActiveTask.Exception!.Message, new string[] {"Ok"}, _ => {});
             yield break;
         }
 
@@ -418,9 +431,9 @@ public class Chartmaker : MonoBehaviour
         yield return new WaitUntil(() => ActiveTask.IsCompleted);
         if (!ActiveTask.IsCompletedSuccessfully) 
         {
-        Loader.SetActive(false);
-            DialogModal modal = ModalHolder.main.Spawn<DialogModal>();
-            modal.SetDialog("Error", ActiveTask.Exception.Message, new string[] {"Ok"}, _ => {});
+            Loader.SetActive(false);
+            DialogModal dialogModal = ModalHolder.main.Spawn<DialogModal>();
+            dialogModal.SetDialog("Error", ActiveTask.Exception!.Message, new string[] {"Ok"}, _ => {});
             Debug.LogException(ActiveTask.Exception);
             yield break;
         }
@@ -465,8 +478,8 @@ public class Chartmaker : MonoBehaviour
         if (!ActiveTask.IsCompletedSuccessfully) 
         {
             Loader.SetActive(false);
-            DialogModal modal = ModalHolder.main.Spawn<DialogModal>();
-            modal.SetDialog("Error", ActiveTask.Exception.Message, new string[] {"Ok"}, _ => {});
+            DialogModal dialogModal = ModalHolder.main.Spawn<DialogModal>();
+            dialogModal.SetDialog("Error", ActiveTask.Exception!.Message, new string[] {"Ok"}, _ => {});
             Debug.LogException(ActiveTask.Exception);
             yield break;
         }
@@ -541,16 +554,19 @@ public class Chartmaker : MonoBehaviour
 
     public static string GetItemName(object item) => item switch
     {
-        IList list =>       list.Count > 0 ? (list.Count > 1 ? list.Count + " " + GetItemName(list[0]) + "s" : GetItemName(list[0])) : "Empty List",
-        Chart =>            "Chart",
-        BPMStop =>          "BPM Stop",
-        HitStyle =>         "Hit Style",
-        LaneStyle =>        "Lane Style",
-        LaneGroup =>        "Lane Group",
-        Lane =>             "Lane",
-        LaneStep =>         "Lane Step",
-        HitObject =>        "Hit Object",
-        _ =>                item.ToString()
+        IList list =>       list.Count > 0 
+                                ? list.Count > 1 
+                                    ? list.Count + " " + GetItemName(list[0]) + "s" : GetItemName(list[0]) 
+                                : "Empty List",
+        Chart      =>       "Chart",
+        BPMStop    =>       "BPM Stop",
+        HitStyle   =>       "Hit Style",
+        LaneStyle  =>       "Lane Style",
+        LaneGroup  =>       "Lane Group",
+        Lane       =>       "Lane",
+        LaneStep   =>       "Lane Step",
+        HitObject  =>       "Hit Object",
+        _          =>       item.ToString()
     };
 
     public void OnHistoryDo()
@@ -562,20 +578,25 @@ public class Chartmaker : MonoBehaviour
         IsDirty = true;
     }
 
-    bool recursionBuster;
+    bool _RecursionBuster;
 
     public void OnHistoryUpdate()
     {
-        TimelinePanel tl = TimelinePanel.main;
+        TimelinePanel timeline = TimelinePanel.main;
 
-        tl.UndoButton.interactable = History.ActionsBehind.Count > 0;
-        tl.UndoButtonGroup.alpha = tl.UndoButton.interactable ? 1 : .5f;
+        timeline.UndoButton.interactable = History.ActionsBehind.Count > 0;
+        timeline.UndoButtonGroup.alpha   = timeline.UndoButton.interactable
+            ? 1 : .5f;
 
-        tl.RedoButton.interactable = History.ActionsAhead.Count > 0;
-        tl.RedoButtonGroup.alpha = tl.RedoButton.interactable ? 1 : .5f;
+        timeline.RedoButton.interactable = History.ActionsAhead.Count > 0;
+        timeline.RedoButtonGroup.alpha   = timeline.RedoButton.interactable 
+            ? 1 : .5f;
 
-        tl.ActionsBehindCounter.text = Mathf.Min(History.ActionsBehind.Count, 999).ToString();
-        tl.ActionsAheadCounter.text = Mathf.Min(History.ActionsAhead.Count, 999).ToString();
+        timeline.ActionsBehindCounter.text = History.ActionsBehind.Count > 999 
+            ? "999+" : History.ActionsBehind.Count.ToString();;
+        
+        timeline.ActionsAheadCounter.text  = History.ActionsAhead.Count > 999 
+            ? "999+" : History.ActionsAhead.Count.ToString();;
     }
 
     public void DoAction(IChartmakerAction action)
@@ -588,12 +609,19 @@ public class Chartmaker : MonoBehaviour
 
     public void SetItem(object target, string field, object value)
     {
-        if (recursionBuster) return;
+        if (_RecursionBuster)
+            return;
+        
         History.SetItem(target, field, value);
-        if (field == "Offset") SortList(GetListTarget(target));
+        
+        if (field == "Offset") 
+            SortList(GetListTarget(target));
+        
         TimelinePanel.main.UpdateItems();
         PlayerView.main.UpdateObjects();
+        
         IsDirty = true;
+        
         OnHistoryUpdate();
     }
 
@@ -605,30 +633,57 @@ public class Chartmaker : MonoBehaviour
         HitStyle    => CurrentChart.Palette.HitStyles,
         LaneGroup   => CurrentChart.Groups,
         Lane        => CurrentChart.Lanes,
-        LaneStep    => InspectorPanel.main.CurrentHierarchyObject is Lane lane ? lane.LaneSteps : new(),
-        HitObject   => InspectorPanel.main.CurrentHierarchyObject is Lane lane ? lane.Objects : new(),
+        LaneStep    => InspectorPanel.main.CurrentHierarchyObject is Lane lane 
+            ? lane.LaneSteps : new(),
+        HitObject   => InspectorPanel.main.CurrentHierarchyObject is Lane lane 
+            ? lane.Objects : new(),
         null        => throw new ArgumentException("Object can't be null"),
         _           => throw new ArgumentException("No list target found for " + obj.GetType()),
     };
 
     public static void SortList(IList list)
     {
-        if (list is List<BPMStop> bsl)          bsl.Sort((x, y) => x.Offset.CompareTo(y.Offset));
-        else if (list is List<Timestamp> tsl)   tsl.Sort((x, y) => x.Offset.CompareTo(y.Offset));
-        else if (list is List<Lane> lal)        lal.Sort((x, y) => x.LaneSteps[0].Offset.CompareTo(y.LaneSteps[0].Offset));
-        else if (list is List<LaneStep> lsl)    lsl.Sort((x, y) => x.Offset.CompareTo(y.Offset));
-        else if (list is List<HitObject> hol)   hol.Sort((x, y) => x.Offset.CompareTo(y.Offset));
+        switch (list)
+        {
+            case List<BPMStop> bpmStopList:
+                bpmStopList.Sort((x, y) => x.Offset.CompareTo(y.Offset));
+                break;
+            
+            case List<Timestamp> timeStampList:
+                timeStampList.Sort((x, y) => x.Offset.CompareTo(y.Offset));
+                break;
+            
+            case List<Lane> laneList:
+                laneList.Sort((x, y) => x.LaneSteps[0].Offset.CompareTo(y.LaneSteps[0].Offset));
+                break;
+            
+            case List<LaneStep> laneStepList:
+                laneStepList.Sort((x, y) => x.Offset.CompareTo(y.Offset));
+                break;
+            case List<HitObject> hitObjectList:
+                hitObjectList.Sort((x, y) => x.Offset.CompareTo(y.Offset));
+                break;
+        }
     }
 
     public void DeleteItem(object obj, bool setNull = true)
     {
-        IList list = obj is IList li ? li : new [] { obj };
-        bool listType<T>() => list[0] is T;
+        IList list = obj is IList listObject
+            ? listObject : new [] { obj };
+        
+        bool ListType<T>() => list[0] is T;
+        
         IChartmakerAction action;
-        if (obj is Lane || listType<Lane>()) {
+        
+        if (obj is Lane || ListType<Lane>()) 
+        {
             SortedDictionary<int, Lane> items = new ();
-            foreach (object item in list) items.Add(CurrentChart.Lanes.IndexOf((Lane)item), (Lane)item);
-            action = new ChartmakerIndexedDeleteAction<Lane> {
+            
+            foreach (object item in list) 
+                items.Add(CurrentChart.Lanes.IndexOf((Lane)item), (Lane)item);
+            
+            action = new ChartmakerIndexedDeleteAction<Lane> 
+            {
                 Target = CurrentChart.Lanes,
                 Items = items,
             };
@@ -638,25 +693,33 @@ public class Chartmaker : MonoBehaviour
                 Item = obj,
             };
         }
-        DoAction(action);
-        if (setNull) InspectorPanel.main.UnsetObject();
+        DoAction(action)
+            ;
+        if (setNull)
+            InspectorPanel.main.UnsetObject();
     }
 
     public void AddItem(object obj)
     {
-        ChartmakerAddAction action = new ChartmakerAddAction {
+        ChartmakerAddAction action = new ChartmakerAddAction 
+        {
             Target = GetListTarget(obj),
             Item = obj,
         };
+        
         DoAction(action);
         InspectorPanel.main.SetObject(obj, false);
     }
+    
     public void AddItem(object obj, float startingOffset)
     {
-        IList list = obj is IList l ? l : new [] { obj };
-        if (list[0] is BPMStop fbs)
+        IList list = obj is IList listObject 
+            ? listObject : new [] { obj };
+        
+        if (list[0] is BPMStop firstBpmStop)
         {
             float minOffset = float.PositiveInfinity;
+            
             foreach (object item in list)
             {
                 BPMStop stop = (BPMStop)item;
@@ -674,9 +737,12 @@ public class Chartmaker : MonoBehaviour
     }
     public void AddItem(object obj, BeatPosition startingOffset)
     {
-        IList list = obj is IList l ? l : new [] { obj };
+        IList list = obj is IList listObject 
+            ? listObject : new [] { obj };
+        
         FieldInfo field = list[0].GetType().GetField("Offset");
-        if (list[0] is Lane fl)
+        
+        if (list[0] is Lane firstLane)
         {
             BeatPosition minOffset = new (int.MaxValue, int.MaxValue - 1, int.MaxValue);
 
@@ -736,42 +802,46 @@ public class Chartmaker : MonoBehaviour
 
 
     public object SmartClone(object obj) => obj switch {
-        IList list    => ListClone(list),
-        Timestamp ts  => ts.DeepClone(),
-        BPMStop bs    => bs.DeepClone(),
-        LaneStyle ls  => ls.DeepClone(),
-        HitStyle hs   => hs.DeepClone(),
-        LaneGroup lg  => lg.DeepClone(),
-        Lane la       => la.DeepClone(),
-        LaneStep st   => st.DeepClone(),
-        HitObject ho  => ho.DeepClone(),
-        null          => throw new ArgumentException("Object can't be null"),
-        _             => throw new AssertionException("Unknown object type " + obj.GetType(), "Unknown object type " + obj.GetType()),
+        IList list           => ListClone(list),
+        Timestamp timestamp  => timestamp.DeepClone(),
+        BPMStop bpmStop      => bpmStop.DeepClone(),
+        LaneStyle laneStyle  => laneStyle.DeepClone(),
+        HitStyle hitStyle    => hitStyle.DeepClone(),
+        LaneGroup laneGroup  => laneGroup.DeepClone(),
+        Lane lane            => lane.DeepClone(),
+        LaneStep laneStep    => laneStep.DeepClone(),
+        HitObject hitObject  => hitObject.DeepClone(),
+        null                 => throw new ArgumentException("Object can't be null"),
+        _                    => throw new AssertionException("Unknown object type " + obj.GetType(), "Unknown object type " + obj.GetType()),
     };
 
     public void Undo(int times = 1)
     {
-        recursionBuster = true;
+        _RecursionBuster = true;
         History.Undo(times);
         OnHistoryDo();
         OnHistoryUpdate();
-        recursionBuster = false;
+        _RecursionBuster = false;
     }
 
     public void Redo(int times = 1)
     {
-        recursionBuster = true;
+        _RecursionBuster = true;
         History.Redo(times);
         OnHistoryDo();
         OnHistoryUpdate();
-        recursionBuster = false;
+        _RecursionBuster = false;
     }
 
     public bool CanCopy()
     {
-        if (InspectorPanel.main.CurrentTimestamp?.Count > 0) return true;
+        if (InspectorPanel.main.CurrentTimestamp?.Count > 0)
+            return true;
+        
         object currentItem = InspectorPanel.main.CurrentObject;
-        return currentItem is not (null or PlayableSong or Cover or CoverLayer or Chart or Palette or CameraController) && currentItem != CurrentChart?.Groups;
+        
+        return currentItem is not (null or PlayableSong or Cover or CoverLayer or Chart or Palette or CameraController) 
+               && currentItem != CurrentChart?.Groups;
     }
 
     public bool CanPaste()
@@ -781,7 +851,9 @@ public class Chartmaker : MonoBehaviour
 
     public bool CanRename()
     {
-        if (InspectorPanel.main.CurrentTimestamp?.Count > 0) return false;
+        if (InspectorPanel.main.CurrentTimestamp?.Count > 0) 
+            return false;
+        
         object currentItem = InspectorPanel.main.CurrentObject;
         return currentItem is (LaneGroup or Lane or HitStyle or LaneStyle);
     }
@@ -789,45 +861,56 @@ public class Chartmaker : MonoBehaviour
 
     public void OnClipboardUpdate()
     {
-        TimelinePanel tl = TimelinePanel.main;
+        TimelinePanel timeline = TimelinePanel.main;
         object currentItem = InspectorPanel.main.CurrentObject;
         
-        tl.CutButton.interactable = tl.CopyButton.interactable = CanCopy();
-        tl.CutButtonGroup.alpha = tl.CopyButtonGroup.alpha = tl.CutButton.interactable ? 1 : .5f;
+        timeline.CutButton.interactable = timeline.CopyButton.interactable = CanCopy();
+        timeline.CutButtonGroup.alpha   = timeline.CopyButtonGroup.alpha   = timeline.CutButton.interactable 
+            ? 1 : .5f;
 
-        tl.PasteButton.interactable = CanPaste();
-        tl.PasteButtonGroup.alpha = tl.PasteButton.interactable ? 1 : .5f;
+        timeline.PasteButton.interactable = CanPaste();
+        timeline.PasteButtonGroup.alpha   = timeline.PasteButton.interactable ? 1 : .5f;
     }
     
     public void Cut()
     {
-        if (!CanCopy()) return;
-        if ((InspectorPanel.main.CurrentTimestamp?.Count ?? 0) > 0) ClipboardItem = InspectorPanel.main.CurrentTimestamp;
-        else ClipboardItem = InspectorPanel.main.CurrentObject;
+        if (!CanCopy())
+            return;
+        
+        if ((InspectorPanel.main.CurrentTimestamp?.Count ?? 0) > 0) 
+            ClipboardItem = InspectorPanel.main.CurrentTimestamp;
+        else 
+            ClipboardItem = InspectorPanel.main.CurrentObject;
+        
         DeleteItem(ClipboardItem);
         InspectorPanel.main.UnsetObject();
     }
 
     public void Copy()
     {
-        if (!CanCopy()) return;
-        if ((InspectorPanel.main.CurrentTimestamp?.Count ?? 0) > 0) ClipboardItem = InspectorPanel.main.CurrentTimestamp;
-        else ClipboardItem = InspectorPanel.main.CurrentObject;
+        if (!CanCopy()) 
+            return;
+        
+        if ((InspectorPanel.main.CurrentTimestamp?.Count ?? 0) > 0)
+            ClipboardItem = InspectorPanel.main.CurrentTimestamp;
+        else
+            ClipboardItem = InspectorPanel.main.CurrentObject;
+        
         OnClipboardUpdate();
     }
 
     public void Paste()
     {
-        if (!CanPaste()) return;
+        if (!CanPaste()) 
+            return;
+        
         object obj = SmartClone(ClipboardItem);
+        
         if (obj is BPMStop or List<BPMStop> || obj is IList list && list[0] is BPMStop)
-        {
             AddItem(obj, SongSource.time);
-        }
         else 
-        {
             AddItem(obj, TimelinePanel.main.ToRoundedBeat(CurrentSong.Timing.ToBeat(SongSource.time)));
-        }
+        
         InspectorPanel.main.SetObject(obj, false);
     }
 

@@ -69,12 +69,15 @@ public class EasingPicker : Picker, IPointerMoveHandler, IPointerDownHandler, IP
             var Item = item;
             string name = Enum.GetName(typeof(EaseFunction), item);
             ContextMenuItem holder = Instantiate(ItemSample, EaseFunctionsHolder);
+            
             holder.ContentLabel.text = name;
             holder.Button.onClick.AddListener(() => {
                 SetEaseFunction((EaseFunction)Item);
             });
+           
             holder.ShortcutLabel.text = "";
             holder.SubmenuIndicator.SetActive(false);
+            
             EaseFunctions.Add(holder);
         }
         foreach (var item in Enum.GetValues(typeof(EaseMode)))
@@ -82,12 +85,15 @@ public class EasingPicker : Picker, IPointerMoveHandler, IPointerDownHandler, IP
             var Item = item;
             string name = Enum.GetName(typeof(EaseMode), item);
             ContextMenuItem holder = Instantiate(ItemSample, EaseModesHolder);
+            
             holder.ContentLabel.text = name;
             holder.ShortcutLabel.text = "";
+           
             holder.SubmenuIndicator.SetActive(false);
             holder.Button.onClick.AddListener(() => {
                 SetEaseMode((EaseMode)Item);
             });
+            
             EaseModes.Add(holder);
         }
 
@@ -95,6 +101,7 @@ public class EasingPicker : Picker, IPointerMoveHandler, IPointerDownHandler, IP
         {
             Graphic ball = Instantiate(BallSample, BallHolder);
             ball.gameObject.SetActive(true);
+            
             Balls.Add(ball);
         }
 
@@ -109,6 +116,7 @@ public class EasingPicker : Picker, IPointerMoveHandler, IPointerDownHandler, IP
         {
             loopTimer += Time.deltaTime / 1.5f;
             loopTimer %= 1;
+            
             UpdateBalls();
         }
     }
@@ -118,56 +126,70 @@ public class EasingPicker : Picker, IPointerMoveHandler, IPointerDownHandler, IP
         base.Open();
         
         UpdateUI();
+        
         if (CurrentEasing is CubicBezierEaseDirective cbed) 
         {
             ResetBezierFields();
         }
     }
 
-    public void CacheEase() 
+    public void CacheEase()
     {
-        if (CurrentEasing is BasicEaseDirective bed) cachedBasicEase = bed;
-        else if (CurrentEasing is CubicBezierEaseDirective cbed) cachedBezierEase = cbed;
+        switch (CurrentEasing)
+        {
+            case BasicEaseDirective basicEase:
+                cachedBasicEase = basicEase;
+
+                break;
+            
+            case CubicBezierEaseDirective cubicBezierEase:
+                cachedBezierEase = cubicBezierEase;
+
+                break;
+        }
     }
 
     public void UpdateUI()
     {
         values = new float[values.Length];
+       
         float step = 1.0f / (values.Length - 1);
+      
         for (int i = 0; i < values.Length; i++) 
         {
             float value = CurrentEasing.Get(i * step);
             values[i] = value / 1.5f + 0.166667f;
         }
+      
         GraphMaterial.SetFloatArray("_Values", values);
         GraphMaterial.SetVector("_Resolution", new(GraphImage.rectTransform.rect.width, GraphImage.rectTransform.rect.height));
         
         float endSlope = (values[^2] - values[^1]) / step * 1.5f;
+       
         GraphEnd.localEulerAngles = Vector3.back * (Mathf.Atan(endSlope) * Mathf.Rad2Deg + 90);
 
         GraphImage.material = GraphMaterial;
         GraphImage.SetMaterialDirty();
 
-        if (CurrentEasing is BasicEaseDirective bed)
+        if (CurrentEasing is BasicEaseDirective basicEase)
         {
             BasicEasingFields.SetActive(true);
             BasicEasingTab.interactable = false;
-            bool isLinear = bed.Function == EaseFunction.Linear;
+            
+            bool isLinear = basicEase.Function == EaseFunction.Linear;
             
             EaseModesCanvasGroup.interactable = !isLinear;
             EaseModesCanvasGroup.alpha = isLinear ? 0.5f : 1;
 
-            string name = Enum.GetName(typeof(EaseFunction), bed.Function);
+            string name = Enum.GetName(typeof(EaseFunction), basicEase.Function);
+          
             foreach (var item in EaseFunctions)
-            {
                 item.CheckedIndicator.SetActive(item.ContentLabel.text == name);
-            }
 
-            name = Enum.GetName(typeof(EaseMode), bed.Mode);
+            name = Enum.GetName(typeof(EaseMode), basicEase.Mode);
+           
             foreach (var item in EaseModes)
-            {
                 item.CheckedIndicator.SetActive(!isLinear && item.ContentLabel.text == name);
-            }
         }
         else 
         {
@@ -197,34 +219,46 @@ public class EasingPicker : Picker, IPointerMoveHandler, IPointerDownHandler, IP
         bool isActive = (CurrentEasing is CubicBezierEaseDirective) 
             && (!isLooping || CurrentDragMode != EasingPickerDragMode.None);
 
-        foreach (var item in GraphBezierHandles) item.gameObject.SetActive(isActive);
-        foreach (var item in GraphBezierHandleLines) item.gameObject.SetActive(isActive);
-        if (!isActive) return;
+        foreach (var item in GraphBezierHandles) 
+            item.gameObject.SetActive(isActive);
+        
+        foreach (var item in GraphBezierHandleLines) 
+            item.gameObject.SetActive(isActive);
+        
+        if (!isActive) 
+            return;
 
         Rect rect = ((RectTransform)GraphBezierHandles[0].parent).rect;
-        var cbed = (CubicBezierEaseDirective)CurrentEasing;
+        var cubicBezierEase = (CubicBezierEaseDirective)CurrentEasing;
             
-        if (CurrentDragMode == EasingPickerDragMode.P1Handle)
+        switch (CurrentDragMode)
         {
-            GraphBezierHandles[1].gameObject.SetActive(false);
-            GraphBezierHandleLines[1].gameObject.SetActive(false);
-        }
-        else if (CurrentDragMode == EasingPickerDragMode.P2Handle)
-        {
-            GraphBezierHandles[0].gameObject.SetActive(false);
-            GraphBezierHandleLines[0].gameObject.SetActive(false);
+            case EasingPickerDragMode.P1Handle:
+                GraphBezierHandles[1].gameObject.SetActive(false);
+                GraphBezierHandleLines[1].gameObject.SetActive(false);
+                break;
+            
+            case EasingPickerDragMode.P2Handle:
+                GraphBezierHandles[0].gameObject.SetActive(false);
+                GraphBezierHandleLines[0].gameObject.SetActive(false);
+                break;
         }
 
         Vector2 p0 = rect.size * new Vector2(-0.5f, -0.5f);
-        Vector2 p1 = (cbed.Point1 - new Vector2(0.5f, 0.5f)) * rect.size;
+        Vector2 p1 = (cubicBezierEase.Point1 - new Vector2(0.5f, 0.5f)) * rect.size;
+        
         GraphBezierHandles[0].anchoredPosition = p1;
+        
         GraphBezierHandleLines[0].anchoredPosition = (p0 + p1) / 2;
         GraphBezierHandleLines[0].sizeDelta = new (Vector2.Distance(p0, p1), 1.25f);
         GraphBezierHandleLines[0].localEulerAngles = Vector3.forward * Vector2.SignedAngle(Vector2.right, p1 - p0);
+       
         
         Vector2 p3 = rect.size * new Vector2(0.5f, 0.5f);
-        Vector2 p2 = (cbed.Point2 - new Vector2(0.5f, 0.5f)) * rect.size;
+        Vector2 p2 = (cubicBezierEase.Point2 - new Vector2(0.5f, 0.5f)) * rect.size;
+       
         GraphBezierHandles[1].anchoredPosition = p2;
+       
         GraphBezierHandleLines[1].anchoredPosition = (p2 + p3) / 2;
         GraphBezierHandleLines[1].sizeDelta = new (Vector2.Distance(p2, p3), 1.25f);
         GraphBezierHandleLines[1].localEulerAngles = Vector3.forward * Vector2.SignedAngle(Vector2.right, p2 - p3);
@@ -245,6 +279,7 @@ public class EasingPicker : Picker, IPointerMoveHandler, IPointerDownHandler, IP
         {
             Rect rect = GraphImage.rectTransform.rect;
             float easeValue = CurrentEasing.Get(loopTimer);
+            
             Balls[2].color = col;
             Balls[2].rectTransform.anchoredPosition = (easeValue - 0.5f) * rect.height / 1.5f * Vector2.up;
 
@@ -258,11 +293,13 @@ public class EasingPicker : Picker, IPointerMoveHandler, IPointerDownHandler, IP
             Balls[0].rectTransform.anchoredPosition = rect.height * Vector2.up / 3;
             Balls[0].rectTransform.sizeDelta = (1 - loopTimer) * Balls[2].rectTransform.sizeDelta;
 
-            for (int a = 3; a < Balls.Count; a++) Balls[a].color = Color.clear;
+            for (int a = 3; a < Balls.Count; a++) 
+                Balls[a].color = Color.clear;
         }
         else
         {
             float height = GraphImage.rectTransform.rect.height;
+           
             for (int i = 0; i < values.Length; i++) 
             {
                 Balls[i].color = col * new Color(1, 1, 1, 0.05f);
@@ -295,19 +332,26 @@ public class EasingPicker : Picker, IPointerMoveHandler, IPointerDownHandler, IP
     public void SwitchToBasicEasing() 
     {
         CacheEase();
+      
         CurrentEasing = cachedBasicEase;
-        OnSet(); UpdateUI();
+       
+        OnSet(); 
+        UpdateUI();
     }
 
     public void SetEaseFunction(EaseFunction function) 
     {
         CurrentEasing = new BasicEaseDirective(function, ((BasicEaseDirective)CurrentEasing).Mode);
-        OnSet(); UpdateUI();
+        
+        OnSet(); 
+        UpdateUI();
     }
     public void SetEaseMode(EaseMode mode)
     {
         CurrentEasing = new BasicEaseDirective(((BasicEaseDirective)CurrentEasing).Function, mode);
-        OnSet(); UpdateUI();
+       
+        OnSet(); 
+        UpdateUI();
     }
 
     // ----------- Cublic Bezier easing
@@ -315,29 +359,39 @@ public class EasingPicker : Picker, IPointerMoveHandler, IPointerDownHandler, IP
     public void SwitchToBezierEasing() 
     {
         CacheEase();
+      
         CurrentEasing = cachedBezierEase;
-        OnSet(); UpdateUI(); ResetBezierFields();
+     
+        OnSet(); 
+        UpdateUI();
+        ResetBezierFields();
     }
 
     public void ResetBezierFields() 
     {
-        CubicBezierEaseDirective cbed = (CubicBezierEaseDirective)CurrentEasing;
-        P1XField.SetTextWithoutNotify(cbed.Point1.x.ToString());
-        P1YField.SetTextWithoutNotify(cbed.Point1.y.ToString());
-        P2XField.SetTextWithoutNotify(cbed.Point2.x.ToString());
-        P2YField.SetTextWithoutNotify(cbed.Point2.y.ToString());
+        CubicBezierEaseDirective cubicBezierEase = (CubicBezierEaseDirective)CurrentEasing;
+       
+        P1XField.SetTextWithoutNotify(cubicBezierEase.Point1.x.ToString());
+        P1YField.SetTextWithoutNotify(cubicBezierEase.Point1.y.ToString());
+        P2XField.SetTextWithoutNotify(cubicBezierEase.Point2.x.ToString());
+        P2YField.SetTextWithoutNotify(cubicBezierEase.Point2.y.ToString());
     }
 
     public void OnBezierFieldChange()
     {
-        CubicBezierEaseDirective cbed = (CubicBezierEaseDirective)CurrentEasing;
-        Vector2 p1 = cbed.Point1, p2 = cbed.Point2;
-        if (float.TryParse(P1XField.text, out float p1x) && float.TryParse(P1YField.text, out float p1y)) 
-            p1.Set(Mathf.Clamp01(p1x), p1y);
-        if (float.TryParse(P2XField.text, out float p2x) && float.TryParse(P2YField.text, out float p2y)) 
-            p2.Set(Mathf.Clamp01(p2x), p2y);
-        CurrentEasing = new CubicBezierEaseDirective(p1, p2);
-        OnSet(); UpdateUI();
+        CubicBezierEaseDirective cubicBezierEase = (CubicBezierEaseDirective)CurrentEasing;
+        Vector2 point1 = cubicBezierEase.Point1, point2 = cubicBezierEase.Point2;
+       
+        if (float.TryParse(P1XField.text, out float point1X) && float.TryParse(P1YField.text, out float point1Y)) 
+            point1.Set(Mathf.Clamp01(point1X), point1Y);
+      
+        if (float.TryParse(P2XField.text, out float point2X) && float.TryParse(P2YField.text, out float point2Y)) 
+            point2.Set(Mathf.Clamp01(point2X), point2Y);
+       
+        CurrentEasing = new CubicBezierEaseDirective(point1, point2);
+       
+        OnSet(); 
+        UpdateUI();
     }
 
     // ----------- Animation
@@ -346,7 +400,9 @@ public class EasingPicker : Picker, IPointerMoveHandler, IPointerDownHandler, IP
     {
         RectTransform rt = (RectTransform)transform;
         rt.anchoredPosition -= new Vector2(-2, 2);
+      
         yield return new WaitForSecondsRealtime(0.05f);
+      
         rt.anchoredPosition += new Vector2(-2, 2);
     }
 
@@ -358,40 +414,52 @@ public class EasingPicker : Picker, IPointerMoveHandler, IPointerDownHandler, IP
 
         CurrentDragMode = EasingPickerDragMode.None;
 
-        if (contains(GraphBezierHandles[0])) CurrentDragMode = EasingPickerDragMode.P1Handle;
-        else if (contains(GraphBezierHandles[1])) CurrentDragMode = EasingPickerDragMode.P2Handle;
+        if (contains(GraphBezierHandles[0]))
+            CurrentDragMode = EasingPickerDragMode.P1Handle;
+        else if (contains(GraphBezierHandles[1]))
+            CurrentDragMode = EasingPickerDragMode.P2Handle;
 
-        if (CurrentDragMode == EasingPickerDragMode.None) return;
-
-        if (CurrentDragMode is EasingPickerDragMode.P1Handle or EasingPickerDragMode.P2Handle)
+        switch (CurrentDragMode)
         {
-            Func<Vector2> get; Action<Vector2> set;
-            CubicBezierEaseDirective cbed = (CubicBezierEaseDirective)CurrentEasing;
+            case EasingPickerDragMode.None:
+                return;
             
-            if (CurrentDragMode == EasingPickerDragMode.P1Handle)
+            case EasingPickerDragMode.P1Handle or EasingPickerDragMode.P2Handle:
             {
-                get = () => cbed.Point1;
-                set = (x) => CurrentEasing = new CubicBezierEaseDirective(x, cbed.Point2);
+                Func<Vector2> get; Action<Vector2> set;
+                CubicBezierEaseDirective cubicBezierEase = (CubicBezierEaseDirective)CurrentEasing;
+            
+                if (CurrentDragMode == EasingPickerDragMode.P1Handle)
+                {
+                    get = () => cubicBezierEase.Point1;
+                    set = (x) => CurrentEasing = new CubicBezierEaseDirective(x, cubicBezierEase.Point2);
+                }
+                else
+                {
+                    get = () => cubicBezierEase.Point2;
+                    set = (x) => CurrentEasing = new CubicBezierEaseDirective(cubicBezierEase.Point1, x);
+                }
+
+                Vector2 startValue = get();
+                Vector2 startPos = eventData.position;
+                Vector2 size = GraphImage.rectTransform.rect.size / new Vector2(1, 1.5f);
+
+                const float precision = 100;
+
+                OnDragEvent = (ev) => {
+                    Vector2 value = startValue + (ev.position - startPos) / size;
+                   
+                    value.x = Mathf.Clamp01(Mathf.Round(value.x * precision) / precision);
+                    value.y = Mathf.Round(value.y * precision) / precision;
+                    
+                    set(value);
+                    OnSet(); 
+                    UpdateUI();
+                    ResetBezierFields();
+                };
+
+                break;
             }
-            else
-            {
-                get = () => cbed.Point2;
-                set = (x) => CurrentEasing = new CubicBezierEaseDirective(cbed.Point1, x);
-            }
-
-            Vector2 startValue = get();
-            Vector2 startPos = eventData.position;
-            Vector2 size = GraphImage.rectTransform.rect.size / new Vector2(1, 1.5f);
-
-            const float precision = 100;
-
-            OnDragEvent = (ev) => {
-                Vector2 value = startValue + (ev.position - startPos) / size;
-                value.x = Mathf.Clamp01(Mathf.Round(value.x * precision) / precision);
-                value.y = Mathf.Round(value.y * precision) / precision;
-                set(value);
-                OnSet(); UpdateUI(); ResetBezierFields();
-            };
         }
 
         UpdateHandles();
@@ -401,17 +469,13 @@ public class EasingPicker : Picker, IPointerMoveHandler, IPointerDownHandler, IP
     public void OnPointerUp(PointerEventData eventData)
     {
         if (!isDragged)
-        {
             OnEndDrag(eventData);
-        }
     }
 
     public void OnPointerMove(PointerEventData eventData)
     {
         if (!isDragged)
-        {
             UpdateCursor(eventData.position, eventData.pressEventCamera);
-        }
     }
 
     public void UpdateCursor(Vector2 position, Camera eventCamera)
@@ -421,21 +485,23 @@ public class EasingPicker : Picker, IPointerMoveHandler, IPointerDownHandler, IP
         CursorType Cursor = 0;
 
         if (CurrentDragMode != EasingPickerDragMode.None) 
-        {
            Cursor = CursorType.Grabbing;
-        }
         else if (contains((RectTransform)transform)) 
         {
-            if (
-                contains(GraphBezierHandles[0]) || contains(GraphBezierHandles[1])
-            ) Cursor = CursorType.Grab;
+            if (contains(GraphBezierHandles[0]) || contains(GraphBezierHandles[1])) 
+                Cursor = CursorType.Grab;
         }
 
         if (CurrentCursor != Cursor)
         {
-            if (CurrentCursor != 0) CursorChanger.PopCursor();
-            if (Cursor != 0) CursorChanger.PushCursor(Cursor);
+            if (CurrentCursor != 0)
+                CursorChanger.PopCursor()
+                    ;
+            if (Cursor != 0) 
+                CursorChanger.PushCursor(Cursor);
+            
             CurrentCursor = Cursor;
+           
             BorderlessWindow.UpdateCursor();
         }
     }
@@ -447,6 +513,7 @@ public class EasingPicker : Picker, IPointerMoveHandler, IPointerDownHandler, IP
         if (CurrentDragMode != EasingPickerDragMode.None)
         {
             isDragged = true;
+           
             OnDragEvent?.Invoke(eventData);
         }
     }
@@ -457,7 +524,9 @@ public class EasingPicker : Picker, IPointerMoveHandler, IPointerDownHandler, IP
     {
         isDragged = false;
         OnDragEvent = null;
+     
         CurrentDragMode = EasingPickerDragMode.None;
+      
         UpdateHandles();
         UpdateCursor(eventData.position, eventData.pressEventCamera);
     }

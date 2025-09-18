@@ -56,22 +56,23 @@ public class InformationBar : MonoBehaviour
     public void Update()
     {
         UpdatePlayButton();
-        if (Chartmaker.main?.CurrentSong != null)
-        {
-            sec = Chartmaker.main.SongSource.timeSamples / (float)Chartmaker.main.SongSource.clip.frequency;
-            beat = Chartmaker.main.CurrentSong.Timing.ToBeat(sec);
-            barPos = Chartmaker.main.CurrentSong.Timing.ToDividedBeat(sec);
-            SecondTimeLabel.text = Mathf.Floor(sec / 60).ToString("00") + ":" + Mathf.Floor(sec % 60).ToString("00") + "s" + Mathf.Floor(sec * 1000 % 1000).ToString("000");
-            BeatTimeLabel.text = beat.ToString("0.000").Replace('.', 'b');
 
-            if (!TimelinePanel.main.isDragged && PlayOptions.MetronomeVolume > 0 && Mathf.Floor(beat) > MetronomeIndex)
-            {
-                SoundPlayer.PlayOneShot(barPos < 1 ? MetronomeSoundMain : MetronomeSoundSub, PlayOptions.MetronomeVolume);
-            }
-            MetronomeIndex = Mathf.Floor(beat);
+        if (Chartmaker.main?.CurrentSong == null)
+            return;
 
-            UpdateVisualizer();
-        }
+        sec = Chartmaker.main.SongSource.timeSamples / (float)Chartmaker.main.SongSource.clip.frequency;
+        beat = Chartmaker.main.CurrentSong.Timing.ToBeat(sec);
+        barPos = Chartmaker.main.CurrentSong.Timing.ToDividedBeat(sec);
+            
+        SecondTimeLabel.text = Mathf.Floor(sec / 60).ToString("00") + ":" + Mathf.Floor(sec % 60).ToString("00") + "s" + Mathf.Floor(sec * 1000 % 1000).ToString("000");
+        BeatTimeLabel.text = beat.ToString("0.000").Replace('.', 'b');
+
+        if (!TimelinePanel.main.isDragged && PlayOptions.MetronomeVolume > 0 && Mathf.Floor(beat) > MetronomeIndex)
+            SoundPlayer.PlayOneShot(barPos < 1 ? MetronomeSoundMain : MetronomeSoundSub, PlayOptions.MetronomeVolume);
+                
+        MetronomeIndex = Mathf.Floor(beat);
+
+        UpdateVisualizer();
     }
 
     public void UpdateButtonActivity() 
@@ -96,15 +97,19 @@ public class InformationBar : MonoBehaviour
         if (chart != null)
         {
             ChartNameLabel.text = chart.DifficultyName + " " + chart.DifficultyLevel;
+            
             ChartDropdownButton.sizeDelta = new Vector2(24, ChartDropdownButton.sizeDelta.y);
-            ChartDropdownButton.anchoredPosition = new Vector2(333, ChartDropdownButton.anchoredPosition.y); 
+            ChartDropdownButton.anchoredPosition = new Vector2(333, ChartDropdownButton.anchoredPosition.y);
+            
             ChartButtonTransform.gameObject.SetActive(true);
         }
         else 
         {
             ChartNameLabel.text = "Select Chart...";
+            
             ChartDropdownButton.sizeDelta = new Vector2(160, ChartDropdownButton.sizeDelta.y);
             ChartDropdownButton.anchoredPosition = new Vector2(174, ChartDropdownButton.anchoredPosition.y);
+            
             ChartButtonTransform.gameObject.SetActive(false);
         }
     }
@@ -118,9 +123,7 @@ public class InformationBar : MonoBehaviour
     public void FocusChart()
     {
         if (Chartmaker.main.CurrentChart == null)
-        {
             ShowChartPopup(ChartButtonTransform);
-        }
         else
         {
             HierarchyPanel.main.SetMode(HierarchyMode.Chart);
@@ -136,11 +139,11 @@ public class InformationBar : MonoBehaviour
     public void ShowChartPopup(RectTransform rt)
     {
         ContextMenuList list = new ContextMenuList();
-        foreach(ExternalChartMeta chart in Chartmaker.main?.CurrentSong.Charts)
+        foreach(ExternalChartMeta chart in Chartmaker.main?.CurrentSong.Charts!)
         {
-            ExternalChartMeta _chart = chart;
+            ExternalChartMeta exChart = chart;
             list.Items.Add(new ContextMenuListAction(chart.DifficultyName + " " + chart.DifficultyLevel, () => {
-                StartCoroutine(Chartmaker.main.OpenChartRoutine(_chart));
+                StartCoroutine(Chartmaker.main.OpenChartRoutine(exChart));
             }));
         }
         if (list.Items.Count > 0) list.Items.Add(new ContextMenuListSeparator());
@@ -150,11 +153,11 @@ public class InformationBar : MonoBehaviour
     
     public void UpdatePlayButton()
     {
-        if (Chartmaker.main != null)
-        {
-            PlayIcon.SetActive(!Chartmaker.main.SongSource.isPlaying);
-            PauseIcon.SetActive(Chartmaker.main.SongSource.isPlaying);
-        }
+        if (Chartmaker.main == null)
+            return;
+
+        PlayIcon.SetActive(!Chartmaker.main.SongSource.isPlaying);
+        PauseIcon.SetActive(Chartmaker.main.SongSource.isPlaying);
     }
     
     public void ToggleSong()
@@ -162,6 +165,7 @@ public class InformationBar : MonoBehaviour
         if (Chartmaker.main.SongSource.isPlaying)
         {
             Chartmaker.main.SongSource.Pause();
+            
             if (Chartmaker.Preferences.MaximizeOnPlay)
             {
                 TimelinePanel.main.Restore();
@@ -172,6 +176,7 @@ public class InformationBar : MonoBehaviour
         else 
         {
             Chartmaker.main.SongSource.Play();
+            
             if (Chartmaker.Preferences.MaximizeOnPlay)
             {
                 TimelinePanel.main.Collapse();
@@ -190,9 +195,13 @@ public class InformationBar : MonoBehaviour
         Image AddBar()
         {
             Image bar = null;
-            if (count < VisualizerBars.Count) bar = VisualizerBars[count];
-            else VisualizerBars.Add(bar = Instantiate(VisualizerBarSample, Visualizer));
+            if (count < VisualizerBars.Count) 
+                bar = VisualizerBars[count];
+            else
+                VisualizerBars.Add(bar = Instantiate(VisualizerBarSample, Visualizer));
+            
             count++;
+            
             return bar;
         }
 
@@ -204,7 +213,8 @@ public class InformationBar : MonoBehaviour
         if (VisualizerMode == VisualizerMode.Metronome)
         {
             BPMStop stop = Chartmaker.main.CurrentSong.Timing.GetStop(sec, out _);
-            if (stop != null) {
+            if (stop != null)
+            {
                 float sizeX = rect.width / stop.Signature;
 
                 Image bar = AddBar();         
@@ -228,40 +238,54 @@ public class InformationBar : MonoBehaviour
             const int fftCount = 2 << 8;
             const float riseTime = .3f, fallTime = .3f;
 
-            float[] fftL = new float[fftCount], fftR = new float[fftCount];
+            float[] fftLeft = new float[fftCount], fftRight = new float[fftCount];
             float[] data = new float[fftCount * clip.channels];
+            
             clip.GetData(data, Mathf.Clamp(sampleOffset - fftCount / 2, 0, clip.samples - fftCount));
+            
             for (int a = 0; a < data.Length; a++) 
             {
                 switch ((a + sampleOffset) % clip.channels)
                 {
-                    case 0: fftL[a / clip.channels] = data[a]; break;
-                    case 1: fftR[a / clip.channels] = data[a]; break;
+                    case 0:
+                        fftLeft[a / clip.channels] = data[a]; break;
+                    case 1: 
+                        fftRight[a / clip.channels] = data[a]; break;
                 }
             }
-            FFT.Transform(fftL, Chartmaker.Preferences.FFTWindow);
-            if (clip.channels == 1) fftR = fftL;
-            else FFT.Transform(fftR, Chartmaker.Preferences.FFTWindow);
+            
+            FFT.Transform(fftLeft, Chartmaker.Preferences.FFTWindow);
+            
+            // Mono/Stereo audio channel check
+            if (clip.channels == 1) 
+                fftRight = fftLeft;
+            else 
+                FFT.Transform(fftRight, Chartmaker.Preferences.FFTWindow);
 
             float[] loudness = new float[2];
             for (int a = 0; a < fftCount / 2; a++) 
             {
                 float freq = (a + 1f) / fftCount * Chartmaker.main.CurrentSong.Clip.frequency;
                 float weight = FrequencyScaling.AWeight(freq) / fftCount / fftCount * (a + .5f) * 4;
+                
                 weight *= weight;
-                loudness[0] += fftL[a] * fftL[a] * weight;
-                loudness[1] += fftR[a] * fftR[a] * weight;
+                
+                loudness[0] += fftLeft[a] * fftLeft[a] * weight;
+                loudness[1] += fftRight[a] * fftRight[a] * weight;
             }
 
             int segmentCount = 19;
             float barHeight = (rect.height + 1) / loudness.Length;
             float segmentWidth = (rect.width + 1) / segmentCount;
+            
             for (int a = 0; a < loudness.Length; a++) 
             {
                 Image bar = AddBar();
+                
                 float width = Mathf.Pow(1e4f, bar.rectTransform.sizeDelta.x / rect.width - 1);
                 width = Mathf.Lerp(width, loudness[a], 1 - Mathf.Pow(.001f, Time.deltaTime / (width < loudness[a] ? riseTime : fallTime)));
                 width = Mathf.Clamp01(1 + Mathf.Log(width, 1e4f));
+                
                 bar.rectTransform.sizeDelta = new Vector2(width * rect.width, barHeight - 1);
                 bar.rectTransform.anchoredPosition = new Vector2(0, a * barHeight);
                 bar.color = Color.clear;
@@ -269,6 +293,7 @@ public class InformationBar : MonoBehaviour
                 for (int b = 0; b < segmentCount; b++) 
                 {
                     Image segment = AddBar();
+                    
                     segment.rectTransform.sizeDelta = new Vector2(segmentWidth - 1, barHeight - 1);
                     segment.rectTransform.anchoredPosition = new Vector2(b * segmentWidth, a * barHeight);
                     segment.color = color * new Color(1, 1, 1, Mathf.Clamp01((width * segmentCount - b) * 2) * .8f);
@@ -281,67 +306,75 @@ public class InformationBar : MonoBehaviour
             const int fftCount = 2 << barCount;
             const float riseTime = .02f, fallTime = .4f;
 
-            float[] fftL = new float[fftCount], fftR = new float[fftCount];
+            float[] fftLeft = new float[fftCount], fftRight = new float[fftCount];
             float[] data = new float[fftCount * clip.channels];
             clip.GetData(data, Mathf.Clamp(sampleOffset - fftCount / 2, 0, clip.samples - fftCount));
             for (int a = 0; a < data.Length; a++) 
             {
                 switch ((a + sampleOffset) % clip.channels)
                 {
-                    case 0: fftL[a / clip.channels] = data[a]; break;
-                    case 1: fftR[a / clip.channels] = data[a]; break;
+                    case 0:
+                        fftLeft[a / clip.channels] = data[a]; break;
+                    case 1:
+                        fftRight[a / clip.channels] = data[a]; break;
                 }
             }
-            FFT.Transform(fftL, Chartmaker.Preferences.FFTWindow);
-            if (clip.channels == 1) fftR = fftL;
-            else FFT.Transform(fftR, Chartmaker.Preferences.FFTWindow);
+            FFT.Transform(fftLeft, Chartmaker.Preferences.FFTWindow);
+            
+            if (clip.channels == 1) 
+                fftRight = fftLeft;
+            else 
+                FFT.Transform(fftRight, Chartmaker.Preferences.FFTWindow);
 
-            float[] barsL = new float[barCount], barsR = new float[barCount];
+            float[] barsLeft = new float[barCount], barsRight = new float[barCount];
+            
             for (int a = 0; a < barCount; a++) 
             {
                 for (int i = 1 << a; i < 1 << (a + 1); i++) 
                 {
-                    barsL[a] += fftL[i] * (a + 1);
-                    barsR[a] += fftR[i] * (a + 1);
+                    barsLeft[a] += fftLeft[i] * (a + 1);
+                    barsRight[a] += fftRight[i] * (a + 1);
                 }
-                barsL[a] *= Mathf.Pow(1 / (1 - (float)a / barCount), 2) * (a + 1) / fftCount / 25;
-                barsR[a] *= Mathf.Pow(1 / (1 - (float)a / barCount), 2) * (a + 1) / fftCount / 25;
+                
+                barsLeft[a] *= Mathf.Pow(1 / (1 - (float)a / barCount), 2) * (a + 1) / fftCount / 25;
+                barsRight[a] *= Mathf.Pow(1 / (1 - (float)a / barCount), 2) * (a + 1) / fftCount / 25;
             }
+            
             float sizeX = rect.width / barCount;    
             for (int a = 0; a < barCount; a++) 
             {
-                Image barL = AddBar();
+                Image barLeft = AddBar();
                 
-                float heightL = barL.rectTransform.rect.height / rect.height;
-                heightL = rect.height * Mathf.Min(Mathf.Clamp(Mathf.Sqrt(barsL[a] / (1 << a) / 2), heightL - Time.deltaTime / fallTime, heightL + Time.deltaTime / riseTime), 1);
-                barL.rectTransform.sizeDelta = new Vector2(sizeX, heightL);
-                barL.rectTransform.anchoredPosition = new Vector2(a * sizeX, 0);
-                barL.color = color * new Color(1, 1, 1, .5f);
+                float heightLeft = barLeft.rectTransform.rect.height / rect.height;
+                heightLeft = rect.height * Mathf.Min(Mathf.Clamp(Mathf.Sqrt(barsLeft[a] / (1 << a) / 2), heightLeft - Time.deltaTime / fallTime, heightLeft + Time.deltaTime / riseTime), 1);
+                barLeft.rectTransform.sizeDelta = new Vector2(sizeX, heightLeft);
+                barLeft.rectTransform.anchoredPosition = new Vector2(a * sizeX, 0);
+                barLeft.color = color * new Color(1, 1, 1, .5f);
 
-                Image barR = AddBar();
-                float heightR = barR.rectTransform.rect.height / rect.height;
-                heightR = rect.height * Mathf.Min(Mathf.Clamp(Mathf.Sqrt(barsR[a] / (1 << a) / 2), heightR - Time.deltaTime / fallTime, heightR + Time.deltaTime / riseTime), 1);
-                barR.rectTransform.sizeDelta = new Vector2(sizeX, heightR);
-                barR.rectTransform.anchoredPosition = new Vector2(a * sizeX, 0);
-                barR.color = color * new Color(1, 1, 1, .5f);
+                Image barRight = AddBar();
+                float heightRight = barRight.rectTransform.rect.height / rect.height;
+                heightRight = rect.height * Mathf.Min(Mathf.Clamp(Mathf.Sqrt(barsRight[a] / (1 << a) / 2), heightRight - Time.deltaTime / fallTime, heightRight + Time.deltaTime / riseTime), 1);
+                barRight.rectTransform.sizeDelta = new Vector2(sizeX, heightRight);
+                barRight.rectTransform.anchoredPosition = new Vector2(a * sizeX, 0);
+                barRight.color = color * new Color(1, 1, 1, .5f);
 
-                Image barC = AddBar();
-                float heightC = barC.rectTransform.anchoredPosition.y / rect.height; 
-                float fallC = barC.rectTransform.anchoredPosition3D.z;
-                float fallCTarget = rect.height * (heightC - Time.deltaTime / fallTime * fallC);
-                if (heightL > fallCTarget || heightR > fallCTarget)
+                Image barClip = AddBar();
+                float heightClip = barClip.rectTransform.anchoredPosition.y / rect.height; 
+                float fallClip = barClip.rectTransform.anchoredPosition3D.z;
+                float fallClipTarget = rect.height * (heightClip - Time.deltaTime / fallTime * fallClip);
+                if (heightLeft > fallClipTarget || heightRight > fallClipTarget)
                 {
-                    heightC = Mathf.Min(Mathf.Max(heightL, heightR), rect.height - 1);
-                    fallC = 0;
+                    heightClip = Mathf.Min(Mathf.Max(heightLeft, heightRight), rect.height - 1);
+                    fallClip = 0;
                 }
                 else
                 {
-                    heightC = Mathf.Max(fallCTarget, 0);
-                    fallC += Time.deltaTime;
+                    heightClip = Mathf.Max(fallClipTarget, 0);
+                    fallClip += Time.deltaTime;
                 }
-                barC.rectTransform.sizeDelta = new Vector2(sizeX, 1);
-                barC.rectTransform.anchoredPosition3D = new Vector3(a * sizeX, heightC, fallC);
-                barC.color = color * new Color(1, 1, 1, 1);
+                barClip.rectTransform.sizeDelta = new Vector2(sizeX, 1);
+                barClip.rectTransform.anchoredPosition3D = new Vector3(a * sizeX, heightClip, fallClip);
+                barClip.color = color * new Color(1, 1, 1, 1);
             }
         }
         else if (VisualizerMode == VisualizerMode.FrequencyFlame)
@@ -349,20 +382,22 @@ public class InformationBar : MonoBehaviour
             const int fftCount = 1024;
             const float riseTime = .03f, fallTime = .5f;
 
-            float[] fftL = new float[fftCount], fftR = new float[fftCount];
+            float[] fftLeft = new float[fftCount], fftRight = new float[fftCount];
             float[] data = new float[fftCount * clip.channels];
             clip.GetData(data, Mathf.Clamp(sampleOffset - fftCount / 2, 0, clip.samples - fftCount));
             for (int a = 0; a < data.Length; a++) 
             {
                 switch ((a + sampleOffset) % clip.channels)
                 {
-                    case 0: fftL[a / clip.channels] = data[a]; break;
-                    case 1: fftR[a / clip.channels] = data[a]; break;
+                    case 0: 
+                        fftLeft[a / clip.channels] = data[a]; break;
+                    case 1: 
+                        fftRight[a / clip.channels] = data[a]; break;
                 }
             }
-            FFT.Transform(fftL, Chartmaker.Preferences.FFTWindow);
-            if (clip.channels == 1) fftR = fftL;
-            else FFT.Transform(fftR, Chartmaker.Preferences.FFTWindow);
+            FFT.Transform(fftLeft, Chartmaker.Preferences.FFTWindow);
+            if (clip.channels == 1) fftRight = fftLeft;
+            else FFT.Transform(fftRight, Chartmaker.Preferences.FFTWindow);
 
 
             FrequencyScaling.GetScalingFunctions(Chartmaker.Preferences.FrequencyScale, out var scale, out var unscale);
@@ -373,34 +408,34 @@ public class InformationBar : MonoBehaviour
             for (int a = 0; a < rect.width; a++) 
             {
                 
-                float cPos = Mathf.Clamp(unscale(Mathf.Lerp(minScale, maxScale, (a + .5f) / rect.width)) / clip.frequency * fftCount, 0, fftCount - 1);
-                int cPosFloor = Mathf.FloorToInt(cPos);
-                int cPosCeil = Mathf.CeilToInt(cPos);
-                float factor = (cPos + .5f) / fftCount / fftCount * 50;
+                float clipPosition = Mathf.Clamp(unscale(Mathf.Lerp(minScale, maxScale, (a + .5f) / rect.width)) / clip.frequency * fftCount, 0, fftCount - 1);
+                int clipPositionFloor = Mathf.FloorToInt(clipPosition);
+                int clipPositionCeil = Mathf.CeilToInt(clipPosition);
+                float factor = (clipPosition + .5f) / fftCount / fftCount * 50;
                 
                 Image barL = AddBar();
-                float heightL = barL.rectTransform.rect.height / rect.height;
-                float fftLVal = Mathf.Sqrt(Mathf.Lerp(fftL[cPosFloor], fftL[cPosCeil], cPos % 1) * factor);
-                heightL = rect.height * Mathf.Min(Mathf.Clamp(fftLVal * 0.7f, heightL - Time.deltaTime / fallTime, heightL + Time.deltaTime / riseTime), 1);
-                barL.rectTransform.sizeDelta = new Vector2(1, heightL);
+                float heightLeft = barL.rectTransform.rect.height / rect.height;
+                float fftLeftVal = Mathf.Sqrt(Mathf.Lerp(fftLeft[clipPositionFloor], fftLeft[clipPositionCeil], clipPosition % 1) * factor);
+                heightLeft = rect.height * Mathf.Min(Mathf.Clamp(fftLeftVal * 0.7f, heightLeft - Time.deltaTime / fallTime, heightLeft + Time.deltaTime / riseTime), 1);
+                barL.rectTransform.sizeDelta = new Vector2(1, heightLeft);
                 barL.rectTransform.anchoredPosition = new Vector2(a, 0);
                 barL.color = color * new Color(1, 1, 1, .5f);
 
-                Image barR = AddBar();
-                float heightR = barR.rectTransform.rect.height / rect.height;
-                float fftRVal = Mathf.Sqrt(Mathf.Lerp(fftR[cPosFloor], fftR[cPosCeil], cPos % 1) * factor);
-                heightR = rect.height * Mathf.Min(Mathf.Clamp(fftRVal * 0.7f, heightR - Time.deltaTime / fallTime, heightR + Time.deltaTime / riseTime), 1);
-                barR.rectTransform.sizeDelta = new Vector2(1, heightR);
-                barR.rectTransform.anchoredPosition = new Vector2(a, 0);
-                barR.color = color * new Color(1, 1, 1, .5f);
+                Image barRight = AddBar();
+                float heightRight = barRight.rectTransform.rect.height / rect.height;
+                float fftRightVal = Mathf.Sqrt(Mathf.Lerp(fftRight[clipPositionFloor], fftRight[clipPositionCeil], clipPosition % 1) * factor);
+                heightRight = rect.height * Mathf.Min(Mathf.Clamp(fftRightVal * 0.7f, heightRight - Time.deltaTime / fallTime, heightRight + Time.deltaTime / riseTime), 1);
+                barRight.rectTransform.sizeDelta = new Vector2(1, heightRight);
+                barRight.rectTransform.anchoredPosition = new Vector2(a, 0);
+                barRight.color = color * new Color(1, 1, 1, .5f);
 
                 Image barC = AddBar();
                 float heightC = barC.rectTransform.anchoredPosition.y / rect.height; 
                 float fallC = barC.rectTransform.anchoredPosition3D.z;
                 float fallCTarget = rect.height * (heightC - Time.deltaTime / fallTime * fallC);
-                if (heightL > fallCTarget || heightR > fallCTarget)
+                if (heightLeft > fallCTarget || heightRight > fallCTarget)
                 {
-                    heightC = Mathf.Min(Mathf.Max(heightL, heightR), rect.height - 1);
+                    heightC = Mathf.Min(Mathf.Max(heightLeft, heightRight), rect.height - 1);
                     fallC = 0;
                 }
                 else
@@ -417,52 +452,62 @@ public class InformationBar : MonoBehaviour
         {
             int dataCount = (int)rect.width + 1;
 
-            float[] dataL = new float[dataCount], dataR = new float[dataCount];
+            float[] dataLeft = new float[dataCount], dataRight = new float[dataCount];
             float[] data = new float[dataCount * clip.channels];
+            
             clip.GetData(data, Mathf.Clamp(sampleOffset - dataCount / 2, 0, clip.samples - dataCount));
+            
             for (int a = 0; a < data.Length; a++) 
             {
                 switch ((a + sampleOffset) % clip.channels)
                 {
-                    case 0: dataL[a / clip.channels] = data[a]; break;
-                    case 1: dataR[a / clip.channels] = data[a]; break;
+                    case 0: 
+                        dataLeft[a / clip.channels] = data[a]; break;
+                    case 1: 
+                        dataRight[a / clip.channels] = data[a]; break;
                 }
             }
-            if (clip.channels == 1) dataR = dataL;
+            if (clip.channels == 1) dataRight = dataLeft;
 
             for (int a = 0; a < dataCount - 1; a++) 
             {
-                Image barL = AddBar();
-                float minL = Mathf.Min(dataL[a], dataL[a + 1]);
-                float maxL = Mathf.Max(dataL[a], dataL[a + 1]);
-                barL.rectTransform.sizeDelta = new Vector2(1, (maxL - minL) / 2 * (rect.height - 1) + 1);
-                barL.rectTransform.anchoredPosition = new Vector2(a, (minL / 2 + .5f) * (rect.height - 1));
-                barL.color = color * new Color(1, 1, 1, .65f);
+                Image barLeft = AddBar();
+                float minLeft = Mathf.Min(dataLeft[a], dataLeft[a + 1]);
+                float maxLeft = Mathf.Max(dataLeft[a], dataLeft[a + 1]);
+                barLeft.rectTransform.sizeDelta = new Vector2(1, (maxLeft - minLeft) / 2 * (rect.height - 1) + 1);
+                barLeft.rectTransform.anchoredPosition = new Vector2(a, (minLeft / 2 + .5f) * (rect.height - 1));
+                barLeft.color = color * new Color(1, 1, 1, .65f);
 
-                Image barR = AddBar();
-                float minR = Mathf.Min(dataR[a], dataR[a + 1]);
-                float maxR = Mathf.Max(dataR[a], dataR[a + 1]);
-                barR.rectTransform.sizeDelta = new Vector2(1, (maxR - minR) / 2 * (rect.height - 1) + 1);
-                barR.rectTransform.anchoredPosition = new Vector2(a, (minR / 2 + .5f) * (rect.height - 1));
-                barR.color = color * new Color(1, 1, 1, .65f);
+                Image barRight = AddBar();
+                float minRight = Mathf.Min(dataRight[a], dataRight[a + 1]);
+                float maxRight = Mathf.Max(dataRight[a], dataRight[a + 1]);
+                barRight.rectTransform.sizeDelta = new Vector2(1, (maxRight - minRight) / 2 * (rect.height - 1) + 1);
+                barRight.rectTransform.anchoredPosition = new Vector2(a, (minRight / 2 + .5f) * (rect.height - 1));
+                barRight.color = color * new Color(1, 1, 1, .65f);
             }
         }
         else if (VisualizerMode == VisualizerMode.Vectorscope)
         {
             int dataCount = 1024;
 
-            float[] dataL = new float[dataCount], dataR = new float[dataCount];
+            float[] dataLeft = new float[dataCount], dataRight = new float[dataCount];
             float[] data = new float[dataCount * clip.channels];
+            
             clip.GetData(data, Mathf.Clamp(sampleOffset - dataCount / 2, 0, clip.samples - dataCount));
+            
             for (int a = 0; a < data.Length; a++) 
             {
                 switch ((a + sampleOffset) % clip.channels)
                 {
-                    case 0: dataL[a / clip.channels] = data[a]; break;
-                    case 1: dataR[a / clip.channels] = data[a]; break;
+                    case 0: 
+                        dataLeft[a / clip.channels] = data[a]; break;
+                    case 1: 
+                        dataRight[a / clip.channels] = data[a]; break;
                 }
             }
-            if (clip.channels == 1) dataR = dataL;
+            
+            if (clip.channels == 1) 
+                dataRight = dataLeft;
 
             float opacity = 1;
             Dictionary<int, Image> images = new();
@@ -480,7 +525,7 @@ public class InformationBar : MonoBehaviour
 
             for (int a = 0; a < dataCount - 1; a++) 
             {
-                Vector2 pos = Quaternion.Euler(0, 0, 45) * new Vector2(dataL[a], dataR[a]);
+                Vector2 pos = Quaternion.Euler(0, 0, 45) * new Vector2(dataLeft[a], dataRight[a]);
                 pos = rect.width * pos / 2.82842712f + rect.size / 2;
                 if (!testRect.Contains(pos)) continue;
                 int hash = (int)pos.y * (int)rect.width + (int)pos.x;
@@ -503,20 +548,28 @@ public class InformationBar : MonoBehaviour
         {
             const int fftCount = 1 << 8;
 
-            float[] fftL = new float[fftCount], fftR = new float[fftCount];
+            float[] fftLeft = new float[fftCount], fftRight = new float[fftCount];
             float[] data = new float[fftCount * clip.channels];
+            
             clip.GetData(data, Mathf.Clamp(sampleOffset - fftCount / 2, 0, clip.samples - fftCount));
+            
             for (int a = 0; a < data.Length; a++) 
             {
                 switch ((a + sampleOffset) % clip.channels)
                 {
-                    case 0: fftL[a / clip.channels] = data[a]; break;
-                    case 1: fftR[a / clip.channels] = data[a]; break;
+                    case 0: 
+                        fftLeft[a / clip.channels] = data[a]; break;
+                    case 1: 
+                        fftRight[a / clip.channels] = data[a]; break;
                 }
             }
-            FFT.Transform(fftL, Chartmaker.Preferences.FFTWindow);
-            if (clip.channels == 1) fftR = fftL;
-            else FFT.Transform(fftR, Chartmaker.Preferences.FFTWindow);
+            
+            FFT.Transform(fftLeft, Chartmaker.Preferences.FFTWindow);
+            
+            if (clip.channels == 1)
+                fftRight = fftLeft;
+            else 
+                FFT.Transform(fftRight, Chartmaker.Preferences.FFTWindow);
 
             float[] notes = new float[12];
             for (int a = 0; a < fftCount / 2; a++) 
@@ -524,20 +577,27 @@ public class InformationBar : MonoBehaviour
                 float freq = (a + 1f) / fftCount * Chartmaker.main.CurrentSong.Clip.frequency;
                 int note = (Mathf.RoundToInt(Mathf.Log(freq / 440, 2) * 12) % 12 + 12) % 12;
                 float mul = freq / Chartmaker.main.CurrentSong.Clip.frequency * FrequencyScaling.AWeight(freq);
-                notes[note] += Mathf.Max(fftL[a] * mul, fftR[a] * mul) / 2;
+                notes[note] += Mathf.Max(fftLeft[a] * mul, fftRight[a] * mul) / 2;
             }
+            
             float sizeX = rect.width / 12;  
             int target = 0;  
             float[] sems = {1, 3, 6, 8, 10};
+            
             for (int a = 0; a < 12; a++) 
             {
-                Image barL = AddBar();
-                barL.rectTransform.sizeDelta = new Vector2(sizeX, rect.height * (Array.IndexOf(sems, a) >= 0 ? .5f : 1));
-                barL.rectTransform.anchoredPosition = new Vector2(a * sizeX, 0);
-                barL.color = color * new Color(1, 1, 1, .25f) * notes[a];
-                if (notes[target] < notes[a]) target = a;
+                Image barLeft = AddBar();
+                
+                barLeft.rectTransform.sizeDelta = new Vector2(sizeX, rect.height * (Array.IndexOf(sems, a) >= 0 ? .5f : 1));
+                barLeft.rectTransform.anchoredPosition = new Vector2(a * sizeX, 0);
+                barLeft.color = color * new Color(1, 1, 1, .25f) * notes[a];
+                
+                if (notes[target] < notes[a]) 
+                    target = a;
             }
+            
             Image freqBar = AddBar();
+            
             freqBar.rectTransform.sizeDelta = new Vector2(sizeX, 2);
             freqBar.rectTransform.anchoredPosition = new Vector2(target * sizeX, 0);
             freqBar.color = color * new Color(1, 1, 1);

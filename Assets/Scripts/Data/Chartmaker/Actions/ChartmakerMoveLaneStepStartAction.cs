@@ -4,25 +4,25 @@ using UnityEngine;
 public class ChartmakerMoveLaneStepStartAction : ChartmakerMoveAction<LaneStep>
 {
 
-    public override string GetName()
-    {
-        return "Move Lane Step Start";
-    }
+    public override string GetName() => 
+        "Move Lane Step Start";
 
-    public override void Do(Vector3 offset) 
+    protected override void Do(Vector3 offset) 
     {
         Item.StartPointPosition += (Vector2)offset;
-        foreach (Timestamp ts in Item.Storyboard.Timestamps)
+        foreach (Timestamp timestamp in Item.Storyboard.Timestamps)
         {
-            if (ts.ID == TimestampIDs.StartPos_X)
+            switch (timestamp.ID)
             {
-                ts.From += offset.x;
-                ts.Target += offset.x;
-            }
-            if (ts.ID == TimestampIDs.StartPos_Y)
-            {
-                ts.From += offset.y;
-                ts.Target += offset.y;
+                case TimestampIDs.StartPos_X:
+                    timestamp.From += offset.x;
+                    timestamp.Target += offset.x;
+                    break;
+                
+                case TimestampIDs.StartPos_Y:
+                    timestamp.From += offset.y;
+                    timestamp.Target += offset.y;
+                    break;
             }
         }
     }

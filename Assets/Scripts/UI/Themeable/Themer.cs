@@ -13,18 +13,21 @@ public class Themer : MonoBehaviour
     public void InitTheme()
     {
         main = this;
+       
         string name = Chartmaker.Preferences.Theme;
         Theme theme = Themes.Find(x => x.name == name);
-        if (!theme) theme = Themes[0];
+       
+        if (!theme) 
+            theme = Themes[0];
+     
         Keys = Theme.ToDict(theme.Keys);
+     
         SetAllColors();
     }
 
-    public void SetAllColors()
+    private void SetAllColors()
     {
         foreach (Themeable themeable in FindObjectsOfType<Themeable>())
-        {
             themeable.SetColors();
-        }
     }
 }

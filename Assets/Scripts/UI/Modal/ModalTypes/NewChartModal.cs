@@ -53,12 +53,21 @@ public class NewChartModal : Modal
         for (int a = 0; a < presetNames.Length; a++)
         {
             int A = a;
+            
             var button = Formmaker.main.Spawn<FormEntryButton>(PresetsHolder, presetNames[a]);
+         
             button.TitleLabel.text = presetNames[a];
-            button.Button.onClick.AddListener(() => {
-                Codename = A == 4 ? "" : presetNames[A].ToLower();
-                InitialValues.DifficultyName = A == 4 ? "" : presetNames[A];
-                InitialValues.DifficultyIndex = A == 4 ? -1 : A;
+            button.Button.onClick.AddListener(() => 
+            {
+                Codename = A == 4
+                    ? "" : presetNames[A].ToLower();
+                
+                InitialValues.DifficultyName = A == 4 
+                    ? "" : presetNames[A];
+               
+                InitialValues.DifficultyIndex = A == 4
+                    ? -1 : A;
+              
                 name.Start();
                 index.Start();
                 codename.Start();
@@ -66,36 +75,41 @@ public class NewChartModal : Modal
         }
         
         SpawnForm<FormEntryHeader>("Metadata");
-        name = SpawnForm<FormEntryString, string>("Chart Name", () => InitialValues.DifficultyName, x => InitialValues.DifficultyName = x);
-        index = SpawnForm<FormEntryInt, int>("Sorting Index", () => InitialValues.DifficultyIndex, x => InitialValues.DifficultyIndex = x);
+        name  = SpawnForm<FormEntryString, string>(   "Chart Name", () =>  InitialValues.DifficultyName, x => InitialValues.DifficultyName = x);
+        index = SpawnForm<FormEntryInt,       int>("Sorting Index", () => InitialValues.DifficultyIndex, x    => InitialValues.DifficultyIndex = x);
         SpawnForm<FormEntrySpace>("");
-        SpawnForm<FormEntryString, string>("Charter Name", () => InitialValues.CharterName, x => InitialValues.CharterName = x);
+        SpawnForm<FormEntryString, string>("Charter Name",     () =>    InitialValues.CharterName, x =>    InitialValues.CharterName = x);
         SpawnForm<FormEntryString, string>("Alt Charter Name", () => InitialValues.AltCharterName, x => InitialValues.AltCharterName = x);
         SpawnForm<FormEntrySpace>("");
-        SpawnForm<FormEntryString, string>("Difficulty", () => InitialValues.DifficultyLevel, x => InitialValues.DifficultyLevel = x);
-        SpawnForm<FormEntryFloat, float>("Chart Constant", () => InitialValues.ChartConstant, x => InitialValues.ChartConstant = x);
+        SpawnForm<FormEntryString, string>("Difficulty",     () => InitialValues.DifficultyLevel, x => InitialValues.DifficultyLevel = x);
+        SpawnForm<FormEntryFloat,   float>("Chart Constant", () =>   InitialValues.ChartConstant, x  =>   InitialValues.ChartConstant = x);
         
         SpawnForm<FormEntryHeader>("Palette");
         InitialValues.Palette.BackgroundColor = song.BackgroundColor;
         InitialValues.Palette.InterfaceColor = song.InterfaceColor;
-        if (InitialValues.Palette.LaneStyles.Count == 0) InitialValues.Palette.LaneStyles.Add(new LaneStyle {
+       
+        if (InitialValues.Palette.LaneStyles.Count == 0) InitialValues.Palette.LaneStyles.Add(new LaneStyle 
+        {
             LaneColor = song.InterfaceColor * new Color (1, 1, 1, .35f),
             JudgeColor = song.InterfaceColor,
         });
-        if (InitialValues.Palette.HitStyles.Count == 0) InitialValues.Palette.HitStyles.Add(new HitStyle {
+        
+        if (InitialValues.Palette.HitStyles.Count == 0) InitialValues.Palette.HitStyles.Add(new HitStyle 
+        {
             NormalColor = song.InterfaceColor,
             CatchColor = Color.Lerp(song.InterfaceColor, song.BackgroundColor, .35f),
             HoldTailColor = song.InterfaceColor * new Color (1, 1, 1, .35f),
         });
-        SpawnForm<FormEntryColor, Color>("Background Color", () => InitialValues.Palette.BackgroundColor, x => InitialValues.Palette.BackgroundColor = x);
-        SpawnForm<FormEntryColor, Color>("Interface Color", () => InitialValues.Palette.InterfaceColor, x => InitialValues.Palette.InterfaceColor = x);
+        
+        SpawnForm<FormEntryColor, Color>("Background Color",() => InitialValues.Palette.BackgroundColor,  x => InitialValues.Palette.BackgroundColor = x);
+        SpawnForm<FormEntryColor, Color>("Interface Color", () => InitialValues.Palette.InterfaceColor,   x => InitialValues.Palette.InterfaceColor  = x);
         SpawnForm<FormEntrySpace>("");
-        SpawnForm<FormEntryColor, Color>("Lane Color", () => InitialValues.Palette.LaneStyles[0].LaneColor, x => InitialValues.Palette.LaneStyles[0].LaneColor = x);
+        SpawnForm<FormEntryColor, Color>("Lane Color",       () => InitialValues.Palette.LaneStyles[0].LaneColor,  x => InitialValues.Palette.LaneStyles[0].LaneColor  = x);
         SpawnForm<FormEntryColor, Color>("Lane Judge Color", () => InitialValues.Palette.LaneStyles[0].JudgeColor, x => InitialValues.Palette.LaneStyles[0].JudgeColor = x);
         SpawnForm<FormEntrySpace>("");
-        SpawnForm<FormEntryColor, Color>("Normal Hit Color", () => InitialValues.Palette.HitStyles[0].NormalColor, x => InitialValues.Palette.HitStyles[0].NormalColor = x);
-        SpawnForm<FormEntryColor, Color>("Catch Hit Color", () => InitialValues.Palette.HitStyles[0].CatchColor, x => InitialValues.Palette.HitStyles[0].CatchColor = x);
-        SpawnForm<FormEntryColor, Color>("Hold Tail Color", () => InitialValues.Palette.HitStyles[0].HoldTailColor, x => InitialValues.Palette.HitStyles[0].HoldTailColor = x);
+        SpawnForm<FormEntryColor, Color>("Normal Hit Color", () => InitialValues.Palette.HitStyles[0].NormalColor,   x => InitialValues.Palette.HitStyles[0].NormalColor   = x);
+        SpawnForm<FormEntryColor, Color>("Catch Hit Color",  () => InitialValues.Palette.HitStyles[0].CatchColor,    x => InitialValues.Palette.HitStyles[0].CatchColor    = x);
+        SpawnForm<FormEntryColor, Color>("Hold Tail Color",  () => InitialValues.Palette.HitStyles[0].HoldTailColor, x => InitialValues.Palette.HitStyles[0].HoldTailColor = x);
 
         LayoutRebuilder.ForceRebuildLayoutImmediate(FormHolder);
         FormLayout.preferredHeight = FormHolderLayout.preferredHeight;
@@ -104,25 +118,22 @@ public class NewChartModal : Modal
     public ExternalChartMeta Execute()
     {
         if (string.IsNullOrWhiteSpace(Codename))
-        {
             throw new Exception("Please specify a codename for the Chart.");
-        }
 
         string path = Path.GetDirectoryName(Chartmaker.main.CurrentSongPath) + "/" + Codename + ".jac";
         if (File.Exists(path))
-        {
             throw new Exception("There is already a Chart with the same codename as you choose for this Chart. Please change the codename to a different value.");
-        }
 
         PlayableSong song = Chartmaker.main.CurrentSong;
         ExternalChartMeta chart = null;
 
-        song.Charts.Add(chart = new ExternalChartMeta {
+        song.Charts.Add(chart = new ExternalChartMeta 
+        {
             Target = Codename,
-            DifficultyName = InitialValues.DifficultyName,
+            DifficultyName  = InitialValues.DifficultyName,
             DifficultyIndex = InitialValues.DifficultyIndex,
             DifficultyLevel = InitialValues.DifficultyLevel,
-            ChartConstant = InitialValues.ChartConstant,
+            ChartConstant   = InitialValues.ChartConstant,
         });
 
         File.WriteAllText(path, JACEncoder.Encode(InitialValues));
@@ -137,7 +148,8 @@ public class NewChartModal : Modal
         return Task.Run(() => Execute());
     }
     
-    public IEnumerator ExecuteRoutine() {
+    public IEnumerator ExecuteRoutine() 
+    {
         Chartmaker.main.Loader.SetActive(true);
         Chartmaker.main.LoaderPanel.SetSong(Chartmaker.main.CurrentSong);
         Chartmaker.main.LoaderPanel.ActionLabel.text = "Creating Chart...";
@@ -163,7 +175,8 @@ public class NewChartModal : Modal
         Close();
     }
     
-    public void StartExecuteRoutine() {
+    public void StartExecuteRoutine() 
+    {
         StartCoroutine(ExecuteRoutine());
     }
 

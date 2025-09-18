@@ -8,10 +8,8 @@ public class ChartmakerTimelineDragBeatPositionAction: IChartmakerAction
     public string Keyword;
     public BeatPosition Value;
 
-    public string GetName()
-    {
-        return "Drag " + Chartmaker.GetItemName(Targets);
-    }
+    public string GetName() => 
+        "Drag " + Chartmaker.GetItemName(Targets);
 
     public void Undo() 
     {
@@ -28,10 +26,9 @@ public class ChartmakerTimelineDragBeatPositionAction: IChartmakerAction
         foreach (object item in Targets)
         {
             field.SetValue(item, (BeatPosition)field.GetValue(item) + value);
+           
             if (item is Storyboardable sb) foreach (Timestamp ts in sb.Storyboard.Timestamps) 
-            {
                 ts.Offset += value;
-            }
         }
     }
 }

@@ -11,7 +11,9 @@ public class FormEntryKeybind : FormEntry<Keybind>
         Reset();
     }
 
-    public void Reset() => Field.text = CurrentValue.ToString();
+    public void Reset()
+        => Field.text = CurrentValue.ToString();
+    
     public void StartChange() 
     {
         KeyboardHandler.main.StartKeybindChange(this);

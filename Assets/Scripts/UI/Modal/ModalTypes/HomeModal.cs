@@ -47,10 +47,12 @@ public class HomeModal : Modal
                 Chartmaker.main.LoaderPanel.SetSong(recent.SongName, recent.SongArtist, recent.BackgroundColor, recent.InterfaceColor);
                 StartCoroutine(Chartmaker.main.OpenSongRoutine(recent.Path));
             });
+          
             if (!string.IsNullOrWhiteSpace(recent.IconPath)) 
             {
                 StartCoroutine(LoadIconImageRoutine(item, recent.IconPath));
             }
+           
             SongItems.Add(item);
         }
 
@@ -62,6 +64,7 @@ public class HomeModal : Modal
         for (int i = 0; i < Tabs.Count; i++) 
         {
             bool isActive = i == tab;
+           
             Tabs[i].SetActive(isActive);
             TabButtons[i].interactable = !isActive;
         }
@@ -73,17 +76,21 @@ public class HomeModal : Modal
             new ContextMenuListAction("Open Song Path", () => {
                 Application.OpenURL("file://" + Path.GetDirectoryName(recent.Path));
             }),
+            
             new ContextMenuListSeparator(),
-            new ContextMenuListAction("Remove from List", () => {
+            
+            new ContextMenuListAction("Remove from List", () =>
+            {
                 List<RecentSong> list = new(Chartmaker.main.RecentSongsStorage.Get("List", new RecentSong[] {}));
                 int index = list.IndexOf(recent);
-                if (index >= 0) 
-                {
-                    Chartmaker.main.RemoveFromRecent(index);
-                    Destroy(item.Icon.texture);
-                    Destroy(item.gameObject);
-                    SongItems.Remove(item);
-                }
+
+                if (index < 0)
+                    return;
+
+                Chartmaker.main.RemoveFromRecent(index);
+                Destroy(item.Icon.texture);
+                Destroy(item.gameObject);
+                SongItems.Remove(item);
             })
         ), (RectTransform)item.transform, ContextMenuDirection.Cursor);
     }

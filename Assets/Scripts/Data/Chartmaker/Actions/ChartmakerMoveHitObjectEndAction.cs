@@ -4,21 +4,19 @@ using UnityEngine;
 public class ChartmakerMoveHitObjectEndAction : ChartmakerMoveAction<HitObject>
 {
 
-    public override string GetName()
-    {
-        return "Move Hit Object End";
-    }
+    public override string GetName() => 
+        "Move Hit Object End";
 
-    public override void Do(Vector3 offset) 
+    protected override void Do(Vector3 offset) 
     {
         Item.Length += offset.x;
-        foreach (Timestamp ts in Item.Storyboard.Timestamps)
+        foreach (Timestamp timestamp in Item.Storyboard.Timestamps)
         {
-            if (ts.ID == TimestampIDs.Length)
-            {
-                ts.From += offset.x;
-                ts.Target += offset.x;
-            }
+            if (timestamp.ID != TimestampIDs.Length)
+                continue;
+
+            timestamp.From += offset.x;
+            timestamp.Target += offset.x;
         }
     }
 }

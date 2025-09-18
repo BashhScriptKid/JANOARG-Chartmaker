@@ -47,8 +47,11 @@ public class VersionCheckerModal : Modal
         base.Start();
 
         TitleText.text = SummaryText.text = VersionText.text = "";
+       
         DescriptionBox.SetActive(false);
+        
         OkButton.gameObject.SetActive(true);
+        
         RemindLaterButton.gameObject.SetActive(false);
         DownloadButton.gameObject.SetActive(false);
 
@@ -58,6 +61,7 @@ public class VersionCheckerModal : Modal
         {
             TitleText.text = "Error";
             SummaryText.text = "Server responded with empty or invalid release data.";
+            
             return;
         }
 
@@ -81,7 +85,10 @@ public class VersionCheckerModal : Modal
               "\nWould you like to download it now?";
               
             DescriptionBox.SetActive(true);
+            
             DescriptionText.text = LatestRelease.body;
+            
+            // Replace markdown with xml tags
             DescriptionText.text = new Regex(@"\*\*(.+)\*\*", RegexOptions.Multiline).Replace(DescriptionText.text, "<b>$1</b>");
             DescriptionText.text = new Regex(@"\*(.+)\*", RegexOptions.Multiline).Replace(DescriptionText.text, "<i>$1</i>");
 
@@ -91,6 +98,7 @@ public class VersionCheckerModal : Modal
             OkButton.gameObject.SetActive(false);
             RemindLaterButton.gameObject.SetActive(true);
             DownloadButton.gameObject.SetActive(true);
+           
             DownloadText.text = "Download  <alpha=#80>" + (LatestAsset.size / 1048576f).ToString("#.00") + "MiB";
         }
         else 
@@ -119,6 +127,7 @@ public class VersionCheckerModal : Modal
                 #endif
                 
                 data = JsonUtility.FromJson<ReleaseData>("{\"Data\":" + request.downloadHandler.text + "}");
+                
                 if (silent) 
                 {
                     ReleaseItem latestRelease = data?.Data?.Find(x => x.name.StartsWith("chartmaker-v"));
@@ -126,15 +135,22 @@ public class VersionCheckerModal : Modal
                     Version.TryParse(Application.version, out Version currentVer);
                     Version.TryParse(latestRelease.name[12..], out Version remoteVer);
 
-                    if (currentVer >= remoteVer) goto silentSkip;
+                    if (currentVer >= remoteVer)
+                        goto silentSkip;
                 }
-                if (main) main.Close();
+                
+                if (main) 
+                    main.Close();
+                
                 ModalHolder.main.Spawn<VersionCheckerModal>();
             }
             catch (Exception e)
             {
-                if (silent) goto silentSkip;
+                if (silent)
+                    goto silentSkip;
+                
                 DialogModal modal = ModalHolder.main.Spawn<DialogModal>();
+               
                 modal.SetDialog("Error", 
                     "Couldn't parse response from server:\n" + e.ToString(), 
                     new string[] {"Ok"}, _ => {});
@@ -142,8 +158,11 @@ public class VersionCheckerModal : Modal
         }
         else
         {
-            if (silent) goto silentSkip;
+            if (silent)
+                goto silentSkip;
+            
             DialogModal modal = ModalHolder.main.Spawn<DialogModal>();
+            
             modal.SetDialog("Error", 
                 "Server responded with a " + request.responseCode + " status code.", 
                 new string[] {"Ok"}, _ => {});

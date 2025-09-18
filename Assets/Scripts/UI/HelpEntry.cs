@@ -35,6 +35,7 @@ public class HelpEntry : MonoBehaviour
     {
         Expanded = !Expanded;
         ExpandIcon.localEulerAngles = Vector3.forward * (Expanded ? 180 : -90);
+        
         Parent.UpdateEntries();
     }
 }

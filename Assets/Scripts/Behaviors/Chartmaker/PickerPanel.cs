@@ -15,6 +15,7 @@ public class PickerPanel : MonoBehaviour
     public GameObject HierarchySongItems;
     public GameObject HierarchyChartItems;
     
+    // Funni thing
     public GameObject hmmm;
     public GameObject hmmm2;
 
@@ -29,17 +30,20 @@ public class PickerPanel : MonoBehaviour
         {
             TimelinePickerMode mode = (TimelinePickerMode)a;
             TimelineButtons[a].onClick.AddListener(() => SetTimelinePickerMode(mode));
-            TooltipTarget tt = TimelineButtons[a].gameObject.AddComponent<TooltipTarget>();
-            tt.Text = TimelineButtons[a].name;
-            tt.PositionMode = TooltipPositionMode.Right;
+            
+            TooltipTarget tooltip = TimelineButtons[a].gameObject.AddComponent<TooltipTarget>();
+            tooltip.Text = TimelineButtons[a].name;
+            tooltip.PositionMode = TooltipPositionMode.Right;
         }
+        
         for (int a = 0; a < HierarchyButtons.Count; a++)
         {
             HierarchyPickerItem mode = (HierarchyPickerItem)a;
             HierarchyButtons[a].onClick.AddListener(() => ClickHierarchyPickerItem(mode));
-            TooltipTarget tt = HierarchyButtons[a].gameObject.AddComponent<TooltipTarget>();
-            tt.Text = HierarchyButtons[a].name;
-            tt.PositionMode = TooltipPositionMode.Right;
+          
+            TooltipTarget tooltip = HierarchyButtons[a].gameObject.AddComponent<TooltipTarget>();
+            tooltip.Text = HierarchyButtons[a].name;
+            tooltip.PositionMode = TooltipPositionMode.Right;
         }
     }
 
@@ -56,70 +60,104 @@ public class PickerPanel : MonoBehaviour
         Chart chart = Chartmaker.main.CurrentChart;
         PlayableSong song = Chartmaker.main.CurrentSong;
         
-        if (item == HierarchyPickerItem.CoverLayer)
+        switch (item)
         {
-            ModalHolder.main.Spawn<NewCoverLayerModal>();
-        }
-        else if (item == HierarchyPickerItem.LaneStyle) 
-        {
-            LaneStyle target = chart.Palette.LaneStyles.Count > 0 ? chart.Palette.LaneStyles[0] : new LaneStyle() {
-                LaneColor = song.InterfaceColor * new Color (1, 1, 1, .35f),
-                JudgeColor = song.InterfaceColor,
-            };
-            switch (InspectorPanel.main.CurrentObject) {
-                case LaneStyle ls: target = ls; break;
-            }
-            Chartmaker.main.AddItem(target.DeepClone());
-        }
-        else if (item == HierarchyPickerItem.HitStyle) 
-        {
-            HitStyle target = chart.Palette.HitStyles.Count > 0 ? chart.Palette.HitStyles[0] : new HitStyle() {
-                NormalColor = song.InterfaceColor,
-                CatchColor = Color.Lerp(song.InterfaceColor, song.BackgroundColor, .35f),
-                HoldTailColor = song.InterfaceColor * new Color (1, 1, 1, .35f),
-            };
-            switch (InspectorPanel.main.CurrentObject) {
-                case HitStyle ls: target = ls; break;
-            }
-            Chartmaker.main.AddItem(target.DeepClone());
-        }
-        else if (item == HierarchyPickerItem.Lane) 
-        {
-            string group = "";
-            switch (InspectorPanel.main.CurrentObject) {
-                case Lane l: group = l.Group; break;
-                case LaneGroup lg: group = lg.Group; break;
-            }
-
-            Lane lane = new Lane {
-                Position = new(0, -4, 0),
-                Group = group,
-            };
-            lane.LaneSteps.Add(new LaneStep { 
-                StartPointPosition = new(-8, 0),
-                EndPointPosition = new(8, 0),
-                Offset = (BeatPosition)InformationBar.main.beat
-            });
-            lane.LaneSteps.Add(new LaneStep { 
-                StartPointPosition = new(-8, 0),
-                EndPointPosition = new(8, 0),
-                Offset = (BeatPosition)(InformationBar.main.beat + 1),
-            });
-            Chartmaker.main.AddItem(lane);
-        }
-        else if (item == HierarchyPickerItem.LaneGroup) 
-        {
-            string parent = "";
-            switch (InspectorPanel.main.CurrentObject) {
-                case Lane l: parent = l.Group; break;
-                case LaneGroup lg: parent = lg.Group; break;
-            }
+            case HierarchyPickerItem.CoverLayer:
+                ModalHolder.main.Spawn<NewCoverLayerModal>(); break;
             
-            LaneGroup group = new LaneGroup {
-                Group = parent,
-                Name = InspectorPanel.main.GetNewGroupName("Group 1"),
-            };
-            Chartmaker.main.AddItem(group);
+            case HierarchyPickerItem.LaneStyle:
+            {
+                LaneStyle target;
+
+                if (chart.Palette.LaneStyles.Count > 0)
+                    target = chart.Palette.LaneStyles[0];
+                else
+                    target = new LaneStyle()
+                    {
+                        LaneColor = song.InterfaceColor * new Color(1, 1, 1, .35f),
+                        JudgeColor = song.InterfaceColor,
+                    };
+
+                target = InspectorPanel.main.CurrentObject switch
+                {
+                    LaneStyle laneStyle => laneStyle,
+                    _ => target
+                };
+
+                Chartmaker.main.AddItem(target.DeepClone());
+                break;
+            }
+            case HierarchyPickerItem.HitStyle:
+            {
+                HitStyle target;
+
+                if (chart.Palette.HitStyles.Count > 0)
+                    target = chart.Palette.HitStyles[0];
+                else
+                    target = new HitStyle()
+                    {
+                        NormalColor = song.InterfaceColor,
+                        CatchColor = Color.Lerp(song.InterfaceColor, song.BackgroundColor, .35f),
+                        HoldTailColor = song.InterfaceColor * new Color(1, 1, 1, .35f),
+                    };
+
+                target = InspectorPanel.main.CurrentObject switch
+                {
+                    HitStyle hitStyle => hitStyle,
+                    _ => target
+                };
+
+                Chartmaker.main.AddItem(target.DeepClone());
+                break;
+            }
+            case HierarchyPickerItem.Lane:
+            {
+                string group = InspectorPanel.main.CurrentObject switch
+                {
+                    Lane laneCurrentObject => laneCurrentObject.Group,
+                    LaneGroup laneGroupCurrentObject => laneGroupCurrentObject.Group,
+                    _ => ""
+                };
+
+                Lane lane = new Lane 
+                {
+                    Position = new(0, -4, 0),
+                    Group = group,
+                };
+                lane.LaneSteps.Add(new LaneStep 
+                { 
+                    StartPointPosition = new(-8, 0),
+                    EndPointPosition = new(8, 0),
+                    Offset = (BeatPosition)InformationBar.main.beat
+                });
+                
+                lane.LaneSteps.Add(new LaneStep 
+                { 
+                    StartPointPosition = new(-8, 0),
+                    EndPointPosition = new(8, 0),
+                    Offset = (BeatPosition)(InformationBar.main.beat + 1),
+                });
+                
+                Chartmaker.main.AddItem(lane);
+                break;
+            }
+            case HierarchyPickerItem.LaneGroup:
+            {
+                string parent = InspectorPanel.main.CurrentObject switch
+                {
+                    Lane laneCurrentObject => laneCurrentObject.Group,
+                    LaneGroup laneGroupCurrentObject => laneGroupCurrentObject.Group,
+                    _ => ""
+                };
+
+                LaneGroup group = new LaneGroup {
+                    Group = parent,
+                    Name = InspectorPanel.main.GetNewGroupName("Group 1"),
+                };
+                Chartmaker.main.AddItem(group);
+
+                break;
+            }
         }
     }
     
@@ -138,14 +176,17 @@ public class PickerPanel : MonoBehaviour
         HierarchySongItems.gameObject.SetActive(hMode == HierarchyMode.PlayableSong);
         HierarchyChartItems.gameObject.SetActive(hMode == HierarchyMode.Chart);
 
-        bool isOkay = false;
+        bool isTimelinePickable = false;
+        
         for (int a = 0; a < TimelineButtons.Count; a++)
         {
             TimelineButtons[a].interactable = CurrentTimelinePickerMode != (TimelinePickerMode)a;
-            if (TimelineButtons[a].gameObject.activeSelf && !TimelineButtons[a].interactable) isOkay = true;
+            if (TimelineButtons[a].gameObject.activeSelf && !TimelineButtons[a].interactable) 
+                isTimelinePickable = true;
         }
 
-        if (!isOkay) SetTimelinePickerMode(TimelinePickerMode.Cursor);
+        if (!isTimelinePickable) 
+            SetTimelinePickerMode(TimelinePickerMode.Cursor);
 
         bool hmm = Random.value < 0.005;
         hmmm.SetActive(hmm);

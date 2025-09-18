@@ -12,32 +12,21 @@ public class ChartmakerDeleteAction : IChartmakerAction
 
     public void Undo() 
     {
-        if (Item is IList)
-        {
-            foreach (object i in (IList)Item)
-            {
+        if (Item is IList item)
+            foreach (object i in item)
                 Target.Add(i);
-            }
-        }
         else 
-        {
             Target.Add(Item);
-        }
+        
         Chartmaker.SortList(Target);
     }
     public void Redo() 
     {
-        if (Item is IList)
-        {
-            foreach (object i in (IList)Item)
-            {
+        if (Item is IList item)
+            foreach (object i in item)
                 Target.Remove(i);
-            }
-        }
         else 
-        {
             Target.Remove(Item);
-        }
     }
 }
 

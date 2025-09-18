@@ -29,22 +29,35 @@ public class LoggerEntry : MonoBehaviour
     {
         Parent = parent;
         Target = target;
-        Icon.sprite = target.LogType == LogType.Log ? parent.InfoIcon : target.LogType == LogType.Warning ? parent.WarningIcon : parent.ErrorIcon;
+     
+        Icon.sprite = target.LogType switch
+        {
+            LogType.Log => parent.InfoIcon,
+            LogType.Warning => parent.WarningIcon,
+            _ => parent.ErrorIcon
+        };
+        
         rectTransform.anchoredPosition = new(0, -offset);
         Button.interactable = !active;
+      
         if (active)
         {
             MessageLabel.text = target.Message;
+            
             StackTraceLabel.gameObject.SetActive(true);
             StackTraceLabel.text = target.StackTrace;
+            
             MessageLabel.enableWordWrapping = true;
         }
         else 
         {
             MessageLabel.text = Regex.Match(target.Message + "\n" + target.StackTrace, @"^[^\n]*\n[^\n]*").Value;
+           
             StackTraceLabel.gameObject.SetActive(false);
+            
             MessageLabel.enableWordWrapping = false;
         }
+        
         Sizer.enabled = true;
     }
 }

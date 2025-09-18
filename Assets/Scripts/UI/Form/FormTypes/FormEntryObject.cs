@@ -31,23 +31,29 @@ public class FormEntryObject : FormEntry<object>
 
     public void LinkClick() 
     {
-        if (CurrentValue != null) InspectorPanel.main.SetObject(CurrentValue);
+        if (CurrentValue != null) 
+            InspectorPanel.main.SetObject(CurrentValue);
     }
 
     public void Reset()
     {
         string name;
-        if (Type == ObjectPickerType.LaneStyle)
+
+        switch (Type)
         {
-            IconImage.sprite = ObjectPicker.main.LaneStyleIcon;
-            ValueLabel.text = CurrentValue == null ? "<i>None" : 
-                string.IsNullOrEmpty(name = ((LaneStyle)CurrentValue)?.Name) ? "Lane Style " + CurrentIndex : name;
-        }
-        else if (Type == ObjectPickerType.HitStyle)
-        {
-            IconImage.sprite = ObjectPicker.main.HitStyleIcon;
-            ValueLabel.text = CurrentValue == null ? "<i>None" : 
-                string.IsNullOrEmpty(name = ((HitStyle)CurrentValue)?.Name) ? "Hit Style " + CurrentIndex : name;
+            case ObjectPickerType.LaneStyle:
+                IconImage.sprite = ObjectPicker.main.LaneStyleIcon;
+                ValueLabel.text = CurrentValue == null
+                    ? "<i>None" : string.IsNullOrEmpty(name = ((LaneStyle)CurrentValue)?.Name)
+                        ? "Lane Style " + CurrentIndex : name;
+                break;
+            
+            case ObjectPickerType.HitStyle:
+                IconImage.sprite = ObjectPicker.main.HitStyleIcon;
+                ValueLabel.text = CurrentValue == null
+                    ? "<i>None" : string.IsNullOrEmpty(name = ((HitStyle)CurrentValue)?.Name)
+                        ? "Hit Style " + CurrentIndex : name;
+                break;
         }
     }
 
@@ -56,15 +62,15 @@ public class FormEntryObject : FormEntry<object>
         ObjectPicker.main.CurrentObject = CurrentValue;
         ObjectPicker.main.Type = Type;
         ObjectPicker.main.Open();
-        ObjectPicker.main.OnSet = () => {
-            if (Type == ObjectPickerType.LaneStyle)
+        ObjectPicker.main.OnSet = () => 
+        {
+            CurrentIndex = Type switch
             {
-                CurrentIndex = Chartmaker.main.CurrentChart.Palette.LaneStyles.IndexOf((LaneStyle)ObjectPicker.main.CurrentObject);
-            }
-            else if (Type == ObjectPickerType.HitStyle)
-            {
-                CurrentIndex = Chartmaker.main.CurrentChart.Palette.HitStyles.IndexOf((HitStyle)ObjectPicker.main.CurrentObject);
-            }
+                ObjectPickerType.LaneStyle => Chartmaker.main.CurrentChart.Palette.LaneStyles.IndexOf((LaneStyle)ObjectPicker.main.CurrentObject),
+                ObjectPickerType.HitStyle => Chartmaker.main.CurrentChart.Palette.HitStyles.IndexOf((HitStyle)ObjectPicker.main.CurrentObject),
+                _ => CurrentIndex
+            };
+
             SetValue(ObjectPicker.main.CurrentObject);
             Reset();
         };

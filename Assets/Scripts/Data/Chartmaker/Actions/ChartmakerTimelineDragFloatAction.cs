@@ -7,10 +7,8 @@ public class ChartmakerTimelineDragFloatAction: IChartmakerAction
     public string Keyword;
     public float Value;
 
-    public string GetName()
-    {
-        return "Drag " + Chartmaker.GetItemName(Targets);
-    }
+    public string GetName() => 
+        "Drag " + Chartmaker.GetItemName(Targets);
 
     public void Undo() 
     {
@@ -24,9 +22,8 @@ public class ChartmakerTimelineDragFloatAction: IChartmakerAction
     void Do(float value) 
     {
         System.Reflection.FieldInfo field = Targets[0].GetType().GetField("Offset");
+        
         foreach (object item in Targets)
-        {
             field.SetValue(item, (float)field.GetValue(item) + value);
-        }
     }
 }

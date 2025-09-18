@@ -26,6 +26,7 @@ public class SmoothScrollRect : ScrollRect
             set(easeFunc.Get(t));
             yield return null;
         }
+      
         set(1);
         m_targetScrollPos = null;
     }
@@ -33,8 +34,13 @@ public class SmoothScrollRect : ScrollRect
     public void StartScrollAnimation(Vector2 from, Vector2 to, float duration, IEaseDirective easeFunc) 
     {
         velocity = Vector2.zero;
-        if (m_currentRoutine != null) StopCoroutine(m_currentRoutine);
-        if (from == to) return;
+        
+        if (m_currentRoutine != null)
+            StopCoroutine(m_currentRoutine);
+        
+        if (from == to) 
+            return;
+        
         m_currentRoutine = StartCoroutine(ScrollAnimation(from, to, duration, easeFunc));
     }
 
@@ -46,12 +52,19 @@ public class SmoothScrollRect : ScrollRect
     public override void OnScroll(PointerEventData data)
     {
         Vector2 from = content.anchoredPosition;
-        if (m_targetScrollPos != null) content.anchoredPosition = (Vector2)m_targetScrollPos;
+       
+        if (m_targetScrollPos != null)
+            content.anchoredPosition = (Vector2)m_targetScrollPos;
+        
         base.OnScroll(data);
+       
         Vector2 to = content.anchoredPosition;
         m_targetScrollPos = to;
+       
         SetContentAnchoredPosition(from = Vector2.Lerp(from, to, .1f));
+       
         float duration = Mathf.Min(Mathf.Sqrt(Vector2.Distance(from, to)) / m_ScrollSpeed, 0.2f);
+        
         StartScrollAnimation(from, to, duration, easeFunc);
     }
 }

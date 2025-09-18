@@ -20,25 +20,33 @@ public class TimelineItem : Selectable, IPointerDownHandler, IPointerClickHandle
         base.OnPointerDown(eventData);
         if (eventData.button == PointerEventData.InputButton.Left)
         {
-            IList list = (InspectorPanel.main.CurrentTimestamp?.Count ?? 0) > 0 ? InspectorPanel.main.CurrentTimestamp :
-                InspectorPanel.main.CurrentObject is IList li && li.Contains(Item) ? li : null;
-            if (list != null) TimelinePanel.main.BeginDragItem(list, eventData);
-            else TimelinePanel.main.BeginDragItem(new List<object>() { Item }, eventData);
+            IList list = (InspectorPanel.main.CurrentTimestamp?.Count ?? 0) > 0 
+                ? InspectorPanel.main.CurrentTimestamp : InspectorPanel.main.CurrentObject is IList currentObjectList && currentObjectList.Contains(Item) 
+                    ? currentObjectList : null;
+           
+            if (list != null)
+                TimelinePanel.main.BeginDragItem(list, eventData);
+            else
+                TimelinePanel.main.BeginDragItem(new List<object>() { Item }, eventData);
         }
     }
 
     public virtual void OnPointerClick(PointerEventData eventData)
     {
-        if (TimelinePanel.main.isDragged) return;
-        if (eventData.button == PointerEventData.InputButton.Left)
+        if (TimelinePanel.main.isDragged)
+            return;
+        
+        switch (eventData.button)
         {
-            SelectItem();
-        }
-        if (eventData.button == PointerEventData.InputButton.Right)
-        {
-            RightClickItem();
-        }
+            case PointerEventData.InputButton.Left:
+                SelectItem();
 
+                break;
+            case PointerEventData.InputButton.Right:
+                RightClickItem();
+
+                break;
+        }
     }
 
     public void SetItem(object item, Lane lane = null)
@@ -51,12 +59,12 @@ public class TimelineItem : Selectable, IPointerDownHandler, IPointerClickHandle
     public void SelectItem()
     {
         if (PickerPanel.main.CurrentTimelinePickerMode == TimelinePickerMode.Delete)
-        {
             Chartmaker.main.DeleteItem(Item);
-        }
         else
         {
-            if (Lane != null) InspectorPanel.main.SetObject(Lane);
+            if (Lane != null)
+                InspectorPanel.main.SetObject(Lane);
+            
             InspectorPanel.main.SetObject(Item);
         }
     }

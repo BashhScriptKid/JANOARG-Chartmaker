@@ -14,13 +14,9 @@ public class Themeable<T> : Themeable where T : MonoBehaviour
 
     public void OnEnable()
     {
-        if (Application.IsPlaying(gameObject))
-        {
-            if (Themer.main) SetColors();
-        }
-        else
-        {
-            if (!Target) Target = GetComponent<T>();
-        }
+        if (Application.IsPlaying(gameObject) && Themer.main)
+                SetColors();
+        else if (!Target)
+                Target = GetComponent<T>();
     }
 }

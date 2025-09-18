@@ -31,7 +31,9 @@ public class HierarchyFiltersPanel : MonoBehaviour
 
     public void Reset() 
     {
-        foreach (var item in Items.Values) item.Reset();
+        foreach (var item in Items.Values) 
+            item.Reset();
+        
         HierarchyPanel.main.UpdateHolders();
     }
 
@@ -39,9 +41,9 @@ public class HierarchyFiltersPanel : MonoBehaviour
     {
         return context switch
         {
-            HierarchyContext.Hierarchy => Items[type].InHierarchyToggle.isOn,
+            HierarchyContext.Hierarchy    => Items[type].InHierarchyToggle.isOn,
             HierarchyContext.SearchResult => Items[type].InSearchResultToggle.isOn,
-            _ => false,
+            _                             => false,
         };
     }
 }
@@ -50,9 +52,11 @@ public class HierarchyFiltersPanel : MonoBehaviour
 public class HierarchyFilterSetting 
 {
     public HierarchyItemType Target;
+    
     public string Name;
     public Sprite Icon;
-    public int Indent;
+    public int    Indent;
+    
     public bool InHierarchyToggleable = true;
     public bool InHierarchyDefault = true;
     public bool InSearchResultToggleable = true;
@@ -67,62 +71,130 @@ public class HierarchyFilterSettingDrawer : PropertyDrawer
 
         float lineHeight = EditorGUIUtility.singleLineHeight;
         float padding = EditorGUIUtility.standardVerticalSpacing;
-        float lhp = lineHeight + padding;
+        float lineHeightPadding = lineHeight + padding;
 
         bool toggleable = property.FindPropertyRelative(key + "Toggleable").boolValue;
 
         GUI.Label(
-            new Rect(position.x + 10, position.y, position.width, position.height), 
-            label);
+            new Rect(
+                position.x + 10, 
+                position.y, 
+                position.width, position.height), 
+            label
+        );
+        
         GUI.Label(
-            new Rect(position.x + position.width - lineHeight - 12, position.y, lineHeight + 10, lineHeight), 
-            "", GUI.skin.button);
-        property.FindPropertyRelative(key + "Toggleable").boolValue = GUI.Toggle(
-            new Rect(position.x + position.width - lineHeight - lhp * 0.9f - 1, position.y, lineHeight, lineHeight), 
-            toggleable, toggleable ? "V" : "X", GUI.skin.GetStyle("ButtonLeft"));
+            new Rect(
+                position.x + position.width - lineHeight - 12, 
+                position.y, 
+                width: lineHeight + 10, 
+                height:lineHeight), 
+            text:"", 
+            GUI.skin.button);
+        
+        property.FindPropertyRelative(key + "Toggleable").boolValue = 
+            GUI.Toggle(
+                new Rect(
+                    position.x + position.width - lineHeight - lineHeightPadding * 0.9f - 1,
+                    position.y, 
+                    width: lineHeight, 
+                    height:lineHeight), 
+                toggleable, 
+                toggleable ? "V" : "X", 
+                GUI.skin.GetStyle("ButtonLeft")
+            );
+        
         EditorGUI.PropertyField(
-            new Rect(position.x + position.width - lineHeight, position.y, lineHeight, lineHeight), 
+            new Rect(
+                position.x + position.width - lineHeight, position.y, 
+                width:lineHeight, 
+                height:lineHeight), 
             property.FindPropertyRelative(key + "Default"), GUIContent.none);
     }
 
     public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
     {
         EditorGUI.BeginProperty(position, label, property);
-
-
+        
         float lineHeight = EditorGUIUtility.singleLineHeight;
         float padding = EditorGUIUtility.standardVerticalSpacing;
-        float lhp = lineHeight + padding;
+        float lineHeightPadding = lineHeight + padding;
         int indent = EditorGUI.indentLevel;
         float labelIndent = .8f * property.FindPropertyRelative("Indent").intValue * lineHeight;
+        
         EditorGUI.indentLevel = 0;
 
         EditorGUI.PropertyField(
-            new Rect(position.x, position.y, position.width / 3 * 2, lineHeight), 
-            property.FindPropertyRelative("Target"), GUIContent.none);
+            new Rect(
+                position.x, 
+                position.y, 
+                width: position.width / 3 * 2, 
+                height:lineHeight), 
+            property.FindPropertyRelative("Target"), 
+            GUIContent.none
+        );
 
         GUI.Label(
-            new Rect(position.x, position.y + lhp - 1, 10, lineHeight), 
-            ">");
+            new Rect(
+                position.x, position.y + lineHeightPadding - 1, 
+                width: 10,
+                height:lineHeight), 
+            text:">"
+        );
+        
         EditorGUI.PropertyField(
-            new Rect(position.x + 12, position.y + lhp, 50, lineHeight), 
-            property.FindPropertyRelative("Indent"), GUIContent.none);
+            new Rect(
+                position.x + 12, 
+                position.y + lineHeightPadding, 
+                width: 50, 
+                height:lineHeight), 
+            property.FindPropertyRelative("Indent"), 
+            GUIContent.none);
+        
         GUI.Label(
-            new Rect(position.x + 62, position.y + lhp - 0.5f, 10, lineHeight), 
-            "|");
+            new Rect(
+                position.x + 62, 
+                position.y + lineHeightPadding - 0.5f, 
+                width: 10, 
+                height:lineHeight), 
+            text:"|")
+            ;
         EditorGUI.PropertyField(
-            new Rect(position.x + 70 + labelIndent, position.y + lhp, 60, lineHeight), 
-            property.FindPropertyRelative("Icon"), GUIContent.none);
+            new Rect(
+                position.x + 70 + labelIndent, 
+                position.y + lineHeightPadding,
+                width: 60,
+                height:lineHeight), 
+            property.FindPropertyRelative("Icon"), 
+            GUIContent.none);
+        
         EditorGUI.PropertyField(
-            new Rect(position.x + 132 + labelIndent, position.y + lhp, position.width - 132 - labelIndent, lineHeight), 
+            new Rect(
+                position.x + 132 + labelIndent, 
+                position.y + lineHeightPadding, 
+                width: position.width - 132 - labelIndent,
+                height:lineHeight), 
             property.FindPropertyRelative("Name"), GUIContent.none);
 
-        DrawToggleSetField("In Hierarchy",
-            new Rect(position.x + position.width / 2 * 0, position.y + lhp * 2, position.width / 2, lineHeight),
-            property, "InHierarchy");
-        DrawToggleSetField("In Search",
-            new Rect(position.x + position.width / 2 * 1, position.y + lhp * 2, position.width / 2, lineHeight),
-            property, "InSearchResult");
+        DrawToggleSetField(
+            label:"In Hierarchy",
+            new Rect(
+                position.x + position.width / 2 * 0, 
+                position.y + lineHeightPadding * 2, 
+                width: position.width / 2,
+                height:lineHeight),
+            property, 
+            key:"InHierarchy");
+        
+        DrawToggleSetField(
+            label:"In Search",
+            new Rect(
+                position.x + position.width / 2 * 1, 
+                position.y + lineHeightPadding * 2, 
+                width: position.width / 2,
+                height:lineHeight),
+            property, 
+            key:"InSearchResult");
 
 
         EditorGUI.indentLevel = indent;

@@ -64,22 +64,20 @@ public class NavigationBar : MonoBehaviour
         }
     }
 
-    public ContextMenuList GetFileMenu()
+    private ContextMenuList GetFileMenu()
     {
-        ContextMenuListItem openChartItem = null;
+        ContextMenuListItem openChartItem;
         if (Chartmaker.main.CurrentSong == null || Chartmaker.main.CurrentSong.Charts.Count <= 0)
-        {
             openChartItem = new ContextMenuListAction("Open Chart", () => {}, _enabled: false);
-        }
         else 
         {
             ContextMenuListSublist list = new ("Open Chart");
             openChartItem = list;
             foreach (ExternalChartMeta chart in Chartmaker.main.CurrentSong.Charts)
             {
-                ExternalChartMeta _chart = chart;
+                ExternalChartMeta exChart = chart;
                 list.Items.Items.Add(new ContextMenuListAction(chart.DifficultyName + " " + chart.DifficultyLevel, () => {
-                    StartCoroutine(Chartmaker.main.OpenChartRoutine(_chart));
+                    StartCoroutine(Chartmaker.main.OpenChartRoutine(exChart));
                 }));
             }
         }
@@ -102,7 +100,7 @@ public class NavigationBar : MonoBehaviour
         );
     }
 
-    public ContextMenuList GetEditMenu()
+    private ContextMenuList GetEditMenu()
     {
         bool canUndo = Chartmaker.main.History.ActionsBehind.TryPeek(out IChartmakerAction actionBehind);
         bool canRedo = Chartmaker.main.History.ActionsAhead.TryPeek(out IChartmakerAction actionAhead);
@@ -130,16 +128,22 @@ public class NavigationBar : MonoBehaviour
         return new ContextMenuList(
             new ContextMenuListSublist("Show", 
                 new ContextMenuListAction("Hierarchy Panel", () => {
-                    if (HierarchyPanel.main.IsCollapsed) HierarchyPanel.main.Restore();
-                    else HierarchyPanel.main.Collapse();
+                    if (HierarchyPanel.main.IsCollapsed) 
+                        HierarchyPanel.main.Restore();
+                    else
+                        HierarchyPanel.main.Collapse();
                 }, _checked: !HierarchyPanel.main.IsCollapsed),
                 new ContextMenuListAction("Inspector Panel", () => {
-                    if (InspectorPanel.main.IsCollapsed) InspectorPanel.main.Restore();
-                    else InspectorPanel.main.Collapse();
+                    if (InspectorPanel.main.IsCollapsed) 
+                        InspectorPanel.main.Restore();
+                    else 
+                        InspectorPanel.main.Collapse();
                 }, _checked: !InspectorPanel.main.IsCollapsed),
                 new ContextMenuListAction("Timeline Panel", () => {
-                    if (TimelinePanel.main.TimelineHeight > 0) TimelinePanel.main.Collapse();
-                    else TimelinePanel.main.Restore();
+                    if (TimelinePanel.main.TimelineHeight > 0) 
+                        TimelinePanel.main.Collapse();
+                    else 
+                        TimelinePanel.main.Restore();
                 }, _checked: TimelinePanel.main.TimelineHeight > 0)
             ),
             new ContextMenuListSeparator(),
@@ -147,7 +151,7 @@ public class NavigationBar : MonoBehaviour
         );
     }
 
-    public ContextMenuList GetOptionsMenu()
+    private ContextMenuList GetOptionsMenu()
     {
         return new ContextMenuList(
             new ContextMenuListAction("Preferences...", () => ModalHolder.main.Spawn<PreferencesModal>()),
@@ -155,7 +159,7 @@ public class NavigationBar : MonoBehaviour
         );
     }
 
-    public ContextMenuList GetHelpMenu()
+    private ContextMenuList GetHelpMenu()
     {
         return new ContextMenuList(
             new ContextMenuListAction("Interactive Tutorials...", () => ModalHolder.main.Spawn<TutorialModal>()),
@@ -173,22 +177,42 @@ public class NavigationBar : MonoBehaviour
     }
 
 
-
-
-
-    public void InvertSelection() 
+    private void InvertSelection()
     {
         IList list = InspectorPanel.main.CurrentObject is IList li ? li : new List<object> { InspectorPanel.main.CurrentObject };
-        if (TimelinePanel.main.CurrentMode == TimelineMode.Storyboard) {
-            if (InspectorPanel.main.CurrentObject is Storyboardable) InspectorPanel.main.SetObject(((Storyboardable)InspectorPanel.main.CurrentObject).Storyboard.Timestamps.FindAll(x => InspectorPanel.main.CurrentTimestamp?.Contains(x) == false));
-        } else if (TimelinePanel.main.CurrentMode == TimelineMode.Lanes) {
-            if (Chartmaker.main.CurrentChart != null) InspectorPanel.main.SetObject(Chartmaker.main.CurrentChart.Lanes.FindAll(x => !list.Contains(x)));
-        } else if (TimelinePanel.main.CurrentMode == TimelineMode.LaneSteps) {
-            if (InspectorPanel.main.CurrentHierarchyObject is Lane lane) InspectorPanel.main.SetObject(lane.LaneSteps.FindAll(x => !list.Contains(x)));
-        } else if (TimelinePanel.main.CurrentMode == TimelineMode.HitObjects) {
-            if (InspectorPanel.main.CurrentHierarchyObject is Lane lane) InspectorPanel.main.SetObject(lane.Objects.FindAll(x => !list.Contains(x)));
-        } else if (TimelinePanel.main.CurrentMode == TimelineMode.Timing) {
-            if (Chartmaker.main.CurrentSong != null) InspectorPanel.main.SetObject(Chartmaker.main.CurrentSong.Timing.Stops.FindAll(x => !list.Contains(x)));
+
+        switch (TimelinePanel.main.CurrentMode)
+        {
+            case TimelineMode.Storyboard:
+            {
+                if (InspectorPanel.main.CurrentObject is Storyboardable) 
+                    InspectorPanel.main.SetObject(((Storyboardable)InspectorPanel.main.CurrentObject).Storyboard.Timestamps.FindAll(x => InspectorPanel.main.CurrentTimestamp?.Contains(x) == false));
+                break;
+            }
+            case TimelineMode.Lanes:
+            {
+                if (Chartmaker.main.CurrentChart != null) 
+                    InspectorPanel.main.SetObject(Chartmaker.main.CurrentChart.Lanes.FindAll(x => !list.Contains(x)));
+                break;
+            }
+            case TimelineMode.LaneSteps:
+            {
+                if (InspectorPanel.main.CurrentHierarchyObject is Lane lane) 
+                    InspectorPanel.main.SetObject(lane.LaneSteps.FindAll(x => !list.Contains(x)));
+                break;
+            }
+            case TimelineMode.HitObjects:
+            {
+                if (InspectorPanel.main.CurrentHierarchyObject is Lane lane) 
+                    InspectorPanel.main.SetObject(lane.Objects.FindAll(x => !list.Contains(x)));
+                break;
+            }
+            case TimelineMode.Timing:
+            {
+                if (Chartmaker.main.CurrentSong != null) 
+                    InspectorPanel.main.SetObject(Chartmaker.main.CurrentSong.Timing.Stops.FindAll(x => !list.Contains(x)));
+                break;
+            }
         }
     }
 }

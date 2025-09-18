@@ -24,11 +24,11 @@ public class FormEntryRange : FormEntry<float>
 
     public void FieldSet()
     {
-        if (float.TryParse(Field.text, out float value))
-        {
-            Range.value = value;
-            SetValue(Range.value);
-        }
+        if (!float.TryParse(Field.text, out float value)) 
+            return;
+
+        Range.value = value;
+        SetValue(Range.value);
     }
 
     public void Reset()

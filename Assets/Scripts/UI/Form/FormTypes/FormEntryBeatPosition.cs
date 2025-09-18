@@ -11,7 +11,9 @@ public class FormEntryBeatPosition : FormEntry<BeatPosition>
         Reset();
     }
 
-    public void Reset() => Field.SetTextWithoutNotify(CurrentValue.ToString());
+    public void Reset()
+        => Field.SetTextWithoutNotify(CurrentValue.ToString());
+    
     public void SetValue(string value)
     {
         if (BeatPosition.TryParse(value, out BeatPosition v)) SetValue(v);

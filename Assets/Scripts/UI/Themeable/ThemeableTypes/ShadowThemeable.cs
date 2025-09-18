@@ -10,6 +10,7 @@ public class ShadowThemeable : Themeable<Shadow>
 
     public override void SetColors()
     {
-        if (Themer.main.Keys.TryGetValue(ID, out Color color)) Target.effectColor = color;
+        if (Themer.main.Keys.TryGetValue(ID, out Color color)) 
+            Target.effectColor = color;
     }
 }

@@ -5,10 +5,8 @@ public class ChartmakerMultiEditAction: IChartmakerAction
     public List<ChartmakerMultiEditActionItem> Targets = new List<ChartmakerMultiEditActionItem>();
     public string Keyword;
 
-    public string GetName()
-    {
-        return "Multi Edit " + Chartmaker.GetItemName(Targets[0].Target) + " " + Keyword;
-    }
+    public string GetName() => 
+        "Multi Edit " + Chartmaker.GetItemName(Targets[0].Target) + " " + Keyword;
 
     public void Undo() 
     {

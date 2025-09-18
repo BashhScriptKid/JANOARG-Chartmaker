@@ -19,9 +19,7 @@ public class RightClickButton : Button
     {
         base.OnPointerUp(eventData);
         if (eventData.button == PointerEventData.InputButton.Right) 
-        {
             onRightClick.Invoke();
-        }
     }
 }
 
@@ -32,7 +30,9 @@ public class RightClickButtonInspector : ButtonEditor {
     public override void OnInspectorGUI(){
         base.OnInspectorGUI();
         serializedObject.Update();
+     
         EditorGUILayout.PropertyField(serializedObject.FindProperty("onRightClick"));
+        
         serializedObject.ApplyModifiedProperties();
     }
 }

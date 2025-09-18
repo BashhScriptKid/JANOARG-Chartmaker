@@ -31,6 +31,7 @@ public class FormEntryToggleFloat : FormEntry<float>
     
     public void SetValue(string value)
     {
-        if (float.TryParse(value, out float v)) SetValue(v);
+        if (float.TryParse(value, out float v)) 
+            SetValue(v);
     }
 }

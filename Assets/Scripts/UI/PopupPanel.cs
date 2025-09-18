@@ -37,7 +37,8 @@ public class PopupPanel : MonoBehaviour
 
     public void Close()
     {
-        if (!isAnimating) gameObject.SetActive(false);
+        if (!isAnimating)
+            gameObject.SetActive(false);
     }
 
     IEnumerator Intro()

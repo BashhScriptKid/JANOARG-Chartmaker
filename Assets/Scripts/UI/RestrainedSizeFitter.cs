@@ -20,6 +20,7 @@ public class RestrainedSizeFitter : ContentSizeFitter {
         RectTransform rt = (RectTransform)transform;
         Rect rect = rt.rect;
         Vector2 sizeDelta = rt.sizeDelta; 
+      
         sizeDelta.x += Mathf.Clamp(rect.width, minWidth, maxWidth) - rect.width;
         rt.sizeDelta = sizeDelta;
     }
@@ -31,6 +32,7 @@ public class RestrainedSizeFitter : ContentSizeFitter {
         RectTransform rt = (RectTransform)transform;
         Rect rect = rt.rect;
         Vector2 sizeDelta = rt.sizeDelta; 
+     
         sizeDelta.y += Mathf.Clamp(rect.height, minHeight, maxHeight) - rect.height;
         rt.sizeDelta = sizeDelta;
     }

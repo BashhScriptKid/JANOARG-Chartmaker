@@ -19,12 +19,9 @@ public class ModalHolder : MonoBehaviour
     public T Spawn<T>() where T : Modal
     {
         foreach (Modal modal in Modals)
-        {
             if (modal is T)
-            {
                 return Instantiate(modal, NormalModalHolder) as T;
-            }
-        }
+        
         throw new System.Exception();
     }
 }

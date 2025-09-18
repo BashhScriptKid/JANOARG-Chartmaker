@@ -76,13 +76,11 @@ public class WindowHandler : MonoBehaviour, IPointerEnterHandler, IPointerExitHa
         
 
         if (maximized != BorderlessWindow.IsMaximized) 
-        {
-            OnSizeChange();
-        }
+            OnSizeChange(); 
+        
         if (active != BorderlessWindow.IsActive) 
-        {
             OnActiveChange();
-        }
+        
         if (framed != BorderlessWindow.IsFramed) 
         {
             framed = BorderlessWindow.IsFramed;
@@ -94,12 +92,14 @@ public class WindowHandler : MonoBehaviour, IPointerEnterHandler, IPointerExitHa
             currentCursorFrameTime += Time.unscaledDeltaTime;
             int lastFrame = currentCursorFrame;
             int a = 1000;
+            
             while (currentCursorFrameTime >= activeCustomCursor.Frames[currentCursorFrame].Duration && a > 0)
             {
                 currentCursorFrameTime -= activeCustomCursor.Frames[currentCursorFrame].Duration;
                 currentCursorFrame = (currentCursorFrame + 1) % activeCustomCursor.Frames.Count;
                 a--;
             }
+            
             if (lastFrame != currentCursorFrame)
                 Cursor.SetCursor(activeCustomCursor.Frames[currentCursorFrame].Texture, activeCustomCursor.Pivot, CursorMode.Auto);
         }
@@ -170,7 +170,8 @@ public class WindowHandler : MonoBehaviour, IPointerEnterHandler, IPointerExitHa
         ResizeIconRestore.SetActive(maximized);
         TopBorder.gameObject.SetActive(!maximized);
     }
-    public void OnActiveChange() 
+
+    private void OnActiveChange() 
     {
         active = BorderlessWindow.IsActive;
         InactiveBackground.SetActive(!active);

@@ -29,17 +29,19 @@ public class ChartmakerTimelineDragLaneAction: IChartmakerAction
             foreach (LaneStep step in lane.LaneSteps) 
             {
                 step.Offset += value;
-                foreach (Timestamp ts in step.Storyboard.Timestamps) ts.Offset += value;
+                foreach (Timestamp timestamp in step.Storyboard.Timestamps) 
+                    timestamp.Offset += value;
             }
+            
             foreach (HitObject hit in lane.Objects) 
             {
                 hit.Offset += value;
-                foreach (Timestamp ts in hit.Storyboard.Timestamps) ts.Offset += value;
+                foreach (Timestamp timestamp in hit.Storyboard.Timestamps) 
+                    timestamp.Offset += value;
             }
-            foreach (Timestamp ts in lane.Storyboard.Timestamps) 
-            {
-                ts.Offset += value;
-            }
+            
+            foreach (Timestamp timestamp in lane.Storyboard.Timestamps) 
+                timestamp.Offset += value;
         }
 
     }

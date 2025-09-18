@@ -10,5 +10,6 @@ public class FormEntryBool : FormEntry<bool>
         Reset();
     }
 
-    public void Reset() => Toggle.SetIsOnWithoutNotify(CurrentValue);
+    public void Reset() 
+        => Toggle.SetIsOnWithoutNotify(CurrentValue);
 }

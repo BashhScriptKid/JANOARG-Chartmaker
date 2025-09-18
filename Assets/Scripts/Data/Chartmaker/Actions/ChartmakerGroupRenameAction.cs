@@ -15,13 +15,15 @@ public class ChartmakerGroupRenameAction: IChartmakerAction
         Chart target = Chartmaker.main.CurrentChart;
         foreach (LaneGroup group in target.Groups)
         {
-            if (group.Name == from) group.Name = to;
-            if (group.Group == from) group.Group = to;
+            if (group.Name == from) 
+                group.Name = to;
+            
+            if (group.Group == from)
+                group.Group = to;
         }
+        
         foreach (Lane lane in target.Lanes)
-        {
             if (lane.Group == from) lane.Group = to;
-        }
     }
 
 

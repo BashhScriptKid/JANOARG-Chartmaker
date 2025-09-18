@@ -22,7 +22,10 @@ public class FormEntryEasing : FormEntry<IEaseDirective>
         ValueLabel.text = CurrentValue.ToString();
         
         float[] graph = new float[64];
-        for (int i = 0; i < graph.Length; i++) graph[i] = CurrentValue.Get(i / (graph.Length - 1f));
+        
+        for (int i = 0; i < graph.Length; i++) 
+            graph[i] = CurrentValue.Get(i / (graph.Length - 1f));
+        
         Graph.Values = graph;
     }
 
@@ -30,7 +33,8 @@ public class FormEntryEasing : FormEntry<IEaseDirective>
     {
         EasingPicker.main.CurrentEasing = CurrentValue;
         EasingPicker.main.Open();
-        EasingPicker.main.OnSet = () => {
+        EasingPicker.main.OnSet = () => 
+        {
             SetValue(EasingPicker.main.CurrentEasing);
             Reset();
         };

@@ -4,27 +4,27 @@ using UnityEngine;
 public class ChartmakerMoveLaneEndAction : ChartmakerMoveAction<Lane>
 {
 
-    public override string GetName()
-    {
-        return "Move Lane End";
-    }
+    public override string GetName() => 
+        "Move Lane End";
 
-    public override void Do(Vector3 offset) 
+    protected override void Do(Vector3 offset) 
     {
         foreach (LaneStep step in Item.LaneSteps)
         {
             step.EndPointPosition += (Vector2)offset;
-            foreach (Timestamp ts in step.Storyboard.Timestamps)
+            foreach (Timestamp timestamp in step.Storyboard.Timestamps)
             {
-                if (ts.ID == TimestampIDs.EndPos_X)
+                switch (timestamp.ID)
                 {
-                    ts.From += offset.x;
-                    ts.Target += offset.x;
-                }
-                if (ts.ID == TimestampIDs.EndPos_Y)
-                {
-                    ts.From += offset.y;
-                    ts.Target += offset.y;
+                    case TimestampIDs.EndPos_X:
+                        timestamp.From += offset.x;
+                        timestamp.Target += offset.x;
+                        break;
+                    
+                    case TimestampIDs.EndPos_Y:
+                        timestamp.From += offset.y;
+                        timestamp.Target += offset.y;
+                        break;
                 }
             }
         }

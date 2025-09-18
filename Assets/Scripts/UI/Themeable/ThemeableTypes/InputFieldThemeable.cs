@@ -17,12 +17,14 @@ public class InputFieldThemeable : Themeable<TMP_InputField>
     public override void SetColors()
     {
         ColorBlock colors = Target.colors;
-        { if (Themer.main.Keys.TryGetValue(NormalID, out Color color)) colors.normalColor = color; }
+        
+        { if (Themer.main.Keys.TryGetValue(NormalID,      out Color color)) colors.normalColor      = color; }
         { if (Themer.main.Keys.TryGetValue(HighlightedID, out Color color)) colors.highlightedColor = color; }
-        { if (Themer.main.Keys.TryGetValue(SelectedID, out Color color)) colors.selectedColor = color; }
-        { if (Themer.main.Keys.TryGetValue(PressedID, out Color color)) colors.pressedColor = color; }
-        { if (Themer.main.Keys.TryGetValue(DisabledID, out Color color)) colors.disabledColor = color; }
-        { if (Themer.main.Keys.TryGetValue(SelectionID, out Color color)) Target.selectionColor = color; }
+        { if (Themer.main.Keys.TryGetValue(SelectedID,    out Color color)) colors.selectedColor    = color; }
+        { if (Themer.main.Keys.TryGetValue(PressedID,     out Color color)) colors.pressedColor     = color; }
+        { if (Themer.main.Keys.TryGetValue(DisabledID,    out Color color)) colors.disabledColor    = color; }
+        { if (Themer.main.Keys.TryGetValue(SelectionID,   out Color color)) Target.selectionColor   = color; }
+        
         Target.colors = colors;
     }
 }

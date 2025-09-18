@@ -22,11 +22,11 @@ public class FormEntryVector3 : FormEntry<Vector3>
     
     public void SetValue(int index, string value)
     {
-        if (float.TryParse(value, out float v)) 
-        {
-            CurrentValue[index] = v;
-            SetValue(CurrentValue);
-        }
+        if (!float.TryParse(value, out float v)) 
+            return;
+
+        CurrentValue[index] = v;
+        SetValue(CurrentValue);
     }
     public void SetX(string value) => SetValue(0, value);
     public void SetY(string value) => SetValue(1, value);

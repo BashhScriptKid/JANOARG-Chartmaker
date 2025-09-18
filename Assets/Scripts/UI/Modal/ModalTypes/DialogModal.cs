@@ -26,19 +26,21 @@ public class DialogModal : Modal
     {
         TitleLabel.text = title;
         BodyLabel.text = body;
+       
         CloseButton.SetActive(allowX);
         
-        foreach (GameObject item in Items) Destroy(item);
+        foreach (GameObject item in Items)
+            Destroy(item);
+      
         Items.Clear();
 
         int index = 0;
         foreach (string act in actions) 
         {
             int i = index;
+           
             if (string.IsNullOrEmpty(act))
-            {
                 Items.Add(Instantiate(SeparatorSample, ActionHolder));
-            }
             else 
             {
                 DialogModalAction action = Instantiate(ActionSample, ActionHolder);

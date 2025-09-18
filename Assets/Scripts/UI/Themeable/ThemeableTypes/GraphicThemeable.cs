@@ -10,6 +10,7 @@ public class GraphicThemeable : Themeable<Graphic>
 
     public override void SetColors()
     {
-        if (Themer.main.Keys.TryGetValue(ID, out Color color)) Target.color = color;
+        if (Themer.main.Keys.TryGetValue(ID, out Color color)) 
+            Target.color = color;
     }
 }

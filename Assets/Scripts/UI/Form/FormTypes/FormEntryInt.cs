@@ -10,9 +10,12 @@ public class FormEntryInt : FormEntry<int>
         Reset();
     }
 
-    public void Reset() => Field.SetTextWithoutNotify(CurrentValue.ToString());
+    public void Reset() 
+        => Field.SetTextWithoutNotify(CurrentValue.ToString());
+    
     public void SetValue(string value)
     {
-        if (int.TryParse(value, out int v)) SetValue(v);
+        if (int.TryParse(value, out int v)) 
+            SetValue(v);
     }
 }

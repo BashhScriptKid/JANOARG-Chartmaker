@@ -64,55 +64,69 @@ public class HierarchyPanel : MonoBehaviour
         Holders.Clear();
         GroupItems.Clear();
 
-        if (CurrentMode == HierarchyMode.PlayableSong)
+        switch (CurrentMode)
         {
-            PlayableSong song = Chartmaker.main.CurrentSong;
-            HierarchyItem songItem;
-            Items.Add(songItem = new () {
-                Name = "Playable Song",
-                Type = HierarchyItemType.PlayableSong,
-                Target = song,
-                Expanded = true,
-            });
-            
-            HierarchyItem coverItem;
-            songItem.Children.Add(coverItem = new HierarchyItem {
-                Name = "Cover",
-                Type = HierarchyItemType.Cover,
-                Target = song.Cover,
-            });
-        }
-        else if (CurrentMode == HierarchyMode.Chart)
-        {
-            if (Chartmaker.main.CurrentChart != null) 
+            case HierarchyMode.PlayableSong:
             {
-                Chart chart = Chartmaker.main.CurrentChart;
-                HierarchyItem chartItem;
-                Items.Add(chartItem = new () {
-                    Name = "Chart",
-                    Type = HierarchyItemType.Chart,
-                    Target = chart,
+                PlayableSong song = Chartmaker.main.CurrentSong;
+                HierarchyItem songItem;
+                Items.Add(songItem = new () 
+                {
+                    Name = "Playable Song",
+                    Type = HierarchyItemType.PlayableSong,
+                    Target = song,
                     Expanded = true,
                 });
-
-                chartItem.Children.Add(new HierarchyItem {
-                    Name = "Camera",
-                    Type = HierarchyItemType.Camera,
-                    Target = chart.Camera
+            
+                HierarchyItem coverItem;
+                songItem.Children.Add(coverItem = new HierarchyItem 
+                {
+                    Name = "Cover",
+                    Type = HierarchyItemType.Cover,
+                    Target = song.Cover,
                 });
 
-                HierarchyItem paletteItem;
-                chartItem.Children.Add(paletteItem = new () {
-                    Name = "Palette",
-                    Type = HierarchyItemType.Palette,
-                    Target = chart.Palette
-                });
+                break;
+            }
+            
+            case HierarchyMode.Chart:
+            {
+                if (Chartmaker.main.CurrentChart != null) 
+                {
+                    Chart chart = Chartmaker.main.CurrentChart;
+                    HierarchyItem chartItem;
+                    Items.Add(chartItem = new () 
+                    {
+                        Name = "Chart",
+                        Type = HierarchyItemType.Chart,
+                        Target = chart,
+                        Expanded = true,
+                    });
 
-                HierarchyItem worldItem;
-                chartItem.Children.Add(worldItem = new () {
-                    Name = "World",
-                    Type = HierarchyItemType.World,
-                });
+                    chartItem.Children.Add(new HierarchyItem 
+                    {
+                        Name = "Camera",
+                        Type = HierarchyItemType.Camera,
+                        Target = chart.Camera
+                    });
+
+                    HierarchyItem paletteItem;
+                    chartItem.Children.Add(paletteItem = new () 
+                    {
+                        Name = "Palette",
+                        Type = HierarchyItemType.Palette,
+                        Target = chart.Palette
+                    });
+
+                    HierarchyItem worldItem;
+                    chartItem.Children.Add(worldItem = new ()
+                    {
+                        Name = "World",
+                        Type = HierarchyItemType.World,
+                    });
+                }
+
+                break;
             }
         }
         UpdateHierarchy();
@@ -120,97 +134,114 @@ public class HierarchyPanel : MonoBehaviour
 
     public void UpdateHierarchy()
     {
-        
-        if (CurrentMode == HierarchyMode.PlayableSong)
+        switch (CurrentMode)
         {
-            PlayableSong song = Chartmaker.main.CurrentSong;
-
-            var coverItem = Items[0].Children[0];
-            coverItem.Children.Clear();
-        
-            foreach (var layer in song.Cover.Layers)
+            case HierarchyMode.PlayableSong:
             {
-                HierarchyItem item = new () {
-                    Name = layer.Target,
-                    Type = HierarchyItemType.CoverLayer,
-                    Target = layer,
-                };
+                PlayableSong song = Chartmaker.main.CurrentSong;
 
-                coverItem.Children.Add(item);
+                HierarchyItem coverItem = Items[0].Children[0];
+                coverItem.Children.Clear();
+        
+                foreach (CoverLayer layer in song.Cover.Layers)
+                {
+                    HierarchyItem item = new ()
+                    {
+                        Name = layer.Target,
+                        Type = HierarchyItemType.CoverLayer,
+                        Target = layer,
+                    };
+
+                    coverItem.Children.Add(item);
+                }
+
+                break;
             }
-        }
-        else if (CurrentMode == HierarchyMode.Chart)
-        {
-            Chart chart = Chartmaker.main.CurrentChart;
-
-            if (chart != null)
+            
+            case HierarchyMode.Chart:
             {
-                var paletteItem = Items[0].Children[1];
-                paletteItem.Children.Clear();
+                Chart chart = Chartmaker.main.CurrentChart;
+
+                if (chart != null)
+                {
+                    HierarchyItem paletteItem = Items[0].Children[1];
+                    paletteItem.Children.Clear();
                     
-                int index = 0;
-                foreach (var style in chart.Palette.LaneStyles)
-                {
-                    HierarchyItem item = new () {
-                        Name = string.IsNullOrWhiteSpace(style.Name) ? ("Lane Style " + index) : style.Name,
-                        Type = HierarchyItemType.LaneStyle,
-                        Target = style,
-                    };
-                    paletteItem.Children.Add(item);
-                    index++;
-                }
-                index = 0;
-                foreach (var style in chart.Palette.HitStyles)
-                {
-                    HierarchyItem item = new () {
-                        Name = string.IsNullOrWhiteSpace(style.Name) ? ("Hit Style " + index) : style.Name,
-                        Type = HierarchyItemType.HitStyle,
-                        Target = style,
-                    };
-                    paletteItem.Children.Add(item);
-                    index++;
-                }
+                    int index = 0;
+                    
+                    foreach (LaneStyle style in chart.Palette.LaneStyles)
+                    {
+                        HierarchyItem item = new ()
+                        {
+                            Name = string.IsNullOrWhiteSpace(style.Name) ? ("Lane Style " + index) : style.Name,
+                            Type = HierarchyItemType.LaneStyle,
+                            Target = style,
+                        };
+                        paletteItem.Children.Add(item);
+                        index++;
+                    }
+                    
+                    index = 0;
+                    foreach (HitStyle style in chart.Palette.HitStyles)
+                    {
+                        HierarchyItem item = new () {
+                            Name = string.IsNullOrWhiteSpace(style.Name) ? ("Hit Style " + index) : style.Name,
+                            Type = HierarchyItemType.HitStyle,
+                            Target = style,
+                        };
+                        paletteItem.Children.Add(item);
+                        index++;
+                    }
 
-                HierarchyItem worldItem = Items[0].Children[2];
-                worldItem.Children.Clear();
+                    HierarchyItem worldItem = Items[0].Children[2];
+                    worldItem.Children.Clear();
 
-                // Add lane groups
-                Dictionary<string, HierarchyItem> newGroupItems = new ();
-                foreach (var group in chart.Groups)
-                {
-                    HierarchyItem item = new () {
-                        Name = group.Name,
-                        Type = HierarchyItemType.LaneGroup,
-                        Target = group,
-                        Expanded = GroupItems.ContainsKey(group.Name) ? GroupItems[group.Name].Expanded : false,
-                    };
-                    newGroupItems[group.Name] = item;
-                }
-                GroupItems = newGroupItems;
-                var keys = GroupItems.Keys;
-                int keyindex = 0;
-                foreach (var key in keys)
-                {
-                    LaneGroup data = (LaneGroup)GroupItems[key].Target;
-                    if (!string.IsNullOrEmpty(data.Group) && GroupItems.ContainsKey(data.Group)) GroupItems[data.Group].Children.Add(GroupItems[key]);
-                    else worldItem.Children.Add(GroupItems[key]);
-                    keyindex++;
-                }
-                // Add lanes
-                foreach (var lane in chart.Lanes)
-                {
-                    HierarchyItem item = new () {
-                        Name = string.IsNullOrWhiteSpace(lane.Name) ? "Lane" : lane.Name,
-                        Subname = lane.LaneSteps[0].Offset + "~" + lane.LaneSteps[^1].Offset,
-                        Type = HierarchyItemType.Lane,
-                        Target = lane,
-                    };
+                    // Add lane groups
+                    Dictionary<string, HierarchyItem> newGroupItems = new ();
+                    foreach (LaneGroup group in chart.Groups)
+                    {
+                        HierarchyItem item = new () 
+                        {
+                            Name = group.Name,
+                            Type = HierarchyItemType.LaneGroup,
+                            Target = group,
+                            Expanded = GroupItems.ContainsKey(group.Name) ? GroupItems[group.Name].Expanded : false,
+                        };
+                        newGroupItems[group.Name] = item;
+                    }
+                    
+                    GroupItems = newGroupItems;
+                    Dictionary<string, HierarchyItem>.KeyCollection keys = GroupItems.Keys;
+                    int keyindex = 0;
+                    
+                    foreach (string key in keys)
+                    {
+                        LaneGroup data = (LaneGroup)GroupItems[key].Target;
+                        if (!string.IsNullOrEmpty(data.Group) && GroupItems.ContainsKey(data.Group)) GroupItems[data.Group].Children.Add(GroupItems[key]);
+                        else worldItem.Children.Add(GroupItems[key]);
+                        keyindex++;
+                    }
+                    
+                    // Add lanes
+                    foreach (Lane lane in chart.Lanes)
+                    {
+                        HierarchyItem item = new () {
+                            Name = string.IsNullOrWhiteSpace(lane.Name) ? "Lane" : lane.Name,
+                            Subname = lane.LaneSteps[0].Offset + "~" + lane.LaneSteps[^1].Offset,
+                            Type = HierarchyItemType.Lane,
+                            Target = lane,
+                        };
 
-                    if (!string.IsNullOrEmpty(lane.Group) && GroupItems.ContainsKey(lane.Group)) GroupItems[lane.Group].Children.Add(item);
-                    else worldItem.Children.Add(item);
+                        if (!string.IsNullOrEmpty(lane.Group) && GroupItems.ContainsKey(lane.Group))
+                            GroupItems[lane.Group].Children.Add(item);
+                        else 
+                            worldItem.Children.Add(item);
+                    }
                 }
+                break;
             }
         }
+
         UpdateHolders();
     }
 
@@ -220,41 +251,40 @@ public class HierarchyPanel : MonoBehaviour
 
         if (string.IsNullOrWhiteSpace(SearchField.text)) 
         {
-            void AddHolder(HierarchyItem item, int indent) 
+            void AddHolder(HierarchyItem item, int indent)
             {
-                
-                if (
-                    HierarchyFiltersPanel.main.GetVisibility(item.Type, HierarchyContext.Hierarchy)
-                )
-                    {
-                    HierarchyItemHolder holder;
-                    if (count >= Holders.Count) 
-                    {
-                        holder = Instantiate(HolderSample, HolderParent);
-                        Holders.Add(holder);
-                    }
-                    else 
-                    {
-                        holder = Holders[count];
-                    }
-                    count++;
+                if (!HierarchyFiltersPanel.main.GetVisibility(item.Type, HierarchyContext.Hierarchy))
+                    return;
 
-                    holder.SetItem(item, indent);
-                    holder.Icon.sprite = Icons[(int)item.Type];
-                    holder.ExpandButton.gameObject.SetActive(item.Children.Count > 0);
-
-                    if (item.Expanded) foreach (var child in item.Children) AddHolder(child, indent + 1);
+                HierarchyItemHolder holder;
+                    
+                if (count >= Holders.Count) 
+                {
+                    holder = Instantiate(HolderSample, HolderParent);
+                    Holders.Add(holder);
                 }
+                else 
+                    holder = Holders[count];
+                    
+                count++;
+
+                holder.SetItem(item, indent);
+                holder.Icon.sprite = Icons[(int)item.Type];
+                holder.ExpandButton.gameObject.SetActive(item.Children.Count > 0);
+
+                if (item.Expanded)
+                    foreach (var child in item.Children) 
+                        AddHolder(child, indent + 1);
             }
 
-            foreach (var item in Items) AddHolder(item, 0);
+            foreach (var item in Items) 
+                AddHolder(item, 0);
         }
         else 
         {
             void AddHolder(HierarchyItem item) 
             {
-                if (
-                    item.Name.ContainsInsensitive(SearchField.text) 
+                if (item.Name.ContainsInsensitive(SearchField.text) 
                     && HierarchyFiltersPanel.main.GetVisibility(item.Type, HierarchyContext.SearchResult)
                 )
                 {
@@ -264,10 +294,9 @@ public class HierarchyPanel : MonoBehaviour
                         holder = Instantiate(HolderSample, HolderParent);
                         Holders.Add(holder);
                     }
-                    else 
-                    {
+                    else
                         holder = Holders[count];
-                    }
+                        
                     count++;
 
                     holder.SetItem(item, 0);
@@ -278,7 +307,8 @@ public class HierarchyPanel : MonoBehaviour
                 foreach (var child in item.Children) AddHolder(child);
             }
 
-            foreach (var item in Items) AddHolder(item);
+            foreach (var item in Items)
+                AddHolder(item);
         }
 
         while (count < Holders.Count) 
@@ -605,65 +635,75 @@ public class HierarchyPanel : MonoBehaviour
             bool canDragInto = intItem && CanDragInto(item, intItem);
 
             float snapDistThres = 0.25f;
+            
             dragInto:
             if (snapDist < snapDistThres && canDragInto) 
             {
-                isDragInto = true; item1 = intItem; item2 = null;
+                isDragInto = true; 
+                item1 = intItem; 
+                item2 = null;
+                
                 DragIntoIndicator.gameObject.SetActive(true);
                 DragIntoIndicator.anchoredPosition = new Vector2(
                     intItem.IndentBox.minWidth + padding.left - 24,
                     -intPos * itemHeight - padding.top
                 );
+                
                 UpdateCursor(CursorType.Grabbing);
             }
             else 
             {
                 int beforePos = Mathf.RoundToInt(pos - 0.5f);
-                var before = beforePos < 0 ? null : Holders[beforePos];
+                HierarchyItemHolder before = beforePos < 0 
+                    ? null : Holders[beforePos];
+                
                 var afterPos = Mathf.RoundToInt(pos + 0.5f);
-                var after = afterPos > Holders.Count - 1 ? null : Holders[afterPos];
+                HierarchyItemHolder after = afterPos > Holders.Count - 1 
+                    ? null : Holders[afterPos];
 
                 if (CanDragBetween(item, before, after)) 
                 {
-                    isDragInto = false; item1 = before; item2 = after;
+                    isDragInto = false;
+                    item1 = before; 
+                    item2 = after;
+                    
                     DragBetweenIndicator.gameObject.SetActive(true);
                     DragBetweenIndicator.anchoredPosition = new Vector2(
                         Math.Max(after ? after.IndentBox.minWidth : 0, before ? before.IndentBox.minWidth : 0) + padding.left - 24,
                         -Mathf.Round(pos + 0.5f) * itemHeight - padding.top
                     );
+                    
                     UpdateCursor(CursorType.Grabbing);
                 }
                 else if (canDragInto)
                 {
                     snapDistThres = 1;
+                    
                     // gaming
                     goto dragInto;
                 }
                 else
-                {
                     UpdateCursor(CursorType.GrabbingBlocked);
-                }
             }
         }
         else 
-        {
             UpdateCursor(CursorType.GrabbingBlocked);
-        }
     }
 
     public void OnItemEndDrag(HierarchyItemHolder item, PointerEventData eventData)
     {
         IChartmakerAction action = GetDragAction(item);
         if (action != null) 
-        {
             Chartmaker.main.DoAction(action);
-        }
 
         UpdateHolders();
         UpdateCursor(0);
+        
         isDragging = false;
+        
         DragIntoIndicator.gameObject.SetActive(false);
         DragBetweenIndicator.gameObject.SetActive(false);
+        
         HolderGroup.blocksRaycasts = true;
     }
 
@@ -673,9 +713,14 @@ public class HierarchyPanel : MonoBehaviour
     {
         if (CurrentCursor != cursor)
         {
-            if (CurrentCursor != 0) CursorChanger.PopCursor();
-            if (cursor != 0) CursorChanger.PushCursor(cursor);
+            if (CurrentCursor != 0)
+                CursorChanger.PopCursor();
+            
+            if (cursor != 0) 
+                CursorChanger.PushCursor(cursor);
+            
             CurrentCursor = cursor;
+            
             BorderlessWindow.UpdateCursor();
         }
     }

@@ -31,7 +31,8 @@ public class FormEntryFile : FormEntry<string>
         modal.AcceptedTypes = AcceptedTypes;
         modal.HeaderLabel.text = HeaderText;
         modal.SelectLabel.text = SelectText;
-        modal.OnSelect.AddListener(() => {
+        modal.OnSelect.AddListener(() =>
+        {
             SetValue(modal.SelectedEntry.Path); Reset();
         });
     }

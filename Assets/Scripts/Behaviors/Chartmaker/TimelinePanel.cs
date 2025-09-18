@@ -10,7 +10,8 @@ using UnityEngine.UI;
 
 public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IDragHandler, IEndDragHandler, IScrollHandler
 {
-    public static TimelinePanel main;
+    public static           TimelinePanel main;
+    private static readonly int           OutlineColor = Shader.PropertyToID("_OutlineColor");
 
     [Header("Data")]
     public TimelineMode CurrentMode;
@@ -153,13 +154,10 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
             float offset = 0;
 
             if (dragEnd.x < 50)
-            {
                 offset = -Mathf.Pow(50 - dragEnd.x, 2f) * density;
-            }
+            
             if (dragEnd.x > TicksHolder.rect.width - 50)
-            {
                 offset = Mathf.Pow(dragEnd.x - TicksHolder.rect.width + 50, 2f) * density;
-            }
             
             if (offset != 0)
             {
@@ -173,6 +171,7 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
         {
             float mid = (PeekRange.x + PeekRange.y) / 2;
             float offset = Mathf.Clamp(time - mid, limit.x - PeekRange.x, limit.y - PeekRange.y);
+           
             PeekRange.x += offset;
             PeekRange.y += offset;
         }
@@ -184,7 +183,7 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
         PeekEndSlider.anchorMin = PeekEndSlider.anchorMax = PeekRangeSlider.anchorMax
             = new(Mathf.InverseLerp(limit.x, limit.y, PeekRange.y), .5f);
             
-        if (PeekRange.x == PeekRange.y)
+        if (Mathf.Approximately(PeekRange.x, PeekRange.y))
         {
             CurrentTimeTick.anchorMin = new(-1, 0);
             CurrentTimeTick.anchorMax = new(-1, 1);
@@ -199,6 +198,7 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
 
             CurrentTimeTick.anchorMin = new(timePos, 0);
             CurrentTimeTick.anchorMax = new(timePos, 1);
+            
             CurrentTimeConnector.anchorMin = new(Mathf.Min(timePos, timeCPos), 0);
             CurrentTimeConnector.anchorMax = new(Mathf.Max(timePos, timeCPos), 0);
         }
@@ -214,10 +214,13 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
         
         StoryboardTab.gameObject.SetActive(HierarchyPanel.main.CurrentMode == HierarchyMode.Chart);
         StoryboardTab.interactable = TimelineHeight <= 0 || CurrentMode != TimelineMode.Storyboard;
+        
         LaneTab.gameObject.SetActive(HierarchyPanel.main.CurrentMode == HierarchyMode.Chart);
         LaneTab.interactable = TimelineHeight <= 0 || CurrentMode != TimelineMode.Lanes;
+        
         LaneStepTab.gameObject.SetActive(HierarchyPanel.main.CurrentMode == HierarchyMode.Chart && InspectorPanel.main.CurrentHierarchyObject is Lane);
         LaneStepTab.interactable = TimelineHeight <= 0 || CurrentMode != TimelineMode.LaneSteps;
+        
         HitObjectTab.gameObject.SetActive(HierarchyPanel.main.CurrentMode == HierarchyMode.Chart && InspectorPanel.main.CurrentHierarchyObject is Lane);
         HitObjectTab.interactable = TimelineHeight <= 0 || CurrentMode != TimelineMode.HitObjects;
         
@@ -263,16 +266,21 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                 if (density != 0)
                 {
                     float factor = Mathf.Log(density, SeparationFactor);
+                    
                     BeatPosition beat = BeatFloor(metronome.ToBeat(PeekRange.x), Mathf.FloorToInt(factor), SeparationFactor);
                     BeatPosition interval = BeatInterval(Mathf.FloorToInt(factor), SeparationFactor);
+                    
                     float end = metronome.ToBeat(PeekRange.y);
+                   
                     while (beat < end)
                     {
                         TimelineTick tick;
-                        if (Ticks.Count <= count) Ticks.Add(tick = Instantiate(TickSample, TicksHolder));
-                        else tick = Ticks[count];
+                        if (Ticks.Count <= count) 
+                            Ticks.Add(tick = Instantiate(TickSample, TicksHolder));
+                        else 
+                            tick = Ticks[count];
 
-                        float den = GetSepFactor(beat, SeparationFactor) - factor;
+                        float beatDensity = GetSeparationFactor(beat, SeparationFactor) - factor;
 
                         RectTransform rt = (RectTransform)tick.transform;
                         rt.anchorMin = new (
@@ -281,15 +289,17 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                         );
                         rt.anchorMax = new(rt.anchorMin.x, 1);
 
-                        tick.Image.color = GetBeatColor(beat) * new Color(1, 1, 1, Mathf.Clamp01((Mathf.Pow(1.5f, den) - 1) / (Mathf.Pow(1.5f, 3) - 1)) * .5f);
+                        tick.Image.color = GetBeatColor(beat) * new Color(1, 1, 1, Mathf.Clamp01((Mathf.Pow(1.5f, beatDensity) - 1) / (Mathf.Pow(1.5f, 3) - 1)) * .5f);
                         tick.Label.color = color;
-                        tick.Label.alpha = Mathf.Clamp01(den - 2.5f) * .5f;
-                        if (tick.Label.alpha > 0) tick.Label.text = beat.ToString();
+                        tick.Label.alpha = Mathf.Clamp01(beatDensity - 2.5f) * .5f;
+                        if (tick.Label.alpha > 0) 
+                            tick.Label.text = beat.ToString();
 
                         beat += interval;
                         count++;
 
-                        if (count > 1000) break;
+                        if (count > 1000)
+                            break;
                     }
                 }
             }
@@ -322,44 +332,65 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
     TimelineItem GetTimelineItem(int index)
     {
         TimelineItem item;
-        if (Items.Count <= index) Items.Add(item = Instantiate(ItemSample, ItemsHolder));
-        else item = Items[index];
+        
+        if (Items.Count <= index)
+            Items.Add(item = Instantiate(ItemSample, ItemsHolder));
+        else 
+            item = Items[index];
+        
         return item;
     }
     Image GetItemTail(int index)
     {
         Image item;
-        if (ItemTails.Count <= index) ItemTails.Add(item = Instantiate(ItemTailSample, TailsHolder));
-        else item = ItemTails[index];
+        
+        if (ItemTails.Count <= index) 
+            ItemTails.Add(item = Instantiate(ItemTailSample, TailsHolder));
+        else 
+            item = ItemTails[index];
+        
         return item;
     }
     TMP_Text GetItemLabel(int index)
     {
         TMP_Text item;
-        if (Labels.Count <= index) Labels.Add(item = Instantiate(LabelSample, LabelsHolder));
-        else item = Labels[index];
+        
+        if (Labels.Count <= index)
+            Labels.Add(item = Instantiate(LabelSample, LabelsHolder));
+        else
+            item = Labels[index];
+        
         return item;
     }
     LineGraph GetItemGraph(int index)
     {
         LineGraph item;
-        if (Graphs.Count <= index) Graphs.Add(item = Instantiate(GraphSample, GraphsHolder));
-        else item = Graphs[index];
+        
+        if (Graphs.Count <= index)
+            Graphs.Add(item = Instantiate(GraphSample, GraphsHolder));
+        else 
+            item = Graphs[index];
+        
         return item;
     }
     TMP_Text GetStoryboardEntry(int index)
     {
         TMP_Text item;
-        if (StoryboardEntries.Count <= index) StoryboardEntries.Add(item = Instantiate(StoryboardEntrySample, StoryboardEntryHolder));
-        else item = StoryboardEntries[index];
+        
+        if (StoryboardEntries.Count <= index)
+            StoryboardEntries.Add(item = Instantiate(StoryboardEntrySample, StoryboardEntryHolder));
+        else
+            item = StoryboardEntries[index];
+        
         return item;
     }
 
     public void UpdateItems()
     {
-        if (TimelineHeight <= 0) return;
+        if (TimelineHeight <= 0) 
+            return;
 
-        int count = 0, tcount = 0, lbcount = 0, gcount = 0, sbcount = 0;
+        int count = 0, tailCount = 0, labelCount = 0, graphCount = 0, sbcount = 0;
         Metronome metronome = Chartmaker.main.CurrentSong.Timing;
         
         float density = (PeekRange.y - PeekRange.x) / TicksHolder.rect.width;
@@ -370,10 +401,13 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
         TimelineItem AddItem(object obj, float time)
         {
             var item = GetTimelineItem(count);
+            
             RectTransform rt = (RectTransform)item.transform;
             rt.anchorMin = rt.anchorMax = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, time), 1);
+            
             item.SetItem(obj);
             item.Icon.sprite = LineIcon;
+            
             count++;
             return item;
         }
@@ -383,12 +417,12 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
             size *= density;
 
             for (pos = 0; pos < times.Count; pos++)
-            {
                 if (times[pos] < time - size) break;
-            }
 
-            if (pos < times.Count) times[pos] = time;
-            else times.Add(time);
+            if (pos < times.Count) 
+                times[pos] = time;
+            else
+                times.Add(time);
 
             return pos;
         }
@@ -408,25 +442,26 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
         }
         TMP_Text AddLabel(string text)
         {
-            var label = GetItemLabel(lbcount);
+            var label = GetItemLabel(labelCount);
             label.text = text;
             label.overflowMode = TextOverflowModes.Truncate;
             label.alignment = TextAlignmentOptions.CaplineLeft;
             return label;
         }
 
-        if (PeekRange.x == PeekRange.y)
+        if (Mathf.Approximately(PeekRange.x, PeekRange.y))
         {
             /* Do nothing */
         }
-        else if (CurrentMode == TimelineMode.Storyboard)
+        
+        else switch (CurrentMode)
         {
-            if (InspectorPanel.main.CurrentObject is Storyboardable thing)
+            case TimelineMode.Storyboard when InspectorPanel.main.CurrentObject is Storyboardable thing:
             {
                 TimestampType[] types = (TimestampType[])thing.GetType().GetField("TimestampTypes").GetValue(null);
-                Storyboard sb = thing.Storyboard;
+                Storyboard storyboard = thing.Storyboard;
 
-                StoryboardEntryMaterial.SetColor("_OutlineColor", Themer.main.Keys["Background0"] + new Color(0, 0, 0, 1));
+                StoryboardEntryMaterial.SetColor(OutlineColor, Themer.main.Keys["Background0"] + new Color(0, 0, 0, 1));
 
                 for (int a = 0; a < types.Length; a++)
                 {
@@ -436,121 +471,139 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                     {
                         TMP_Text label = GetStoryboardEntry(index);
                         RectTransform rt = label.rectTransform;
+                        
                         label.text = types[a].Name;
                         rt.anchoredPosition = new(0, -24 * index - 5);
+                        
                         sbcount++;
                     }
                 }
 
                 float dOffset = 4 * density;
-                foreach (Timestamp ts in sb.Timestamps)
+                foreach (Timestamp timestamp in storyboard.Timestamps)
                 {
-                    float time = metronome.ToSeconds(ts.Offset);
-                    float timeEnd = metronome.ToSeconds(ts.Offset + ts.Duration);
-                    if (timeEnd < PeekRange.x - dOffset || time > PeekRange.y + dOffset) continue;
+                    float time = metronome.ToSeconds(timestamp.Offset);
+                    float timeEndPoint = metronome.ToSeconds(timestamp.Offset + timestamp.Duration);
+                    if (timeEndPoint < PeekRange.x - dOffset || time > PeekRange.y + dOffset)
+                        continue;
 
-                    float index = Array.FindIndex(types, x => x.ID == ts.ID) - ScrollOffset;
+                    float index = Array.FindIndex(types, x => x.ID == timestamp.ID) - ScrollOffset;
                     if (index < -1 || index >= TimelineHeight + 1) continue;
 
                     float posX = InverseLerpUnclamped(PeekRange.x, PeekRange.y, time);
                     Image tail = null;
-                    if (time != timeEnd)
+                    if (!Mathf.Approximately(time, timeEndPoint))
                     {
-                        tail = GetItemTail(tcount);
-                        RectTransform trt = tail.rectTransform;
-                        trt.anchorMin = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, time), 1);
-                        trt.anchorMax = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, timeEnd), 1);
-                        trt.anchoredPosition = new(0, -24 * index - 6);
-                        trt.sizeDelta = new(0, 20);
-                        posX = Mathf.Max(posX, Mathf.Min(8 / ItemsHolder.rect.width, Mathf.Max(trt ? trt.anchorMax.x - 4 / ItemsHolder.rect.width : posX, posX)));
-                        tcount++;
+                        tail = GetItemTail(tailCount);
+                        RectTransform tailRectTransform = tail.rectTransform;
+                        tailRectTransform.anchorMin = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, time), 1);
+                        tailRectTransform.anchorMax = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, timeEndPoint), 1);
+                        tailRectTransform.anchoredPosition = new(0, -24 * index - 6);
+                        tailRectTransform.sizeDelta = new(0, 20);
+                        
+                        posX = Mathf.Max(posX, Mathf.Min(8 / ItemsHolder.rect.width, Mathf.Max(tailRectTransform ? tailRectTransform.anchorMax.x - 4 / ItemsHolder.rect.width : posX, posX)));
+                        tailCount++;
 
                         TMP_Text endLabel = AddLabel("");
                         endLabel.alignment = TextAlignmentOptions.CaplineRight;
-                        RectTransform lrt = endLabel.rectTransform;
-                        lrt.anchorMin = trt.anchorMin;
-                        lrt.anchorMax = trt.anchorMax;
-                        lrt.anchoredPosition = new(0, -24 * index - 5);
-                        lbcount++;
+                        
+                        RectTransform labelRectTransform = endLabel.rectTransform;
+                        labelRectTransform.anchorMin = tailRectTransform.anchorMin;
+                        labelRectTransform.anchorMax = tailRectTransform.anchorMax;
+                        labelRectTransform.anchoredPosition = new(0, -24 * index - 5);
+                        labelCount++;
 
                         TMP_Text startLabel = null;
 
-                        if (timeEnd - time > 8 * density) 
+                        if (timeEndPoint - time > 8 * density) 
                         {
-                            var graph = GetItemGraph(gcount);
-                            graph.rectTransform.anchorMin = trt.anchorMin;
-                            graph.rectTransform.anchorMax = trt.anchorMax;
-                            graph.rectTransform.anchoredPosition = trt.anchoredPosition;
-                            graph.rectTransform.sizeDelta = trt.sizeDelta;
-                            graph.Values = GetEaseGraphValues(ts.Easing);
-                            gcount++;
+                            var graph = GetItemGraph(graphCount);
+                            
+                            graph.rectTransform.anchorMin = tailRectTransform.anchorMin;
+                            graph.rectTransform.anchorMax = tailRectTransform.anchorMax;
+                            graph.rectTransform.anchoredPosition = tailRectTransform.anchoredPosition;
+                            graph.rectTransform.sizeDelta = tailRectTransform.sizeDelta;
+                            
+                            graph.Values = GetEaseGraphValues(timestamp.Easing);
+                            
+                            graphCount++;
                         }
-                        if (!float.IsNaN(ts.From))
+                        if (!float.IsNaN(timestamp.From))
                         {
 
                             startLabel = AddLabel("");
-                            RectTransform slrt = startLabel.rectTransform;
-                            slrt.anchorMin = trt.anchorMin;
-                            slrt.anchorMax = trt.anchorMax;
-                            slrt.anchoredPosition = new(0, -24 * index - 5);
-                            lbcount++;
+                            
+                            RectTransform startLabelRectTransform = startLabel.rectTransform;
+                            startLabelRectTransform.anchorMin = tailRectTransform.anchorMin;
+                            startLabelRectTransform.anchorMax = tailRectTransform.anchorMax;
+                            startLabelRectTransform.anchoredPosition = new(0, -24 * index - 5);
+                            labelCount++;
                         }
 
-                        if (startLabel) NumberLabelTest(ts.From, startLabel, ts.Target, endLabel, lrt.rect.width - startLabel.margin.x * 2.5f);
-                        else NumberLabelTest(ts.Target, endLabel, lrt.rect.width - endLabel.margin.x * 3f);
+                        if (startLabel)
+                            NumberLabelTest(timestamp.From, startLabel, timestamp.Target, endLabel, labelRectTransform.rect.width - startLabel.margin.x * 2.5f);
+                        else 
+                            NumberLabelTest(timestamp.Target, endLabel, labelRectTransform.rect.width - endLabel.margin.x * 3f);
                         
-                        if (string.IsNullOrEmpty(endLabel.text)) lbcount -= startLabel ? 2 : 1;
+                        if (string.IsNullOrEmpty(endLabel.text)) 
+                            labelCount -= startLabel 
+                                ? 2 : 1;
                     }
                     else 
                     {
 
-                        TMP_Text endLabel = AddLabel(ts.Target.ToString("0.##"));
+                        TMP_Text endLabel = AddLabel(timestamp.Target.ToString("0.##"));
                         endLabel.alignment = TextAlignmentOptions.CaplineRight;
                         endLabel.overflowMode = TextOverflowModes.Overflow;
-                        RectTransform lrt = endLabel.rectTransform;
-                        lrt.anchorMax = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, time), 1);
-                        lrt.anchorMin = lrt.anchorMax - new Vector2(1, 0);
-                        lrt.anchoredPosition = new(0, -24 * index - 5);
-                        lbcount++;
+                        
+                        RectTransform labelRectTransform = endLabel.rectTransform;
+                        labelRectTransform.anchorMax = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, time), 1);
+                        labelRectTransform.anchorMin = labelRectTransform.anchorMax - new Vector2(1, 0);
+                        labelRectTransform.anchoredPosition = new(0, -24 * index - 5);
+                        labelCount++;
                     }
 
                     var item = GetTimelineItem(count);
                     item.Icon.sprite = LineIcon;
-                    RectTransform rt = (RectTransform)item.transform;
-                    rt.anchorMin = rt.anchorMax = new (posX, 1);
-                    rt.anchoredPosition = new(0, -24 * index - 6);
-                    rt.sizeDelta = new(6, 20);
-                    item.SetItem(ts);
+                    
+                    RectTransform itemRectTransform = (RectTransform)item.transform;
+                    itemRectTransform.anchorMin = itemRectTransform.anchorMax = new (posX, 1);
+                    itemRectTransform.anchoredPosition = new(0, -24 * index - 6);
+                    itemRectTransform.sizeDelta = new(6, 20);
+                    item.SetItem(timestamp);
 
                     count++;
                 }
+
+                break;
             }
-            else if (InspectorPanel.main.CurrentObject is IList)
-            {
+            
+            case TimelineMode.Storyboard when InspectorPanel.main.CurrentObject is IList:
                 Blocker.SetActive(true);
                 BlockerLabel.text = "Storyboard editing of multiple objects is not supported.";
-            }
-            else if (InspectorPanel.main.CurrentObject == null)
-            {
+
+                break;
+            case TimelineMode.Storyboard when InspectorPanel.main.CurrentObject == null:
                 Blocker.SetActive(true);
                 BlockerLabel.text = "No object selected - Please select an object first to view its Storyboard.";
-            }
-            else
-            {
+
+                break;
+            case TimelineMode.Storyboard:
                 Blocker.SetActive(true);
                 BlockerLabel.text = "This object is not storyboardable.";
-            }
-        }
-        else if (CurrentMode == TimelineMode.Timing)
-        {
-            foreach (BPMStop stop in Chartmaker.main.CurrentSong?.Timing.Stops)
+
+                break;
+            case TimelineMode.Timing:
             {
-                AddItemNormal(stop, stop.Offset);
+                if (Chartmaker.main.CurrentSong?.Timing.Stops == null)
+                    return;
+                
+                foreach (BPMStop stop in Chartmaker.main.CurrentSong?.Timing.Stops!)
+                    AddItemNormal(stop, stop.Offset);
+
+                break;
             }
-        }
-        else if (CurrentMode == TimelineMode.Lanes)
-        {
-            if (Chartmaker.main.CurrentChart?.Lanes != null)
+            case TimelineMode.Lanes when Chartmaker.main.CurrentChart?.Lanes != null:
             {
                 float dOffset = 11 * density;
 
@@ -566,92 +619,89 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                 else foreach (Lane lane in lanes)
                 {
                     float time = metronome.ToSeconds(lane.LaneSteps[0].Offset);
-                    float timeEnd = metronome.ToSeconds(lane.LaneSteps[^1].Offset);
+                    float timeEndPoint = metronome.ToSeconds(lane.LaneSteps[^1].Offset);
 
-                    int pos = AddTime(time, 24) - ScrollOffset;
-                    times[pos + ScrollOffset] = Mathf.Max(time, timeEnd - 7 * density);
+                    int zPosition = AddTime(time, 24) - ScrollOffset;
+                    times[zPosition + ScrollOffset] = Mathf.Max(time, timeEndPoint - 7 * density);
 
-                    if (pos < -1 || pos >= TimelineHeight + 1) continue;
-                    if (timeEnd < PeekRange.x - dOffset || time > PeekRange.y + dOffset) continue;
+                    if (zPosition < -1 || zPosition >= TimelineHeight + 1) continue;
+                    if (timeEndPoint < PeekRange.x - dOffset || time > PeekRange.y + dOffset) continue;
 
                     for (int a = 1; a < lane.LaneSteps.Count; a++)
                     {
                         LaneStep step = lane.LaneSteps[a];
                         float stepTime = metronome.ToSeconds(step.Offset);
-                        if (stepTime < PeekRange.x - dOffset || stepTime > PeekRange.y + dOffset) continue;
+                        if (stepTime < PeekRange.x - dOffset || stepTime > PeekRange.y + dOffset)
+                            continue;
 
-                        float sposX = InverseLerpUnclamped(PeekRange.x, PeekRange.y, stepTime);
-                        var sitem = GetTimelineItem(count);
-                        sitem.Icon.sprite = LineIcon;
-                        RectTransform srt = (RectTransform)sitem.transform;
-                        srt.anchorMin = srt.anchorMax = new (sposX, 1);
-                        srt.anchoredPosition = new(0, -24 * pos - 6);
-                        srt.sizeDelta = new(6, 20);
-                        sitem.SetItem(step, lane);
+                        float spritePositionX = InverseLerpUnclamped(PeekRange.x, PeekRange.y, stepTime);
+                        var spriteItem = GetTimelineItem(count);
+                        spriteItem.Icon.sprite = LineIcon;
+                        RectTransform spriteRectTransform = (RectTransform)spriteItem.transform;
+                        spriteRectTransform.anchorMin = spriteRectTransform.anchorMax = new (spritePositionX, 1);
+                        spriteRectTransform.anchoredPosition = new(0, -24 * zPosition - 6);
+                        spriteRectTransform.sizeDelta = new(6, 20);
+                        spriteItem.SetItem(step, lane);
                         
                         count++;
                     }
 
-                    float posX = InverseLerpUnclamped(PeekRange.x, PeekRange.y, time);
-                    float posX2 = posX;
-                    if (time != timeEnd)
+                    float positionX = InverseLerpUnclamped(PeekRange.x, PeekRange.y, time);
+                    float posX2 = positionX;
+                    if (time != timeEndPoint)
                     {
-                        var tail = GetItemTail(tcount);
-                        RectTransform trt = tail.rectTransform;
-                        trt.anchorMin = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, time), 1);
-                        trt.anchorMax = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, timeEnd), 1);
-                        trt.anchoredPosition = new(0, -24 * pos - 6);
-                        trt.sizeDelta = new(0, 20);
-                        posX = Mathf.Max(posX, Mathf.Min(15 / ItemsHolder.rect.width, Mathf.Max(trt ? trt.anchorMax.x - 16 / ItemsHolder.rect.width : posX, posX)));
-                        tcount++;
+                        var tail = GetItemTail(tailCount);
+                        RectTransform tailRectTransform = tail.rectTransform;
+                        tailRectTransform.anchorMin = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, time), 1);
+                        tailRectTransform.anchorMax = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, timeEndPoint), 1);
+                        tailRectTransform.anchoredPosition = new(0, -24 * zPosition - 6);
+                        tailRectTransform.sizeDelta = new(0, 20);
+                        positionX = Mathf.Max(positionX, Mathf.Min(15 / ItemsHolder.rect.width, Mathf.Max(tailRectTransform ? tailRectTransform.anchorMax.x - 16 / ItemsHolder.rect.width : positionX, positionX)));
+                        tailCount++;
 
                         if (!String.IsNullOrWhiteSpace(lane.Name))
                         {
                             TMP_Text label = AddLabel(lane.Name);
                             label.overflowMode = TextOverflowModes.Ellipsis;
-                            RectTransform lrt = label.rectTransform;
-                            lrt.anchorMin = new (Math.Max(15 / TicksHolder.rect.width, trt.anchorMin.x), 1);
-                            lrt.anchorMax = trt.anchorMax;
-                            lrt.anchoredPosition = new(8, -24 * pos - 5);
-                            lbcount++;
+                            RectTransform labelRectTransform = label.rectTransform;
+                            labelRectTransform.anchorMin = new (Math.Max(15 / TicksHolder.rect.width, tailRectTransform.anchorMin.x), 1);
+                            labelRectTransform.anchorMax = tailRectTransform.anchorMax;
+                            labelRectTransform.anchoredPosition = new(8, -24 * zPosition - 5);
+                            labelCount++;
                         }
                     }
 
                     var item = GetTimelineItem(count);
-                    item.Icon.sprite = posX != posX2 ? BehindIcon : LineIcon;
+                    item.Icon.sprite = !Mathf.Approximately(positionX, posX2)
+                        ? BehindIcon : LineIcon;
+                    
                     RectTransform rt = (RectTransform)item.transform;
-                    rt.anchorMin = rt.anchorMax = new (posX, 1);
-                    rt.anchoredPosition = new(0, -24 * pos - 6);
+                    rt.anchorMin = rt.anchorMax = new (positionX, 1);
+                    rt.anchoredPosition = new(0, -24 * zPosition - 6);
                     rt.sizeDelta = new(20, 20);
+                    
                     item.SetItem(lane);
                     
                     count++;
                 }
+
+                break;
             }
-            else
-            {
+            case TimelineMode.Lanes:
                 Blocker.SetActive(true);
                 BlockerLabel.text = "No chart loaded - Load a chart first to view its Lanes.";
-            }
-        }
-        else if (CurrentMode == TimelineMode.LaneSteps)
-        {
-            if (InspectorPanel.main.CurrentHierarchyObject is Lane lane)
+                break;
+            case TimelineMode.LaneSteps when InspectorPanel.main.CurrentHierarchyObject is Lane lane:
             {
                 foreach (LaneStep step in lane.LaneSteps)
-                {
                     AddItemNormal(step, metronome.ToSeconds(step.Offset));
-                }
+                break;
             }
-            else
-            {
+            case TimelineMode.LaneSteps:
                 Blocker.SetActive(true);
                 BlockerLabel.text = "No lane selected - Select a lane first to view its Lane Steps.";
-            }
-        }
-        else if (CurrentMode == TimelineMode.HitObjects)
-        {
-            if (InspectorPanel.main.CurrentHierarchyObject is Lane lane)
+                break;
+            case TimelineMode.HitObjects when InspectorPanel.main.CurrentHierarchyObject is Lane lane:
             {
                 float height = ItemsHolder.rect.height - 8;
                 float dOffset = 4 * density;
@@ -662,43 +712,48 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                 foreach (HitObject hit in lane.Objects)
                 {
                     float time = metronome.ToSeconds(hit.Offset);
-                    float timeEnd = metronome.ToSeconds(hit.Offset + hit.HoldLength);
-                    if (timeEnd < PeekRange.x - dOffset || time > PeekRange.y + dOffset) continue;
+                    float timeEndPoint = metronome.ToSeconds(hit.Offset + hit.HoldLength);
+                    if (timeEndPoint < PeekRange.x - dOffset || time > PeekRange.y + dOffset) 
+                        continue;
 
                     float start = InverseLerpUnclamped(vpStart, vpEnd, hit.Position);
                     float end = InverseLerpUnclamped(vpStart, vpEnd, hit.Position + hit.Length);
-                    float pos = Mathf.Floor(-start * height) - 3;
+                    float position = Mathf.Floor(-start * height) - 3;
                     float length = Mathf.Floor((end - start) * height) + 2;
 
-                    if (time != timeEnd)
+                    if (!Mathf.Approximately(time, timeEndPoint))
                     {
-                        var tail = GetItemTail(tcount);
-                        RectTransform trt = tail.rectTransform;
-                        trt.anchorMin = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, time), 1);
-                        trt.anchorMax = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, timeEnd), 1);
-                        trt.anchoredPosition = new Vector2(0, pos);
-                        trt.sizeDelta = new Vector2(0, length);
-                        tcount++;
+                        var tail = GetItemTail(tailCount);
+                        RectTransform tailRectTransform = tail.rectTransform;
+                        tailRectTransform.anchorMin = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, time), 1);
+                        tailRectTransform.anchorMax = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, timeEndPoint), 1);
+                        tailRectTransform.anchoredPosition = new Vector2(0, position);
+                        tailRectTransform.sizeDelta = new Vector2(0, length);
+                        tailCount++;
                     }
-                    if (time < PeekRange.x - dOffset || time > PeekRange.y + dOffset) continue;
+                    if (time < PeekRange.x - dOffset || time > PeekRange.y + dOffset) 
+                        continue;
 
                     var item = GetTimelineItem(count);
-                    item.Icon.sprite = hit.Type == HitObject.HitType.Normal ? NormalHitIcon : CatchHitIcon;
+                    item.Icon.sprite = hit.Type == HitObject.HitType.Normal 
+                        ? NormalHitIcon : CatchHitIcon;
+                    
                     RectTransform rt = (RectTransform)item.transform;
                     rt.anchorMin = rt.anchorMax = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, time), 1);
-                    rt.anchoredPosition = new Vector2(0, pos);
+                    rt.anchoredPosition = new Vector2(0, position);
                     rt.sizeDelta = new Vector2(6, length);
 
                     item.SetItem(hit);
 
                     count++;
                 }
+
+                break;
             }
-            else
-            {
+            case TimelineMode.HitObjects:
                 Blocker.SetActive(true);
                 BlockerLabel.text = "No lane selected - Select a lane first to view its Hit Objects.";
-            }
+                break;
         }
 
         while (Items.Count > count)
@@ -706,21 +761,25 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
             Destroy(Items[^1].gameObject);
             Items.RemoveAt(Items.Count - 1);
         }
-        while (ItemTails.Count > tcount)
+        
+        while (ItemTails.Count > tailCount)
         {
             Destroy(ItemTails[^1].gameObject);
             ItemTails.RemoveAt(ItemTails.Count - 1);
         }
-        while (Labels.Count > lbcount)
+        
+        while (Labels.Count > labelCount)
         {
             Destroy(Labels[^1].gameObject);
             Labels.RemoveAt(Labels.Count - 1);
         }
-        while (Graphs.Count > gcount)
+        
+        while (Graphs.Count > graphCount)
         {
             Destroy(Graphs[^1].gameObject);
             Graphs.RemoveAt(Graphs.Count - 1);
         }
+        
         while (StoryboardEntries.Count > sbcount)
         {
             Destroy(StoryboardEntries[^1].gameObject);
@@ -756,29 +815,31 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
     {
         float[] values = new float[64];
         float interval = 1f / (values.Length - 1);
-        for (int i = 0; i < values.Length; i++) values[i] = easing.Get(i * interval);
+        
+        for (int i = 0; i < values.Length; i++) 
+            values[i] = easing.Get(i * interval);
+        
         return values;
     }
 
     private List<Lane> GetLanesInTimeline()
     {
-        if (LaneFilterMode == LaneFilterMode.All)
+        switch (LaneFilterMode)
         {
-            return Chartmaker.main.CurrentChart.Lanes;
-        }
-        else if (LaneFilterMode == LaneFilterMode.HierarchyVisible)
-        {
-            List<Lane> lanes = new();
-            foreach(HierarchyItemHolder item in HierarchyPanel.main.Holders)
+            case LaneFilterMode.All:
+                return Chartmaker.main.CurrentChart.Lanes;
+            case LaneFilterMode.HierarchyVisible:
             {
-                if (item.Target.Target is Lane lane) lanes.Add(lane);
+                List<Lane> lanes = new();
+                foreach(HierarchyItemHolder item in HierarchyPanel.main.Holders)
+                    if (item.Target.Target is Lane lane) 
+                        lanes.Add(lane);
+                
+                lanes.Sort((x, y) => x.LaneSteps[0].Offset.CompareTo(y.LaneSteps[0].Offset));
+                return lanes;
             }
-            lanes.Sort((x, y) => x.LaneSteps[0].Offset.CompareTo(y.LaneSteps[0].Offset));
-            return lanes;
-        }
-        else 
-        {
-            return null;
+            default:
+                return null;
         }
     }
 
@@ -791,7 +852,7 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
     {
         if (
             TimelineHeight <= 0
-            || PeekRange.y == PeekRange.x
+            || Mathf.Approximately(PeekRange.y, PeekRange.x)
             || Options.WaveformMode == 0
             || Options.WaveformIdle < (Chartmaker.main.SongSource.isPlaying ? 1 : 0)
         )
@@ -803,61 +864,61 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
         WaveformImage.enabled = true;
         Color color = Themer.main.Keys["TimelineTickMain"];
 
-        Texture2D tex = null;
-        if (WaveformImage.texture is Texture2D) tex = (Texture2D)WaveformImage.texture;
+        Texture2D texture = null;
+        if (WaveformImage.texture is Texture2D) texture = (Texture2D)WaveformImage.texture;
         RectTransform waveRT = WaveformImage.rectTransform;
-        if (!tex || tex.width != (int)waveRT.rect.width || tex.height != (int)waveRT.rect.height)
+        if (!texture || texture.width != (int)waveRT.rect.width || texture.height != (int)waveRT.rect.height)
         {
             Destroy(WaveformImage.texture);
-            WaveformImage.texture = tex = new Texture2D((int)waveRT.rect.width, (int)waveRT.rect.height);
+            WaveformImage.texture = texture = new Texture2D((int)waveRT.rect.width, (int)waveRT.rect.height);
             waveBaked = new bool[(int)waveRT.rect.width];
             waveOffset = 0;
         }
 
         AudioClip clip = Chartmaker.main.SongSource.clip;
 
-        float density = clip.frequency * (PeekRange.y - PeekRange.x) / tex.width;
+        float density = clip.frequency * (PeekRange.y - PeekRange.x) / texture.width;
 
-        float step = (PeekRange.y - PeekRange.x) / tex.width;
+        float step = (PeekRange.y - PeekRange.x) / texture.width;
         float sec = Mathf.Floor(PeekRange.x / step - 1) * step;
         int waveNewOffset = (int)((sec - waveTime) / step);
 
-        if (!(Math.Abs(waveLastDensity / density - 1) < 0.0001f) || Mathf.Abs(waveOffset - waveNewOffset) >= tex.width) {
+        if (!(Math.Abs(waveLastDensity / density - 1) < 0.0001f) || Mathf.Abs(waveOffset - waveNewOffset) >= texture.width) {
             Destroy(WaveformImage.texture);
-            WaveformImage.texture = tex = new Texture2D((int)waveRT.rect.width, (int)waveRT.rect.height);
+            WaveformImage.texture = texture = new Texture2D((int)waveRT.rect.width, (int)waveRT.rect.height);
             waveBaked = new bool[(int)waveRT.rect.width];
             waveLastDensity = density;
             waveTime = sec;
             waveOffset = waveNewOffset = 0;
         }
 
-        Color[] lineBuffer = new Color[tex.height];
+        Color[] lineBuffer = new Color[texture.height];
         while (waveOffset < waveNewOffset) 
         {
-            int sLine = (waveOffset % tex.width + tex.width) % tex.width;
+            int sLine = (waveOffset % texture.width + texture.width) % texture.width;
             waveBaked[sLine] = false;
-            tex.SetPixels(sLine, 0, 1, tex.height, lineBuffer);
+            texture.SetPixels(sLine, 0, 1, texture.height, lineBuffer);
             waveOffset++;
         }
         while (waveOffset > waveNewOffset) 
         {
-            int sLine = (waveOffset % tex.width + tex.width) % tex.width;
+            int sLine = (waveOffset % texture.width + texture.width) % texture.width;
             waveBaked[sLine] = false;
-            tex.SetPixels(sLine, 0, 1, tex.height, lineBuffer);
+            texture.SetPixels(sLine, 0, 1, texture.height, lineBuffer);
             waveOffset--;
         }
 
-        WaveformImage.uvRect = new Rect(waveOffset / (float)tex.width, 0, 1, 1);
+        WaveformImage.uvRect = new Rect(waveOffset / (float)texture.width, 0, 1, 1);
 
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        bool timeout() => stopwatch.ElapsedMilliseconds >= 15;
+        bool Timeout() => stopwatch.ElapsedMilliseconds >= 15;
         waveTimeouted = false;
 
         switch (Options.WaveformMode) 
         {
             case 1: {
                 float[] data = new float[Mathf.CeilToInt(Math.Min(density, 1024) / clip.channels) * clip.channels];
-                float denY = 1f / tex.height * clip.channels;
+                float denY = 1f / texture.height * clip.channels;
                 float[] lastMin = new float[clip.channels], lastMax = new float[clip.channels];
 
                 float darkAlpha = Mathf.Clamp(Mathf.Sqrt(5 / density), 0.5f, 0.8f);
@@ -868,17 +929,20 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                     lastMax[a] = 1;
                 }
 
-                for (int x = 0; x < tex.width; x++) 
+                for (int x = 0; x < texture.width; x++) 
                 {
-                    int sLine = ((x + waveOffset) % tex.width + tex.width) % tex.width;
-                    if (waveBaked[sLine]) continue;
+                    int sampleLine = ((x + waveOffset) % texture.width + texture.width) % texture.width;
+                    if (waveBaked[sampleLine])
+                        continue;
+                   
                     sec = waveTime + (x + waveOffset) * step;
                     float[] min = new float[clip.channels], max = new float[clip.channels];
                     float[] rms = new float[clip.channels];
-                    int pos = (int)(sec * clip.frequency);
-                    if (pos >= 0 && pos < clip.samples - data.Length)
+                    int position = (int)(sec * clip.frequency);
+                    
+                    if (position >= 0 && position < clip.samples - data.Length)
                     {
-                        clip.GetData(data, pos);
+                        clip.GetData(data, position);
                         for (int a = 0; a < clip.channels; a++)
                         {
                             min[a] = 1;
@@ -886,11 +950,12 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                         }
                         for (int a = 0; a < data.Length; a++)
                         {
-                            int chan = (a) % clip.channels;
-                            min[chan] = Math.Min(min[chan], data[a]);
-                            max[chan] = Math.Max(max[chan], data[a]);
-                            rms[chan] += data[a] * data[a];
+                            int channels = (a) % clip.channels;
+                            min[channels] = Math.Min(min[channels], data[a]);
+                            max[channels] = Math.Max(max[channels], data[a]);
+                            rms[channels] += data[a] * data[a];
                         }
+                        
                         for (int a = 0; a < clip.channels; a++)
                         {
                             float temp;
@@ -900,20 +965,22 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                             lastMin[a] = temp;
                         }
                     }
-                    float sPos = 0;
-                    for (int y = 0; y < tex.height; y++) 
+                    float samplePos = 0;
+                    for (int y = 0; y < texture.height; y++) 
                     {
-                        int channel = Mathf.FloorToInt(sPos);
-                        float window = 1 - (sPos % 1) * 2f;
+                        int channel = Mathf.FloorToInt(samplePos);
+                        float window = 1 - (samplePos % 1) * 2f;
                         color.a = window >= min[channel] - denY && window <= max[channel] + denY ? (
                             Mathf.Abs(window) < rms[channel] - denY ? 0.8f : darkAlpha
                         ) : 0;
                         lineBuffer[y] = color;
-                        sPos += denY;
+                        samplePos += denY;
                     }
-                    tex.SetPixels(sLine, 0, 1, tex.height, lineBuffer);
-                    waveBaked[sLine] = true;
-                    if (timeout())
+                    
+                    texture.SetPixels(sampleLine, 0, 1, texture.height, lineBuffer);
+                    waveBaked[sampleLine] = true;
+                    
+                    if (Timeout())
                     {
                         waveTimeouted = true;
                         break;
@@ -926,40 +993,39 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
 
                 float[] data = new float[resolution * clip.channels];
                 float[][] fft = new float[clip.channels][];
-                float denY = 1f / tex.height * clip.channels;
+                float denY = 1f / texture.height * clip.channels;
 
                 for (int i = 0; i < clip.channels; i++) 
-                {
                     fft[i] = new float[resolution];
-                }
 
                 FrequencyScaling.GetScalingFunctions(Chartmaker.Preferences.FrequencyScale, out var scale, out var unscale);
 
                 float minScale = scale(Chartmaker.Preferences.FrequencyMin);
                 float maxScale = scale(Chartmaker.Preferences.FrequencyMax);
                 
-                for (int x = 0; x < tex.width; x++) 
+                for (int x = 0; x < texture.width; x++) 
                 {
-                    int sLine = ((x + waveOffset) % tex.width + tex.width) % tex.width;
-                    if (waveBaked[sLine]) continue;
+                    int sampleLine = ((x + waveOffset) % texture.width + texture.width) % texture.width;
+                    if (waveBaked[sampleLine]) continue;
                     sec = waveTime + (x + waveOffset) * step;
-                    int pos = (int)(sec * clip.frequency - resolution / 2);
-                    if (pos >= 0 && pos < clip.samples - data.Length)
+                    int position = (int)(sec * clip.frequency - resolution / 2);
+                    if (position >= 0 && position < clip.samples - data.Length)
                     {
-                        clip.GetData(data, pos);
+                        clip.GetData(data, position);
+                        
                         for (int y = 0; y < data.Length; y++) 
                         {
-                            int chan = (pos + y) % clip.channels;
+                            int chan = (position + y) % clip.channels;
                             int p = y / clip.channels;
                             fft[chan][p] = data[y];
                         }
-                        for (int y = 0; y < fft.Length; y++) 
-                        {
-                            FFT.Transform(fft[y], Chartmaker.Preferences.FFTWindow);
-                        }
+                        
+                        foreach (var t in fft)
+                            FFT.Transform(t, Chartmaker.Preferences.FFTWindow);
                     }
+                    
                     float sPos = 0;
-                    for (int y = 0; y < tex.height; y++) 
+                    for (int y = 0; y < texture.height; y++) 
                     {
                         int channel = Mathf.FloorToInt(sPos);
                         float cPos = Mathf.Clamp(unscale(Mathf.Lerp(minScale, maxScale, sPos % 1)) / clip.frequency * resolution, 0, resolution - 1);
@@ -967,9 +1033,10 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                         lineBuffer[y] = color * new Color(1, 1, 1, value);
                         sPos += denY;
                     }
-                    tex.SetPixels(sLine, 0, 1, tex.height, lineBuffer);
-                    waveBaked[sLine] = true;
-                    if (timeout())
+                    texture.SetPixels(sampleLine, 0, 1, texture.height, lineBuffer);
+                    waveBaked[sampleLine] = true;
+                    
+                    if (Timeout())
                     {
                         waveTimeouted = true;
                         break;
@@ -978,15 +1045,19 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
             } break;
         }
 
-        tex.Apply();
+        texture.Apply();
     }
 
     public void DiscardWaveform() 
     {
         var waveRT = WaveformImage.rectTransform;
+       
         Destroy(WaveformImage.texture);
+        
         WaveformImage.texture = new Texture2D((int)waveRT.rect.width, (int)waveRT.rect.height);
-        if (waveBaked != null) waveBaked = new bool[waveBaked.Length];
+        
+        if (waveBaked != null)
+            waveBaked = new bool[waveBaked.Length];
         waveTimeouted = true;
     }
 
@@ -1006,19 +1077,24 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
         };
     }
 
-    public void NumberLabelTest(float number, TMP_Text label, float targetSize) 
+    private void NumberLabelTest(float number, TMP_Text label, float targetSize) 
     {
         int type = 0;
         label.text = FormatNumber(number, type);
         label.ForceMeshUpdate();
+        
         while (true) 
         {
-            if (label.textBounds.size.x <= targetSize) break;
+            if (label.textBounds.size.x <= targetSize) 
+                break;
+            
             if (type >= 7)
             {
                 label.text = "…";
                 label.ForceMeshUpdate();
-                if (label.textBounds.size.x > targetSize) label.text = "";
+                
+                if (label.textBounds.size.x > targetSize)
+                    label.text = "";
                 break;
             }
             type++;
@@ -1027,18 +1103,24 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
         }
     }
 
-    public void NumberLabelTest(float number1, TMP_Text label1, float number2, TMP_Text label2, float targetSize) 
+    private void NumberLabelTest(float number1, TMP_Text label1, float number2, TMP_Text label2, float targetSize) 
     {
         int type1 = 0, type2 = 0;
+        
         label1.text = FormatNumber(number1, type1);
         label1.ForceMeshUpdate();
+        
         label2.text = FormatNumber(number2, type2);
         label2.ForceMeshUpdate();
+       
         while (true) 
         {
             float width1 = label1.textBounds.size.x;
             float width2 = label2.textBounds.size.x;
-            if (width1 + width2 <= targetSize) break;
+           
+            if (width1 + width2 <= targetSize)
+                break;
+            
             if (type1 >= 7 && type2 >= 7)
             {
                 label1.text = label2.text = "…";
@@ -1047,6 +1129,7 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                     label1.text = label2.text = "";
                 break;
             }
+            
             if ((width1 > width2 && type1 < 7) || type2 >= 7) 
             {
                 type1++;
@@ -1062,7 +1145,7 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
         }
     }
 
-    public void UpdateScrollbar()
+    private void UpdateScrollbar()
     {
         if (ItemHeight > TimelineHeight)
         {
@@ -1093,7 +1176,7 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
         UpdateScrollbar();
     }
 
-    public float RoundBeat(float time) 
+    private float RoundBeat(float time) 
     {
         Metronome metronome = Chartmaker.main.CurrentSong.Timing;
         float density = (PeekRange.y - PeekRange.x) * metronome.GetStop(time, out _).BPM / TicksHolder.rect.width / 8;
@@ -1138,7 +1221,7 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
         return new(0, fMin, fMax);
     }
 
-    static int GetSepFactor(BeatPosition time, int sep) 
+    static int GetSeparationFactor(BeatPosition time, int sep) 
     {
         if (time.Denominator == 1) 
         {
@@ -1206,15 +1289,19 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
             Metronome metronome = Chartmaker.main.CurrentSong.Timing;
             beatStart = RoundBeat(timeStart);
 
-            if (eventData.button == PointerEventData.InputButton.Left)
+            if (eventData.button != PointerEventData.InputButton.Left) return;
+
+            AudioSource source = Chartmaker.main.SongSource;
+            float time = Mathf.Clamp(metronome.ToSeconds(beatStart), 0, Chartmaker.main.SongSource.clip.length);
+
+            if (source.time == 0)
             {
-                AudioSource source = Chartmaker.main.SongSource;
-                float time = Mathf.Clamp(metronome.ToSeconds(beatStart), 0, Chartmaker.main.SongSource.clip.length);
-                if (source.time == 0) { source.Play(); source.Pause(); }
-                source.time = time;
-                
+                source.Play();
+                source.Pause();
             }
-                
+            
+            source.time = time;
+
         }
         else if (contains(PeekStartSlider))
         {
@@ -1237,9 +1324,7 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
             localPos(PeekRangeSlider, out dragStart);
         }
         else 
-        {
             dragMode = TimelineDragMode.None;
-        }
     }
 
     public void BeginDragItem(IList items, PointerEventData eventData) 
@@ -1257,27 +1342,25 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
         beatStart = RoundBeat(timeStart);
         
         ChartmakerHistory history = Chartmaker.main.History;
-        var last = history.ActionsBehind.Count == 0 ? null : history.ActionsBehind.Peek();
-        if (last is ChartmakerTimelineDragFloatAction lastMove && lastMove.Targets == DraggingItem)
-        {
+        IChartmakerAction last = history.ActionsBehind.Count == 0 ? null : history.ActionsBehind.Peek();
+        if (last is ChartmakerTimelineDragFloatAction lastMove && Equals(lastMove.Targets, DraggingItem))
             DraggingItemOffset = lastMove.Value;
-        } 
         else 
-        {
             DraggingItemOffset = 0;
-        }
     }
 
     public void OnDrag(PointerEventData eventData)
     {
         isDragged = true;
-        if (dragMode == TimelineDragMode.None) return;
+        if (dragMode == TimelineDragMode.None) 
+            return;
 
-        Chartmaker cm = Chartmaker.main;
+        Chartmaker chartmaker = Chartmaker.main;
         Vector2 limit = new(
             Mathf.Min(PeekRange.x, PeekLimit.x),
             Mathf.Max(PeekRange.y, PeekLimit.y)
         );
+        
         float width = limit.y - limit.x;
         float time;
         
@@ -1294,15 +1377,18 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
             Metronome metronome = Chartmaker.main.CurrentSong.Timing;
             beatEnd = RoundBeat(timeEnd);
 
-            if (DraggingItem != null) 
+            if (DraggingItem != null)
             {
-                if (DraggingItem.Count > 0) 
+                if (DraggingItem.Count <= 0) return;
+
+                ChartmakerHistory history = Chartmaker.main.History;
+                switch (DraggingItem[0])
                 {
-                    ChartmakerHistory history = Chartmaker.main.History;
-                    if (DraggingItem[0] is Lane) 
+                    case Lane:
                     {
                         ChartmakerTimelineDragLaneAction action;
-                        var last = history.ActionsBehind.Count == 0 ? null : history.ActionsBehind.Peek();
+                        IChartmakerAction last = history.ActionsBehind.Count == 0 ? null : history.ActionsBehind.Peek();
+                            
                         if (last is ChartmakerTimelineDragLaneAction lastMove && lastMove.Targets == DraggingItem)
                         {
                             action = lastMove;
@@ -1310,19 +1396,23 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                         } 
                         else 
                         {
-                            action = new ChartmakerTimelineDragLaneAction {
+                            action = new ChartmakerTimelineDragLaneAction
+                            {
                                 Targets = DraggingItem,
                             };
+                                
                             history.ActionsBehind.Push(action);
                         }
                         action.Value = ToRoundedBeat(beatEnd - beatStart + DraggingItemOffset);
                         action.Redo();
+
+                        break;
                     }
-                    else if (DraggingItem[0] is BPMStop) 
+                    case BPMStop:
                     {
                         ChartmakerTimelineDragFloatAction action;
-                        var last = history.ActionsBehind.Count == 0 ? null : history.ActionsBehind.Peek();
-                        if (last is ChartmakerTimelineDragFloatAction lastMove && lastMove.Targets == DraggingItem)
+                        IChartmakerAction last = history.ActionsBehind.Count == 0 ? null : history.ActionsBehind.Peek();
+                        if (last is ChartmakerTimelineDragFloatAction lastMove && Equals(lastMove.Targets, DraggingItem))
                         {
                             action = lastMove;
                             action.Undo();
@@ -1336,12 +1426,14 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                         }
                         action.Value = timeEnd - timeStart + DraggingItemOffset;
                         action.Redo();
+
+                        break;
                     }
-                    else
+                    default:
                     {
                         ChartmakerTimelineDragBeatPositionAction action;
                         var last = history.ActionsBehind.Count == 0 ? null : history.ActionsBehind.Peek();
-                        if (last is ChartmakerTimelineDragBeatPositionAction lastMove && lastMove.Targets == DraggingItem)
+                        if (last is ChartmakerTimelineDragBeatPositionAction lastMove && Equals(lastMove.Targets, DraggingItem))
                         {
                             action = lastMove;
                             action.Undo();
@@ -1355,41 +1447,49 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                         }
                         action.Value = ToRoundedBeat(beatEnd - beatStart + DraggingItemOffset);
                         action.Redo();
-                    }
-                    history.ActionsAhead.Clear();
-                    Chartmaker.main.OnHistoryDo();
-                    Chartmaker.main.OnHistoryUpdate();
-                }
-            } 
-            else if (dragMode == TimelineDragMode.TimelineDrag)
-            {
-                float offset = Mathf.Clamp(-eventData.delta.x * (PeekRange.y - PeekRange.x) / TicksHolder.rect.width, limit.x - PeekRange.x, limit.y - PeekRange.y);
-                PeekRange.x += offset;
-                PeekRange.y += offset;
-            }
-            else if (dragMode == TimelineDragMode.Select)
-            {
-                SelectionRect.gameObject.SetActive(true);
-                
-                if (CurrentMode is TimelineMode.Storyboard or TimelineMode.HitObjects)
-                {
-                    SelectionRect.anchorMin = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, Mathf.Min(timeStart, timeEnd)), 0);
-                    SelectionRect.anchorMax = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, Mathf.Max(timeStart, timeEnd)), 0);
-                    SelectionRect.anchoredPosition = new (0, Mathf.Round(Mathf.Min(dragStart.y, dragEnd.y)));
-                    SelectionRect.sizeDelta = new (0, Mathf.Round(Mathf.Abs(dragStart.y - dragEnd.y)));
-                }
-                else
-                {
-                    SelectionRect.anchorMin = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, Mathf.Min(timeStart, timeEnd)), 0);
-                    SelectionRect.anchorMax = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, Mathf.Max(timeStart, timeEnd)), 1);
-                    SelectionRect.anchoredPosition = SelectionRect.sizeDelta = new (0, 0);
-                }
-            }
-            else if (dragMode == TimelineDragMode.Timeline)
-            {
-                Chartmaker.main.SongSource.time = Mathf.Clamp(metronome.ToSeconds(beatEnd), 0, Chartmaker.main.SongSource.clip.length);
-            }
 
+                        break;
+                    }
+                }
+                history.ActionsAhead.Clear();
+                Chartmaker.main.OnHistoryDo();
+                Chartmaker.main.OnHistoryUpdate();
+            } 
+            else switch (dragMode)
+            {
+                case TimelineDragMode.TimelineDrag:
+                {
+                    float offset = Mathf.Clamp(-eventData.delta.x * (PeekRange.y - PeekRange.x) / TicksHolder.rect.width, limit.x - PeekRange.x, limit.y - PeekRange.y);
+                    PeekRange.x += offset;
+                    PeekRange.y += offset;
+
+                    break;
+                }
+                case TimelineDragMode.Select:
+                {
+                    SelectionRect.gameObject.SetActive(true);
+                
+                    if (CurrentMode is TimelineMode.Storyboard or TimelineMode.HitObjects)
+                    {
+                        SelectionRect.anchorMin = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, Mathf.Min(timeStart, timeEnd)), 0);
+                        SelectionRect.anchorMax = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, Mathf.Max(timeStart, timeEnd)), 0);
+                        SelectionRect.anchoredPosition = new (0, Mathf.Round(Mathf.Min(dragStart.y, dragEnd.y)));
+                        SelectionRect.sizeDelta = new (0, Mathf.Round(Mathf.Abs(dragStart.y - dragEnd.y)));
+                    }
+                    else
+                    {
+                        SelectionRect.anchorMin = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, Mathf.Min(timeStart, timeEnd)), 0);
+                        SelectionRect.anchorMax = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, Mathf.Max(timeStart, timeEnd)), 1);
+                        SelectionRect.anchoredPosition = SelectionRect.sizeDelta = new (0, 0);
+                    }
+
+                    break;
+                }
+                case TimelineDragMode.Timeline:
+                    Chartmaker.main.SongSource.time = Mathf.Clamp(metronome.ToSeconds(beatEnd), 0, Chartmaker.main.SongSource.clip.length);
+
+                    break;
+            }
             return;
         }
 
@@ -1401,46 +1501,44 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
             time = ((localMousePos - dragStart).x / sliderWidth + TimeSliderHolder.pivot.x) * width + limit.x;
         }
         else
-        {
             return;
-        }
         
-        if (dragMode == TimelineDragMode.CurrentTime)
+        switch (dragMode)
         {
-            if (cm.SongSource.time == 0 && !cm.SongSource.isPlaying)
+            case TimelineDragMode.CurrentTime:
             {
-                cm.SongSource.Play();
-                cm.SongSource.Pause();
+                if (chartmaker.SongSource.time == 0 && !chartmaker.SongSource.isPlaying)
+                {
+                    chartmaker.SongSource.Play();
+                    chartmaker.SongSource.Pause();
+                }
+                chartmaker.SongSource.timeSamples = (int)Mathf.Clamp(time * chartmaker.SongSource.clip.frequency, 0, chartmaker.SongSource.clip.samples - 1);
+                break;
             }
-            cm.SongSource.timeSamples = (int)Mathf.Clamp(time * cm.SongSource.clip.frequency, 0, cm.SongSource.clip.samples - 1);
-        }
-        else if (dragMode == TimelineDragMode.PeekRange)
-        {
-            float mid = (PeekRange.x + PeekRange.y) / 2;
-            float offset = Mathf.Clamp(time - mid, limit.x - PeekRange.x, limit.y - PeekRange.y);
-            PeekRange.x += offset;
-            PeekRange.y += offset;
-        }
-        else if (dragMode == TimelineDragMode.PeekStart)
-        {
-            PeekRange.x = Mathf.Clamp(time, limit.x, PeekRange.y);
-        }
-        else if (dragMode == TimelineDragMode.PeekEnd)
-        {
-            PeekRange.y = Mathf.Clamp(time, PeekRange.x, limit.y);
+            case TimelineDragMode.PeekRange:
+            {
+                float mid = (PeekRange.x + PeekRange.y) / 2;
+                float offset = Mathf.Clamp(time - mid, limit.x - PeekRange.x, limit.y - PeekRange.y);
+                PeekRange.x += offset;
+                PeekRange.y += offset;
+                break;
+            }
+            case TimelineDragMode.PeekStart:
+                PeekRange.x = Mathf.Clamp(time, limit.x, PeekRange.y); break;
+            case TimelineDragMode.PeekEnd:
+                PeekRange.y = Mathf.Clamp(time, PeekRange.x, limit.y); break;
         }
     }
 
     public void OnPointerUp(PointerEventData eventData)
     {
-        if (!isDragged)
-        {
-            Metronome metronome = Chartmaker.main.CurrentSong.Timing;
-            if (eventData.button == PointerEventData.InputButton.Right)
-                Chartmaker.main.SongSource.time = Mathf.Clamp(metronome.ToSeconds(beatStart), 0, Chartmaker.main.SongSource.clip.length);
+        if (isDragged) return;
+
+        Metronome metronome = Chartmaker.main.CurrentSong.Timing;
+        if (eventData.button == PointerEventData.InputButton.Right)
+            Chartmaker.main.SongSource.time = Mathf.Clamp(metronome.ToSeconds(beatStart), 0, Chartmaker.main.SongSource.clip.length);
             
-            OnEndDrag(eventData);
-        }
+        OnEndDrag(eventData);
     }
 
     public void OnEndDrag(PointerEventData eventData)
@@ -1449,190 +1547,199 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
         {
             DraggingItem = null;
         }
-        else if (dragMode == TimelineDragMode.Select)
+        else switch (dragMode)
         {
-            Metronome metronome = Chartmaker.main.CurrentSong.Timing;
-            float beatStart = metronome.ToBeat(Mathf.Min(timeStart, timeEnd));
-            float beatEnd = metronome.ToBeat(Mathf.Max(timeEnd, timeStart));
-
-            IList list = null;
-
-            switch (CurrentMode)
+            case TimelineDragMode.Select:
             {
-                case TimelineMode.Storyboard:
-                {
-                    if (InspectorPanel.main.CurrentObject is not Storyboardable thing) break;
-
-                    TimestampType[] types = (TimestampType[])thing.GetType().GetField("TimestampTypes").GetValue(null);
-                    Storyboard sb = thing.Storyboard;
-
-                    int yStart = Mathf.FloorToInt(Mathf.Clamp((ItemsHolder.rect.height - Mathf.Max(dragStart.y, dragEnd.y) - 3) / 24, 0, TimelineHeight - 1)) + ScrollOffset;
-                    int yEnd = Mathf.FloorToInt(Mathf.Clamp((ItemsHolder.rect.height - Mathf.Min(dragStart.y, dragEnd.y) - 3) / 24, 0, TimelineHeight - 1)) + ScrollOffset;
-
-                    list = sb.Timestamps.FindAll(x =>
-                    {
-                        int index = Array.FindIndex(types, y => x.ID == y.ID);
-                        return x.Offset >= beatStart && x.Offset <= beatEnd && index >= yStart && index <= yEnd;
-                    });
-                }
-                break;
-
-                case TimelineMode.Timing:
-                {
-                    list = Chartmaker.main.CurrentSong.Timing.Stops.FindAll(x =>
-                    {
-                        return x.Offset >= timeStart && x.Offset <= timeEnd;
-                    });
-                }
-                break;
-
-                case TimelineMode.Lanes:
-                {
-                    if (Chartmaker.main.CurrentChart == null) break;
-
-                    list = GetLanesInTimeline().FindAll(x =>
-                    {
-                        return x.LaneSteps[0].Offset >= beatStart && x.LaneSteps[0].Offset <= beatEnd;
-                    });
-                }
-                break;
-
-                case TimelineMode.LaneSteps:
-                {
-                    if (InspectorPanel.main.CurrentHierarchyObject is not Lane lane) break;
-
-                    list = lane.LaneSteps.FindAll(x =>
-                    {
-                        return x.Offset >= beatStart && x.Offset <= beatEnd;
-                    });
-                }
-                break;
-
-                case TimelineMode.HitObjects:
-                {
-                    if (InspectorPanel.main.CurrentHierarchyObject is not Lane lane) break;
-
-                    float vpStart = .5f - VerticalScale * .5f + VerticalOffset;
-                    float vpEnd = .5f + VerticalScale * .5f + VerticalOffset;
-
-                    float yStart = Mathf.Lerp(vpStart, vpEnd, Mathf.Clamp01(1 - (Mathf.Max(dragStart.y, dragEnd.y) - 4) / (ItemsHolder.rect.height - 8)));
-                    float yEnd = Mathf.Lerp(vpStart, vpEnd, Mathf.Clamp01(1 - (Mathf.Min(dragStart.y, dragEnd.y) - 4) / (ItemsHolder.rect.height - 8)));
-
-                    list = lane.Objects.FindAll(x =>
-                    {
-                        return x.Offset >= beatStart && x.Offset <= beatEnd && x.Position <= yEnd && x.Position + x.Length >= yStart;
-                    });
-                }
-                break;
-            }
-
-            if (list?.Count >= 2) InspectorPanel.main.SetObject(list);
-            else if (list?.Count == 1) InspectorPanel.main.SetObject(list[0]);
-        }
-        else if (dragMode == TimelineDragMode.Timeline)
-        {
-            if (!Chartmaker.main.SongSource.isPlaying)
-            {
-                TimelinePickerMode pickMode = PickerPanel.main.CurrentTimelinePickerMode;
-                
                 Metronome metronome = Chartmaker.main.CurrentSong.Timing;
+                float beatStart = metronome.ToBeat(Mathf.Min(timeStart, timeEnd));
+                float beatEnd = metronome.ToBeat(Mathf.Max(timeEnd, timeStart));
 
-                float density = (PeekRange.y - PeekRange.x) * metronome.GetStop(timeEnd, out _).BPM / TicksHolder.rect.width / 8;
-                float factor = Mathf.Floor(Mathf.Log(density, SeparationFactor));
-                float step = Mathf.Pow(SeparationFactor, factor + 1);
-                float beat = Mathf.Round(metronome.ToBeat(timeEnd) / step) * step;
+                IList list = null;
 
-                switch (PickerPanel.main.CurrentTimelinePickerMode) 
+                switch (CurrentMode)
                 {
-                    case TimelinePickerMode.Timestamp:
+                    case TimelineMode.Storyboard:
                     {
-                        if (InspectorPanel.main.CurrentObject is not Storyboardable thing) break;
+                        if (InspectorPanel.main.CurrentObject is not Storyboardable thing)
+                            break;
 
                         TimestampType[] types = (TimestampType[])thing.GetType().GetField("TimestampTypes").GetValue(null);
-                        Storyboard sb = thing.Storyboard;
-                        TimestampType type = types[Math.Clamp(Mathf.FloorToInt((ItemsHolder.rect.height - dragEnd.y - 3) / 24) + ScrollOffset, 0, types.Length - 1)];
-                        
-                        Timestamp ts = new Timestamp {
-                            ID = type.ID,
-                            Offset = (BeatPosition)(isDragged ? Mathf.Min(beatStart, beatEnd) : beatStart),
-                            Duration = isDragged ? Mathf.Abs(beatStart - beatEnd) : 0,
-                            Target = type.StoryboardGetter(thing.GetStoryboardableObject(isDragged ? Mathf.Min(beatStart, beatEnd) : beatStart)),
-                        };
-                        if (sb.Timestamps.FindIndex(
-                            x => x.ID == ts.ID && (
-                                (x.Offset < ts.Offset + ts.Duration && ts.Offset < x.Offset + x.Duration)
-                                || (x.Duration == 0 && ts.Duration == 0 && x.Offset == ts.Offset)
-                            )
-                        ) < 0) Chartmaker.main.AddItem(ts);
-                    }
-                    break;
-                    case TimelinePickerMode.BPMStop:
-                    {
-                        if (isDragged) break;
-                        BPMStop baseStop = Chartmaker.main.CurrentSong.Timing.GetStop(timeStart, out _);
-                        
-                        Chartmaker.main.AddItem(new BPMStop(baseStop.BPM, timeStart) { Signature = baseStop.Signature });
-                    }
-                    break;
-                    case TimelinePickerMode.Lane:
-                    {
-                        Lane lane = new Lane {
-                            Position = new(0, -4, 0)
-                        };
-                        lane.LaneSteps.Add(new LaneStep{ 
-                            StartPointPosition = new(-8, 0),
-                            EndPointPosition = new(8, 0),
-                            Offset = (BeatPosition)(isDragged ? Math.Min(beatStart, beatEnd) : beatStart)
-                        });
-                        lane.LaneSteps.Add(new LaneStep{ 
-                            StartPointPosition = new(-8, 0),
-                            EndPointPosition = new(8, 0),
-                            Offset = (BeatPosition)(isDragged ? Math.Max(beatStart, beatEnd) : beatStart + 1),
-                        });
-                        Chartmaker.main.AddItem(lane);
-                    }
-                    break;
-                    case TimelinePickerMode.LaneStep:
-                    {
-                        if (isDragged) break;
+                        Storyboard storyboard = thing.Storyboard;
 
+                        int yStart = Mathf.FloorToInt(Mathf.Clamp((ItemsHolder.rect.height - Mathf.Max(dragStart.y, dragEnd.y) - 3) / 24, 0, TimelineHeight - 1)) + ScrollOffset;
+                        int yEnd = Mathf.FloorToInt(Mathf.Clamp((ItemsHolder.rect.height - Mathf.Min(dragStart.y, dragEnd.y) - 3) / 24, 0, TimelineHeight - 1)) + ScrollOffset;
+
+                        list = storyboard.Timestamps.FindAll(x =>
+                        {
+                            int index = Array.FindIndex(types, y => x.ID == y.ID);
+                            return x.Offset >= beatStart && x.Offset <= beatEnd && index >= yStart && index <= yEnd;
+                        });
+                    }
+                        break;
+
+                    case TimelineMode.Timing:
+                        list = Chartmaker.main.CurrentSong.Timing.Stops.FindAll(x => x.Offset >= timeStart && x.Offset <= timeEnd); break;
+                    case TimelineMode.Lanes:
+                    {
+                        if (Chartmaker.main.CurrentChart == null)
+                            break;
+
+                        list = GetLanesInTimeline().FindAll(x => x.LaneSteps[0].Offset >= beatStart && x.LaneSteps[0].Offset <= beatEnd);
+
+                        break;
+                    }
+
+                    case TimelineMode.LaneSteps:
+                    {
                         if (InspectorPanel.main.CurrentHierarchyObject is not Lane lane) break;
 
-                        LanePosition basePos = ((Lane)lane.GetStoryboardableObject(timeEnd)).GetLanePosition(timeStart, timeStart, metronome);
-                        LaneStep baseStep = new() {
-                            StartPointPosition = basePos.StartPosition,
-                            EndPointPosition = basePos.EndPosition,
-                            Offset = (BeatPosition)(isDragged ? beatEnd : beatStart),
-                        };
-
-                        Chartmaker.main.AddItem(baseStep);
+                        list = lane.LaneSteps.FindAll(x => x.Offset >= beatStart && x.Offset <= beatEnd);
+                        break;
                     }
-                    break;
-                    case TimelinePickerMode.NormalHit or TimelinePickerMode.CatchHit:
+
+                    case TimelineMode.HitObjects:
                     {
-                        HitObject hit = new();
-                        if (!isDragged) 
-                        {
-                            dragEnd = dragStart;
-                            beatEnd = beatStart;
-                        }
-                        
+                        if (InspectorPanel.main.CurrentHierarchyObject is not Lane lane)
+                            break;
+
                         float vpStart = .5f - VerticalScale * .5f + VerticalOffset;
                         float vpEnd = .5f + VerticalScale * .5f + VerticalOffset;
-                        float yStart = Mathf.Lerp(vpStart, vpEnd, Mathf.Round(Mathf.Clamp01(1 - (Mathf.Max(dragStart.y, dragEnd.y) - 4) / (ItemsHolder.rect.height - 8)) / .05f) * .05f);
-                        float yEnd = Mathf.Lerp(vpStart, vpEnd, Mathf.Round(Mathf.Clamp01(1 - (Mathf.Min(dragStart.y, dragEnd.y) - 4) / (ItemsHolder.rect.height - 8)) / .05f) * .05f);
-                            
-                        hit.Offset = (BeatPosition)Math.Min(beatStart, beatEnd);
-                        hit.HoldLength = Math.Abs(beatStart - beatEnd);
-                        hit.Length = Options.NewHitObjectLength;
-                        hit.Position = yEnd - hit.Length / 2;
 
-                        hit.Type = PickerPanel.main.CurrentTimelinePickerMode == TimelinePickerMode.CatchHit ? HitObject.HitType.Catch : HitObject.HitType.Normal;
+                        float yStart = Mathf.Lerp(vpStart, vpEnd, Mathf.Clamp01(1 - (Mathf.Max(dragStart.y, dragEnd.y) - 4) / (ItemsHolder.rect.height - 8)));
+                        float yEnd = Mathf.Lerp(vpStart, vpEnd, Mathf.Clamp01(1 - (Mathf.Min(dragStart.y, dragEnd.y) - 4) / (ItemsHolder.rect.height - 8)));
 
-                        Chartmaker.main.AddItem(hit);
+                        list = lane.Objects.FindAll(x => x.Offset >= beatStart && x.Offset <= beatEnd && x.Position <= yEnd && x.Position + x.Length >= yStart);
+
+                        break;
                     }
-                    break;
                 }
+
+                if (list?.Count >= 2)
+                    InspectorPanel.main.SetObject(list);
+                else if (list?.Count == 1)
+                    InspectorPanel.main.SetObject(list[0]);
+                break;
+            }
+            case TimelineDragMode.Timeline:
+            {
+                if (!Chartmaker.main.SongSource.isPlaying)
+                {
+                    TimelinePickerMode pickMode = PickerPanel.main.CurrentTimelinePickerMode;
+                
+                    Metronome metronome = Chartmaker.main.CurrentSong.Timing;
+
+                    float density = (PeekRange.y - PeekRange.x) * metronome.GetStop(timeEnd, out _).BPM / TicksHolder.rect.width / 8;
+                    float factor = Mathf.Floor(Mathf.Log(density, SeparationFactor));
+                    float step = Mathf.Pow(SeparationFactor, factor + 1);
+                    float beat = Mathf.Round(metronome.ToBeat(timeEnd) / step) * step;
+
+                    switch (PickerPanel.main.CurrentTimelinePickerMode) 
+                    {
+                        case TimelinePickerMode.Timestamp:
+                        {
+                            if (InspectorPanel.main.CurrentObject is not Storyboardable thing) break;
+
+                            TimestampType[] types = (TimestampType[])thing.GetType().GetField("TimestampTypes").GetValue(null);
+                            Storyboard storyboard = thing.Storyboard;
+                            TimestampType type = types[Math.Clamp(Mathf.FloorToInt((ItemsHolder.rect.height - dragEnd.y - 3) / 24) + ScrollOffset, 0, types.Length - 1)];
+                        
+                            Timestamp ts = new Timestamp {
+                                ID = type.ID,
+                                Offset = (BeatPosition)(isDragged ? Mathf.Min(beatStart, beatEnd) : beatStart),
+                                Duration = isDragged ? Mathf.Abs(beatStart - beatEnd) : 0,
+                                Target = type.StoryboardGetter(thing.GetStoryboardableObject(isDragged ? Mathf.Min(beatStart, beatEnd) : beatStart)),
+                            };
+                            if (storyboard.Timestamps.FindIndex(
+                                    x => x.ID == ts.ID && (
+                                        (x.Offset < ts.Offset + ts.Duration && ts.Offset < x.Offset + x.Duration)
+                                        || (x.Duration == 0 && ts.Duration == 0 && Mathf.Approximately(x.Offset, ts.Offset))
+                                    )
+                                ) < 0) Chartmaker.main.AddItem(ts);
+                        }
+                            break;
+                        case TimelinePickerMode.BPMStop:
+                        {
+                            if (isDragged) break;
+
+                            BPMStop baseStop = Chartmaker.main.CurrentSong.Timing.GetStop(timeStart, out _);
+
+                            Chartmaker.main.AddItem(new BPMStop(baseStop.BPM, timeStart) { Signature = baseStop.Signature });
+
+                            break;
+                        }
+                        case TimelinePickerMode.Lane:
+                        {
+                            Lane lane = new Lane
+                            {
+                                Position = new(0, -4, 0)
+                            };
+
+                            lane.LaneSteps.Add(new LaneStep
+                            {
+                                StartPointPosition = new(-8, 0),
+                                EndPointPosition = new(8, 0),
+                                Offset = (BeatPosition)(isDragged ? Math.Min(beatStart, beatEnd) : beatStart)
+                            });
+
+                            lane.LaneSteps.Add(new LaneStep
+                            {
+                                StartPointPosition = new(-8, 0),
+                                EndPointPosition = new(8, 0),
+                                Offset = (BeatPosition)(isDragged ? Math.Max(beatStart, beatEnd) : beatStart + 1),
+                            });
+
+                            Chartmaker.main.AddItem(lane);
+                            break;
+                        }
+                        case TimelinePickerMode.LaneStep:
+                        {
+                            if (isDragged) break;
+
+                            if (InspectorPanel.main.CurrentHierarchyObject is not Lane lane) break;
+
+                            LanePosition basePos = ((Lane)lane.GetStoryboardableObject(timeEnd)).GetLanePosition(timeStart, timeStart, metronome);
+
+                            LaneStep baseStep = new()
+                            {
+                                StartPointPosition = basePos.StartPosition,
+                                EndPointPosition = basePos.EndPosition,
+                                Offset = (BeatPosition)(isDragged ? beatEnd : beatStart),
+                            };
+
+                            Chartmaker.main.AddItem(baseStep);
+                            break;
+                        }
+                        case TimelinePickerMode.NormalHit or TimelinePickerMode.CatchHit:
+                        {
+                            HitObject hit = new();
+
+                            if (!isDragged)
+                            {
+                                dragEnd = dragStart;
+                                beatEnd = beatStart;
+                            }
+
+                            float vpStart = .5f - VerticalScale * .5f + VerticalOffset;
+                            float vpEnd = .5f + VerticalScale * .5f + VerticalOffset;
+                            float yStart = Mathf.Lerp(vpStart, vpEnd, Mathf.Round(Mathf.Clamp01(1 - (Mathf.Max(dragStart.y, dragEnd.y) - 4) / (ItemsHolder.rect.height - 8)) / .05f) * .05f);
+                            float yEnd = Mathf.Lerp(vpStart, vpEnd, Mathf.Round(Mathf.Clamp01(1 - (Mathf.Min(dragStart.y, dragEnd.y) - 4) / (ItemsHolder.rect.height - 8)) / .05f) * .05f);
+
+                            hit.Offset = (BeatPosition)Math.Min(beatStart, beatEnd);
+                            hit.HoldLength = Math.Abs(beatStart - beatEnd);
+                            hit.Length = Options.NewHitObjectLength;
+                            hit.Position = yEnd - hit.Length / 2;
+
+                            hit.Type = PickerPanel.main.CurrentTimelinePickerMode == TimelinePickerMode.CatchHit ? HitObject.HitType.Catch : HitObject.HitType.Normal;
+
+                            Chartmaker.main.AddItem(hit);
+
+                            break;
+                        }
+                    }
+                }
+
+                break;
             }
         }
 
@@ -1645,8 +1752,8 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
     {
         ChartmakerHistory history = Chartmaker.main.History;
         ContextMenuList list = new();
-        var ahead = history.ActionsAhead.ToArray();
-        var behind = history.ActionsBehind.ToArray();
+        IChartmakerAction[] ahead = history.ActionsAhead.ToArray();
+        IChartmakerAction[] behind = history.ActionsBehind.ToArray();
 
         if (ahead.Length == 0 && behind.Length == 0)
         {
@@ -1660,9 +1767,7 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                 list.Items.Add(new ContextMenuListAction(ahead[a].GetName(), () => Chartmaker.main.Redo(A + 1), icon: "Redo"));
             }
             else 
-            {
                 list.Items.Add(new ContextMenuListAction("Nothing to Redo", () => {}, _enabled: false));
-            }
 
             list.Items.Add(new ContextMenuListSeparator());
 
@@ -1672,9 +1777,7 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                 list.Items.Add(new ContextMenuListAction(behind[a].GetName(), () => Chartmaker.main.Undo(A + 1), icon: "Undo"));
             }
             else 
-            {
                 list.Items.Add(new ContextMenuListAction("Nothing to Undo", () => {}, _enabled: false));
-            }
         }
 
         ContextMenuHolder.main.OpenRoot(list, EditHistoryHolder, ContextMenuDirection.Up);
@@ -1698,30 +1801,41 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
     {
         float maxHeight = SnapTimeline(Screen.height * 0.5f);
         height = Mathf.Round(Mathf.Clamp(height, 40, maxHeight));
-        if (snap) height = SnapTimeline(height);
-        Chartmaker.main.TimelineHolder.anchoredPosition = new (
+        
+        if (snap)
+            height = SnapTimeline(height);
+       
+        Chartmaker.main.TimelineHolder.anchoredPosition = new(
             Chartmaker.main.TimelineHolder.sizeDelta.x, 
             -Mathf.Pow(Mathf.Max(104 - height, 0) / 64, 2) * 32
         );
+       
         Chartmaker.main.TimelineHolder.sizeDelta = new (
             Chartmaker.main.TimelineHolder.sizeDelta.x, 
             height - Chartmaker.main.TimelineHolder.anchoredPosition.y
         );
+       
         Chartmaker.main.MainViewHolder.sizeDelta = new (Chartmaker.main.MainViewHolder.sizeDelta.x, - 33 - height);
+        
         Chartmaker.main.PickerHolder.sizeDelta = new (
             Chartmaker.main.PickerHolder.sizeDelta.x, 
             -32 - Chartmaker.main.TimelineHolder.anchoredPosition.y + Chartmaker.main.PickerHolder.anchoredPosition.y
         );
+      
         CurrentTimeCoonectorGroup.alpha = PeekSliderGroup.alpha = BlockerTextGroup.alpha =
             1 + Chartmaker.main.TimelineHolder.anchoredPosition.y / 32;
+       
         TimelineHeight = height <= 40 ? 0 : Mathf.Max(Mathf.RoundToInt((height - 80) / 24), 1);
+      
         if (snap) 
         {
             if (TimelineHeight > 0) TimelineExpandHeight = TimelineHeight;
             UpdateTabs();
         }
+      
         UpdateTimeline(true);
         UpdateScrollbar();
+      
         PlayerView.main.Update();
         PlayerView.main.UpdateObjects();
     }
@@ -1743,7 +1857,7 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
         bool isCtrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
         bool isAlt = Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt);
 
-        Chartmaker cm = Chartmaker.main;
+        Chartmaker chartmaker = Chartmaker.main;
 
         // Ctrl+Shift modifier = Vertical zoom
         if (isCtrl && isShift)
@@ -1785,22 +1899,22 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
             PeekRange.y = Mathf.Clamp(currentYRange, PeekRange.x, PeekLimit.y);
         }
         // Alt modifier = Seek current time
-        else if (isAlt || (Options.FollowSeekLine && cm.SongSource.isPlaying))
+        else if (isAlt || (Options.FollowSeekLine && chartmaker.SongSource.isPlaying))
         {
 
-            Metronome metronome = cm.CurrentSong.Timing;
-            float bpm = metronome.GetStop(cm.SongSource.time, out _).BPM;
+            Metronome metronome = chartmaker.CurrentSong.Timing;
+            float bpm = metronome.GetStop(chartmaker.SongSource.time, out _).BPM;
             float density = (PeekRange.y - PeekRange.x) * bpm / TicksHolder.rect.width / 8;
             float factor = Mathf.Floor(Mathf.Log(density, SeparationFactor));
             float step = Mathf.Pow(SeparationFactor, factor + 1);
 
-            float time = cm.SongSource.time + (-eventData.scrollDelta.y * step / bpm * 240);
-            if (cm.SongSource.time == 0 && !cm.SongSource.isPlaying)
+            float time = chartmaker.SongSource.time + (-eventData.scrollDelta.y * step / bpm * 240);
+            if (chartmaker.SongSource.time == 0 && !chartmaker.SongSource.isPlaying)
             {
-                cm.SongSource.Play();
-                cm.SongSource.Pause();
+                chartmaker.SongSource.Play();
+                chartmaker.SongSource.Pause();
             }
-            cm.SongSource.time = Mathf.Clamp(time, 0, cm.SongSource.clip.length);
+            chartmaker.SongSource.time = Mathf.Clamp(time, 0, chartmaker.SongSource.clip.length);
         }
         // No modifier = Horizontal scroll
         else
@@ -1818,7 +1932,7 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
 
     public float GetPointerTimeAtTimeline(PointerEventData eventData)
     {
-        Chartmaker cm = Chartmaker.main;
+        Chartmaker chartmaker = Chartmaker.main;
 
         if (RectTransformUtility.ScreenPointToLocalPointInRectangle(TimeSliderHolder, eventData.position, eventData.pressEventCamera, out Vector2 mousePosition))
         {
@@ -1826,7 +1940,7 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
         }
         else
         {
-            return cm.SongSource.time;
+            return chartmaker.SongSource.time;
         }
     }
 
@@ -1851,24 +1965,29 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
 
     public void SelectAdjacent(int direction)
     {
-        IList targetList = 
-            InspectorPanel.main.CurrentTimestamp?.Count > 0 ? ((Storyboardable)InspectorPanel.main.CurrentObject).Storyboard.Timestamps
-            : InspectorPanel.main.CurrentObject switch {
+        IList targetList = InspectorPanel.main.CurrentTimestamp?.Count > 0 
+                ? ((Storyboardable)InspectorPanel.main.CurrentObject).Storyboard.Timestamps : InspectorPanel.main.CurrentObject switch 
+            {
                 BPMStop => Chartmaker.main.CurrentSong.Timing.Stops,
                 Lane => GetLanesInTimeline(),
                 LaneStep => ((Lane)InspectorPanel.main.CurrentHierarchyObject).LaneSteps,
                 HitObject => ((Lane)InspectorPanel.main.CurrentHierarchyObject).Objects,
                 _ => null,
             };
-        if (targetList == null) return;
+        
+        if (targetList == null) 
+            return;
 
         object currentObj = InspectorPanel.main.CurrentTimestamp?.Count > 0 
-            ? InspectorPanel.main.CurrentTimestamp
-            : InspectorPanel.main.CurrentObject;
-        if (currentObj is IList curObjList) currentObj = curObjList[direction > 0 ? ^1 : 0];
+            ? InspectorPanel.main.CurrentTimestamp : InspectorPanel.main.CurrentObject;
+      
+        if (currentObj is IList curObjList) 
+            currentObj = curObjList[direction > 0 ? ^1 : 0];
 
         int index = targetList.IndexOf(currentObj) + direction;
-        if (index >= 0 && index < targetList.Count) InspectorPanel.main.SetObject(targetList[index]);
+        
+        if (index >= 0 && index < targetList.Count) 
+            InspectorPanel.main.SetObject(targetList[index]);
     }
 }
 

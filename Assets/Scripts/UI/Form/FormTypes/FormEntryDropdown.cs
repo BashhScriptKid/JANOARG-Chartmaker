@@ -26,36 +26,33 @@ public class FormEntryDropdown<T> : FormEntry<T>
     {
         ContextMenuList list = new ContextMenuList();
         foreach (KeyValuePair<T, string> item in ValidValues)
-        {
-            list.Items.Add(new ContextMenuListAction(item.Value, () => {
+            list.Items.Add(new ContextMenuListAction(item.Value, () =>
+            {
                 SetValue(item.Key); Reset();
-            }, _checked: item.Key.Equals(CurrentValue)));
-        }
+            }, 
+                _checked: item.Key.Equals(CurrentValue))
+            );
+        
         ContextMenuHolder.main.OpenRoot(list, (RectTransform)DrowpdownButton.transform);
     }
 }
 
-public class FormEntryDropdown : FormEntryDropdown<object> {
+public class FormEntryDropdown : FormEntryDropdown<object> 
+{
     public void TargetEnum(Type type)
     {
         if (type.IsEnum)
-        {
             foreach (var item in type.GetEnumValues())
             {
                 string name = type.GetEnumName(item);
                 ValidValues.Add(item, name);
             }
-        }
         else
-        {
             throw new ArgumentException("Type is not an enum");
-        }
     }
     public void TargetList(params string[] list)
     {
         for (int a = 0; a < list.Length; a++)
-        {
             ValidValues.Add(a, list[a]);
-        }
     }
 }

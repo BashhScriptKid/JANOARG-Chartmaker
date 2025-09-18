@@ -56,6 +56,7 @@ public static class LinuxAPI
 
     private const int PropModeReplace = 0;
 
+    // Sorry no wayland :(
     private const string X11Lib = "libX11.so.6";
     [DllImport(X11Lib)]
     private static extern IntPtr XOpenDisplay(IntPtr display);

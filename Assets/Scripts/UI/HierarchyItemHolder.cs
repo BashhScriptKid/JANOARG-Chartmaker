@@ -45,23 +45,28 @@ public class HierarchyItemHolder : MonoBehaviour, IBeginDragHandler, IDragHandle
     {
         switch (Target.Target)
         {
-            case LaneStyle: 
-                NameField.text = ((LaneStyle)Target.Target).Name;
+            case LaneStyle laneStyle: 
+                NameField.text = laneStyle.Name;
                 break;
-            case HitStyle: 
-                NameField.text = ((HitStyle)Target.Target).Name;
+            
+            case HitStyle hitStyle: 
+                NameField.text = hitStyle.Name;
                 break;
-            case LaneGroup: 
-                NameField.text = ((LaneGroup)Target.Target).Name;
+            
+            case LaneGroup group: 
+                NameField.text = group.Name;
                 break;
-            case Lane: 
-                NameField.text = ((Lane)Target.Target).Name;
+            
+            case Lane lane: 
+                NameField.text = lane.Name;
                 break;
+            
             default: 
                 return;
         }
         NameField.gameObject.SetActive(true);
         NameField.Select();
+        
         isNameFieldDirty = false;
     }
 
@@ -73,22 +78,34 @@ public class HierarchyItemHolder : MonoBehaviour, IBeginDragHandler, IDragHandle
     public void DoneRename()
     {
         NameField.gameObject.SetActive(false);
-        if (!isNameFieldDirty) return;
+        
+        if (!isNameFieldDirty)
+            return;
+        
         switch (Target.Target)
         {
-            case LaneGroup:
-                if (string.IsNullOrEmpty(NameField.text)) return;
-                var action = new ChartmakerGroupRenameAction() {
-                    From = ((LaneGroup)Target.Target).Name,
-                    To = InspectorPanel.main.GetNewGroupName(NameField.text.Trim(), ((LaneGroup)Target.Target)),
+            case LaneGroup group:
+                if (string.IsNullOrEmpty(NameField.text))
+                    return;
+                
+                var action = new ChartmakerGroupRenameAction() 
+                {
+                    From = group.Name,
+                    To = InspectorPanel.main.GetNewGroupName(NameField.text.Trim(), group),
                 };
+                
                 action.Redo();
+                
                 Chartmaker.main.History.AddAction(action);
                 Chartmaker.main.OnHistoryUpdate();
                 break;
-            case HitStyle: case LaneStyle: case Lane: 
+            
+            case HitStyle: 
+            case LaneStyle: 
+            case Lane: 
                 Chartmaker.main.SetItem(Target.Target, "Name", NameField.text.Trim());
                 break;
+            
             default: 
                 return;
         }

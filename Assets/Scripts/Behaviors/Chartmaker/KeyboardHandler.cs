@@ -126,17 +126,40 @@ public class KeyboardHandler : MonoBehaviour
             Category = "Select",
             Name = "Entire Timeline",
             Keybind = new Keybind(KeyCode.A, EventModifiers.Command),
-            Invoke = () => { 
-                if (TimelinePanel.main.CurrentMode == TimelineMode.Storyboard) {
-                    if (InspectorPanel.main.CurrentObject is Storyboardable) InspectorPanel.main.SetObject(((Storyboardable)InspectorPanel.main.CurrentObject).Storyboard.Timestamps.FindAll(x => true));
-                } else if (TimelinePanel.main.CurrentMode == TimelineMode.Lanes) {
-                    if (Chartmaker.main.CurrentChart != null) InspectorPanel.main.SetObject(Chartmaker.main.CurrentChart.Lanes.FindAll(x => true));
-                } else if (TimelinePanel.main.CurrentMode == TimelineMode.LaneSteps) {
-                    if (InspectorPanel.main.CurrentHierarchyObject is Lane lane) InspectorPanel.main.SetObject(lane.LaneSteps.FindAll(x => true));
-                } else if (TimelinePanel.main.CurrentMode == TimelineMode.HitObjects) {
-                    if (InspectorPanel.main.CurrentHierarchyObject is Lane lane) InspectorPanel.main.SetObject(lane.Objects.FindAll(x => true));
-                } else if (TimelinePanel.main.CurrentMode == TimelineMode.Timing) {
-                    if (Chartmaker.main.CurrentSong != null) InspectorPanel.main.SetObject(Chartmaker.main.CurrentSong.Timing.Stops.FindAll(x => true));
+            Invoke = () =>
+            {
+                switch (TimelinePanel.main.CurrentMode)
+                {
+                    case TimelineMode.Storyboard:
+                    {
+                        if (InspectorPanel.main.CurrentObject is Storyboardable) 
+                            InspectorPanel.main.SetObject(((Storyboardable)InspectorPanel.main.CurrentObject).Storyboard.Timestamps.FindAll(x => true));
+                        break;
+                    }
+                    case TimelineMode.Lanes:
+                    {
+                        if (Chartmaker.main.CurrentChart != null) 
+                            InspectorPanel.main.SetObject(Chartmaker.main.CurrentChart.Lanes.FindAll(x => true));
+                        break;
+                    }
+                    case TimelineMode.LaneSteps:
+                    {
+                        if (InspectorPanel.main.CurrentHierarchyObject is Lane lane) 
+                            InspectorPanel.main.SetObject(lane.LaneSteps.FindAll(x => true));
+                        break;
+                    }
+                    case TimelineMode.HitObjects:
+                    {
+                        if (InspectorPanel.main.CurrentHierarchyObject is Lane lane) 
+                            InspectorPanel.main.SetObject(lane.Objects.FindAll(x => true));
+                        break;
+                    }
+                    case TimelineMode.Timing:
+                    {
+                        if (Chartmaker.main.CurrentSong != null) 
+                            InspectorPanel.main.SetObject(Chartmaker.main.CurrentSong.Timing.Stops.FindAll(x => true));
+                        break;
+                    }
                 }
             },
         }},
@@ -157,7 +180,9 @@ public class KeyboardHandler : MonoBehaviour
             Name = "Chart Mode",
             Keybind = new Keybind(KeyCode.Alpha2, EventModifiers.Shift),
             Invoke = () => {
-                if (HierarchyPanel.main.CurrentMode == HierarchyMode.Chart || Chartmaker.main.CurrentChart == null) return;
+                if (HierarchyPanel.main.CurrentMode == HierarchyMode.Chart || Chartmaker.main.CurrentChart == null) 
+                    return;
+                
                 HierarchyPanel.main.SetMode(HierarchyMode.Chart);
                 TimelinePanel.main.SetTabMode(TimelineMode.Lanes);
             },
@@ -171,8 +196,10 @@ public class KeyboardHandler : MonoBehaviour
             Invoke = () => {
                 switch (HierarchyPanel.main.CurrentMode)  
                 {
-                    case HierarchyMode.PlayableSong: TimelinePanel.main.SetTabMode(TimelineMode.Timing); break;
-                    case HierarchyMode.Chart: TimelinePanel.main.SetTabMode(TimelineMode.Storyboard); break;
+                    case HierarchyMode.PlayableSong: 
+                        TimelinePanel.main.SetTabMode(TimelineMode.Timing); break;
+                    case HierarchyMode.Chart: 
+                        TimelinePanel.main.SetTabMode(TimelineMode.Storyboard); break;
                 }
             },
         }},
@@ -183,7 +210,8 @@ public class KeyboardHandler : MonoBehaviour
             Invoke = () => {
                 switch (HierarchyPanel.main.CurrentMode)  
                 {
-                    case HierarchyMode.Chart: TimelinePanel.main.SetTabMode(TimelineMode.Lanes); break;
+                    case HierarchyMode.Chart:
+                        TimelinePanel.main.SetTabMode(TimelineMode.Lanes); break;
                 }
             },
         }},
@@ -194,7 +222,8 @@ public class KeyboardHandler : MonoBehaviour
             Invoke = () => {
                 switch (HierarchyPanel.main.CurrentMode)  
                 {
-                    case HierarchyMode.Chart: TimelinePanel.main.SetTabMode(TimelineMode.LaneSteps); break;
+                    case HierarchyMode.Chart:
+                        TimelinePanel.main.SetTabMode(TimelineMode.LaneSteps); break;
                 }
             },
         }},
@@ -231,13 +260,28 @@ public class KeyboardHandler : MonoBehaviour
             Category = "Timeline",
             Name = "Pick 1st Item",
             Keybind = new Keybind(KeyCode.F),
-            Invoke = () => {
+            Invoke = () =>
+            {
                 var mode = TimelinePanel.main.CurrentMode;
-                     if (mode == TimelineMode.Storyboard) PickerPanel.main.SetTimelinePickerMode(TimelinePickerMode.Timestamp);
-                else if (mode == TimelineMode.Timing) PickerPanel.main.SetTimelinePickerMode(TimelinePickerMode.BPMStop);
-                else if (mode == TimelineMode.Lanes) PickerPanel.main.SetTimelinePickerMode(TimelinePickerMode.Lane);
-                else if (mode == TimelineMode.LaneSteps) PickerPanel.main.SetTimelinePickerMode(TimelinePickerMode.LaneStep);
-                else if (mode == TimelineMode.HitObjects) PickerPanel.main.SetTimelinePickerMode(TimelinePickerMode.NormalHit);
+
+                switch (mode)
+                {
+                    case TimelineMode.Storyboard:
+                        PickerPanel.main.SetTimelinePickerMode(TimelinePickerMode.Timestamp);
+                        break;
+                    case TimelineMode.Timing:
+                        PickerPanel.main.SetTimelinePickerMode(TimelinePickerMode.BPMStop);
+                        break;
+                    case TimelineMode.Lanes:
+                        PickerPanel.main.SetTimelinePickerMode(TimelinePickerMode.Lane);
+                        break;
+                    case TimelineMode.LaneSteps:
+                        PickerPanel.main.SetTimelinePickerMode(TimelinePickerMode.LaneStep);
+                        break;
+                    case TimelineMode.HitObjects:
+                        PickerPanel.main.SetTimelinePickerMode(TimelinePickerMode.NormalHit);
+                        break;
+                }
             }
         }},
         { "PK:Item2", new KeybindAction {
@@ -246,7 +290,8 @@ public class KeyboardHandler : MonoBehaviour
             Keybind = new Keybind(KeyCode.G),
             Invoke = () => {
                 var mode = TimelinePanel.main.CurrentMode;
-                if (mode == TimelineMode.HitObjects) PickerPanel.main.SetTimelinePickerMode(TimelinePickerMode.CatchHit);
+                if (mode == TimelineMode.HitObjects) 
+                    PickerPanel.main.SetTimelinePickerMode(TimelinePickerMode.CatchHit);
             }
         }},
     };

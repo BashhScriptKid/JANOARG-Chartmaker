@@ -69,15 +69,20 @@ public class FileModal : Modal
 
     public void Awake()
     {
-        if (main) Close();
-        else main = this;
+        if (main) 
+            Close();
+        else 
+            main = this;
     }
 
     new void Start()
     {
         base.Start();
+     
         SetUpBookmarks();
+      
         CurrentDirectory = Path.GetDirectoryName(Application.dataPath);
+        
         SetFileType(AcceptedTypes[0]);
     }
 
@@ -89,10 +94,9 @@ public class FileModal : Modal
             item.Parent = this;
             return item;
         }
-        GameObject GetSpace() 
-        {
-            return Instantiate(SeparatorSample, BookmarkHolder);
-        }
+    
+        GameObject GetSpace() => 
+            Instantiate(SeparatorSample, BookmarkHolder);
 
         FileModalItem item;
 
@@ -113,40 +117,46 @@ public class FileModal : Modal
         foreach (var specialFolder in localFolders) 
         {
             string path = specialFolder.Key;
-            if (Directory.Exists(path))
-            {
-                item = GetItem();
-                SetBookmark(item, new FileModalEntry {
-                    Path = path,
-                    Text = specialFolder.Value,
-                    IsFolder = true,
-                });
-                item.Icon.sprite = FolderIcon;
-            }
+
+            if (!Directory.Exists(path)) 
+                continue;
+
+            item = GetItem();
+            SetBookmark(item, new FileModalEntry {
+                Path = path,
+                Text = specialFolder.Value,
+                IsFolder = true,
+            });
+            item.Icon.sprite = FolderIcon;
         }
 
         GetSpace();
 
         // Home
         item = GetItem();
+      
         string userHomePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        SetBookmark(item, new FileModalEntry {
+      
+        SetBookmark(item, new FileModalEntry 
+        {
             Path = userHomePath,
             Text = "User Home",
             IsFolder = true,
         });
         item.Icon.sprite = UserHomeIcon;
 
-        Dictionary<Environment.SpecialFolder, string> userFolders = new () {
-            {Environment.SpecialFolder.Desktop, "Desktop"},
-            {Environment.SpecialFolder.Personal, "Documents"},
+        Dictionary<Environment.SpecialFolder, string> userFolders = new () 
+        {
+            {Environment.SpecialFolder.Desktop,    "Desktop"},
+            {Environment.SpecialFolder.Personal,   "Documents"},
             {Environment.SpecialFolder.MyPictures, "Pictures"},
-            {Environment.SpecialFolder.MyMusic, "Music"},
+            {Environment.SpecialFolder.MyMusic,    "Music"},
         };
 
         foreach (var specialFolder in userFolders) 
         {
             string path = Environment.GetFolderPath(specialFolder.Key);
+        
             if (!String.IsNullOrWhiteSpace(path) && path != userHomePath)
             {
                 item = GetItem();
@@ -168,8 +178,7 @@ public class FileModal : Modal
             SetBookmark(GetItem(), new FileModalEntry {
                 Path = drive.RootDirectory.FullName,
                 Text = String.IsNullOrWhiteSpace(drive.VolumeLabel) || drive.VolumeLabel == drive.Name
-                    ? drive.Name
-                    : drive.VolumeLabel + " (" + drive.Name + ")",
+                    ? drive.Name : drive.VolumeLabel + " (" + drive.Name + ")",
                 IsFolder = true,
             });
         }
@@ -192,7 +201,8 @@ public class FileModal : Modal
             TargetField.text = "";
 
             var pathInfo = new DirectoryInfo(path);
-            if (!pathInfo.Exists) throw new Exception("Path does not point to an existing folder.");
+            if (!pathInfo.Exists)
+                throw new Exception("Path does not point to an existing folder.");
 
             var folders = pathInfo.GetDirectories();
             var files = pathInfo.GetFiles();
@@ -218,14 +228,19 @@ public class FileModal : Modal
                 isHiddenEmpty = false;
 
                 bool valid = CurrentType.Filter.Length <= 0;
-                if (!valid) foreach (string ext in CurrentType.Filter) if (file.Extension.ToLower() == "." + ext)
-                {
-                    valid = true;
-                    break;
-                }
-                if (!valid)  continue;
+                if (!valid)
+                    foreach (string ext in CurrentType.Filter) 
+                        if (file.Extension.ToLower() == "." + ext)
+                        {
+                            valid = true;
+                            break;
+                        }
+                
+                if (!valid) 
+                    continue;
 
-                entries.Add(new FileModalEntry {
+                entries.Add(new FileModalEntry 
+                {
                     Path = file.FullName,
                     Text = file.Name,
                     IsFolder = false,
@@ -292,11 +307,13 @@ public class FileModal : Modal
         }
 
         int offset = Mathf.FloorToInt(ItemHolder.anchoredPosition.y / itemHeight);
+       
         if (forced || offset != currentOffset)
         {
             if (forced || Mathf.Abs(offset - currentOffset) >= items.Count)
             {
-                for (int a = 0; a < items.Count; a++) SetItem(items[a], offset + a);
+                for (int a = 0; a < items.Count; a++) 
+                    SetItem(items[a], offset + a);
                 currentOffset = offset;
             }
             else 
@@ -332,9 +349,11 @@ public class FileModal : Modal
     public void SetItem(FileModalItem item, int index)
     {
         item.gameObject.SetActive(index >= 0 && index < entries.Count);
+       
         if (item.gameObject.activeSelf)
         {
             ((RectTransform)item.transform).anchoredPosition = new Vector2(0, index * -itemHeight);
+           
             item.Entry = entries[index];
             item.Text.text = entries[index].Text;
             item.Icon.sprite = entries[index].Icon;
@@ -356,15 +375,14 @@ public class FileModal : Modal
 
     public void InvokeEntry()
     {
-        if (SelectedEntry != null) InvokeEntry(SelectedEntry);
+        if (SelectedEntry != null) 
+            InvokeEntry(SelectedEntry);
     }
 
     public void SelectItem(FileModalEntry entry)
     {
         if (SelectedEntry == entry)
-        {
             InvokeEntry(entry);
-        }
         else
         {
             SelectedEntry = entry;
@@ -375,9 +393,7 @@ public class FileModal : Modal
     public void InvokeEntry(FileModalEntry entry)
     {
         if (entry.IsFolder)
-        {
             Navigate(entry.Path);
-        }
         else
         {
             OnSelect.Invoke();
@@ -387,7 +403,9 @@ public class FileModal : Modal
 
     public void Navigate(string path)
     {
-        if (path == CurrentDirectory) return;
+        if (path == CurrentDirectory) 
+            return;
+        
         AddToHistory();
         ItemHolder.anchoredPosition = Vector2.zero;
         SetDirectory(path);
@@ -408,17 +426,17 @@ public class FileModal : Modal
     }
     public void MoveHistory(List<FileModalHistoryEntry> _from, List<FileModalHistoryEntry> _to)
     {
-        if (_from.Count > 0)
-        {
-            _to.Add(new FileModalHistoryEntry {
-                Path = CurrentDirectory,
-                ScrollPos = ItemHolder.anchoredPosition.y
-            });
-            FileModalHistoryEntry entry = _from[^1];
-            SetDirectory(entry.Path);
-            ItemHolder.anchoredPosition = Vector2.up * entry.ScrollPos;
-            _from.RemoveAt(_from.Count - 1);
-        }
+        if (_from.Count <= 0) 
+            return;
+
+        _to.Add(new FileModalHistoryEntry {
+            Path = CurrentDirectory,
+            ScrollPos = ItemHolder.anchoredPosition.y
+        });
+        FileModalHistoryEntry entry = _from[^1];
+        SetDirectory(entry.Path);
+        ItemHolder.anchoredPosition = Vector2.up * entry.ScrollPos;
+        _from.RemoveAt(_from.Count - 1);
     }
     public void GoBack()
     {
@@ -429,12 +447,13 @@ public class FileModal : Modal
         MoveHistory(HistoryAhead, HistoryBehind);
     }
 
-    public Sprite GetIcon(string path) => Path.GetExtension(path).ToLower() switch {
-        ".japs" => PlayableSongFileIcon,
-        ".jac" => ChartFileIcon,
+    public Sprite GetIcon(string path) => Path.GetExtension(path).ToLower() switch 
+    {
+        ".japs"                    => PlayableSongFileIcon,
+        ".jac"                     => ChartFileIcon,
         ".mp3" or ".ogg" or ".wav" => AudioFileIcon,
-        ".png" or ".jpg" => ImageFileIcon,
-        _ => FileIcon,
+        ".png" or ".jpg"           => ImageFileIcon,
+        _                          => FileIcon,
     };
 }
 

@@ -60,27 +60,32 @@ public class ThemeMultiEditor : EditorWindow
         if (isKeyDragging) 
         {
             EditorGUIUtility.AddCursorRect(new (0, 0, Screen.width, Screen.height), MouseCursor.Pan);
+           
             if (Event.current.type is EventType.MouseDrag or EventType.MouseUp)
             {
                 keyDragTarget = (Event.current.mousePosition.y + scrollPos.y - cellHeight - padding.top - padding.bottom) / cellHeightGap - .5f;
                 keyDragTarget = Mathf.Clamp(keyDragTarget, 0, Keys.Count - 1);
             }
+           
             if (Event.current.type is EventType.MouseUp)
             {
                 isKeyDragging = false;
+                
                 int target = Mathf.RoundToInt(keyDragTarget);
+                
                 if (keyDragIndex != target) 
                 {
                     ThemeKeyInfo key = Keys[keyDragIndex];
+                    
                     Keys.RemoveAt(keyDragIndex);
                     Keys.Insert(target, key);
+                   
                     isKeyDirty = true;
                 }
             }
+           
             if (Event.current.type is EventType.MouseDrag or EventType.MouseMove or EventType.MouseUp)
-            {
                 Event.current.Use();
-            }
         }
 
 
@@ -96,21 +101,24 @@ public class ThemeMultiEditor : EditorWindow
                 {
                     ThemeKey key = theme.Keys[a];
                     ThemeKeyInfo info = Keys.Find(x => x.CurrentKey == key.Key);
-                    if (info != null) key.Key = info.NewKey;
+                  
+                    if (info != null)
+                        key.Key = info.NewKey;
                 }
                 theme.Keys.Sort((x, y) => Keys.FindIndex(a => a.NewKey == x.Key).CompareTo(Keys.FindIndex(a => a.NewKey == y.Key)));
+               
                 EditorUtility.SetDirty(theme);
             }
+            
             foreach (ThemeKeyInfo key in Keys) 
-            {
                 key.CurrentKey = key.NewKey;
-            }
+            
             isKeyDirty = false;
         }
+        
         if (GUI.Button(new (padding.left + 81, padding.top, 81, cellHeight), "Revert Keys", GUI.skin.FindStyle("buttonRight")))
-        {
             UpdateKeys();
-        }
+        
         GUI.enabled = true;
         
 
@@ -139,7 +147,9 @@ public class ThemeMultiEditor : EditorWindow
         if (newTheme = (Theme)EditorGUI.ObjectField(getCellRect(Themes.Count, 0).Move(themeMove), null, typeof(Theme), true))
         {
             Themes.Add(newTheme);
+          
             Debug.Log("add new theme");
+          
             UpdateKeys();
         }
 
@@ -170,9 +180,7 @@ public class ThemeMultiEditor : EditorWindow
             Rect textFieldRect = new (cellGap + cellHeight + keyMove.x, cellHeightGap * pos + keyMove.y, labelWidth - cellHeight - cellGap, cellHeight);
 
             if (Keys[i].CurrentKey != Keys[i].NewKey)
-            {
                 GUI.Label(draggerRect.Move(new (-10, 0)), "", GUI.skin.FindStyle("CN EntryErrorIconSmall"));
-            }
 
             GUI.Label(draggerRect.ShrinkBy(new RectOffset(3, 3, 7, 7)), "", draggerStyle);
             EditorGUIUtility.AddCursorRect(draggerRect, MouseCursor.Pan);
@@ -185,6 +193,7 @@ public class ThemeMultiEditor : EditorWindow
             }
 
             string changedKey = EditorGUI.TextField(textFieldRect, Keys[i].NewKey);
+            
             if (changedKey != Keys[i].NewKey) 
             {
                 Keys[i].NewKey = changedKey;
@@ -197,19 +206,23 @@ public class ThemeMultiEditor : EditorWindow
             if (isKeyDragging && keyDragIndex == i) continue;
             drawKey(i, i + GetDragOffset(i));
         }
+        
         {
             Rect textFieldRect = new (cellGap + cellHeight + keyMove.x, cellHeightGap * Keys.Count + keyMove.y, labelWidth - cellHeight - cellGap, cellHeight);
             keyToAdd = EditorGUI.TextField(textFieldRect, keyToAdd);
 
             GUI.enabled = !string.IsNullOrWhiteSpace(keyToAdd);
+            
             if (GUI.Button(new(textFieldRect.x + textFieldRect.width + padding.left, textFieldRect.y, 100, cellHeight), "Add Key")) 
             {
                 Keys.Add(new(keyToAdd.Trim()));
                 keyToAdd = "";
                 isKeyDirty = true;
             } 
+          
             GUI.enabled = true;
         }
+        
         if (isKeyDragging) 
         {
             if (Event.current.type == EventType.Repaint) 
@@ -246,11 +259,12 @@ public class ThemeMultiEditor : EditorWindow
             if (index >= 0)
             {
                 Color changedColor = EditorGUI.ColorField(getCellRect(themeIndex, pos), theme.Keys[index].Value);
-                if (changedColor != theme.Keys[index].Value) 
-            {
+
+                if (changedColor == theme.Keys[index].Value) 
+                    return;
+
                 theme.Keys[index] = new (Keys[keyIndex].CurrentKey, changedColor);
                 EditorUtility.SetDirty(theme);
-            }
             }
             else if (GUI.Button(getCellRect(themeIndex, keyIndex), "Missing")) 
             {
@@ -263,10 +277,9 @@ public class ThemeMultiEditor : EditorWindow
         {
             if (isKeyDragging && keyDragIndex == i) continue;
             for (int j = 0; j < Themes.Count; j++)
-            {
                 drawCell(j, i, i + GetDragOffset(i));
-            }
         }
+        
         if (isKeyDragging) 
         {
             if (Event.current.type == EventType.Repaint) 
@@ -280,10 +293,9 @@ public class ThemeMultiEditor : EditorWindow
                     true, "", bgStyle
                 );
             }
+            
             for (int j = 0; j < Themes.Count; j++)
-            {
                 drawCell(j, keyDragIndex, keyDragTarget);
-            }
         }
         
 
@@ -299,9 +311,12 @@ public class ThemeMultiEditor : EditorWindow
 
     public int GetDragOffset(int i)
     {
-        if (!isKeyDragging) return 0;
+        if (!isKeyDragging) 
+            return 0;
+        
         int index = keyDragIndex;
         int target = Mathf.RoundToInt(keyDragTarget);
+        
         return (target >= i && index < i) ? -1 : 
             (target <= i && index > i) ? 1 : 0;
     } 
@@ -316,9 +331,14 @@ public class ThemeMultiEditor : EditorWindow
         {
             foreach (Theme theme in Themes)
             {
-                if (theme.Keys.Count <= i) continue;
+                if (theme.Keys.Count <= i)
+                    continue;
+                
                 ThemeKey key = theme.Keys[i];
-                if (idSet.Contains(key.Key)) continue;
+                
+                if (idSet.Contains(key.Key)) 
+                    continue;
+                
                 Keys.Add(new(key.Key));
                 idSet.Add(key.Key);
             }

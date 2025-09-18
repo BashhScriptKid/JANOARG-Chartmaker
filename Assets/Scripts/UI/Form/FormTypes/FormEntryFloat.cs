@@ -10,9 +10,12 @@ public class FormEntryFloat : FormEntry<float>
         Reset();
     }
 
-    public void Reset() => Field.SetTextWithoutNotify(CurrentValue.ToString());
+    public void Reset() 
+        => Field.SetTextWithoutNotify(CurrentValue.ToString());
+    
     public void SetValue(string value)
     {
-        if (float.TryParse(value, out float v)) SetValue(v);
+        if (float.TryParse(value, out float v))
+            SetValue(v);
     }
 }
