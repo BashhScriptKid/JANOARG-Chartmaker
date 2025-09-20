@@ -65,20 +65,17 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             for (var a = 0; a < CurrentChart.Lanes.Count; a++)
             {
-                var lane = (Lane)CurrentChart.Lanes[a]
-                    .GetStoryboardableObject(pos);
+                var lane = (Lane)CurrentChart.Lanes[a].GetStoryboardableObject(pos);
 
                 if (Lanes.Count <= a)
                     Lanes.Add(new LaneManager(lane, time, pos, this));
                 else
-                    Lanes[a]
-                        .Update(lane, time, pos, this);
+                    Lanes[a].Update(lane, time, pos, this);
             }
 
             while (Lanes.Count > CurrentChart.Lanes.Count)
             {
-                Lanes[CurrentChart.Lanes.Count]
-                    .Dispose();
+                Lanes[CurrentChart.Lanes.Count].Dispose();
 
                 Lanes.RemoveAt(CurrentChart.Lanes.Count);
             }
@@ -307,7 +304,9 @@ namespace JANOARG.Shared.Data.ChartInfo
         public void Update(Lane data, float time, float pos, ChartManager main)
         {
             CurrentLane = data;
-            if (CurrentMesh == null) CurrentMesh = new Mesh();
+            
+            if (CurrentMesh == null) 
+                CurrentMesh = new Mesh();
 
             var stepCount = 0;
             bool force = !Mathf.Approximately(main.CurrentSpeed, CurrentSpeed);
@@ -316,10 +315,15 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             for (var a = 0; a < CurrentLane.LaneSteps.Count; a++)
             {
-                if (Steps.Count <= a) Steps.Add(new LaneStepManager());
+                if (Steps.Count <= a) 
+                    Steps.Add(new LaneStepManager());
 
-                var step = (LaneStep)CurrentLane.LaneSteps[a]
-                    .GetStoryboardableObject(pos);
+                LaneStep step = null;
+                
+                if (Steps != null && Steps.Count == CurrentLane.LaneSteps.Count)
+                    step = Steps[a].CurrentStep;
+                
+                step ??= (LaneStep)CurrentLane.LaneSteps[a].GetStoryboardableObject(pos);
 
                 if (step.Offset != Steps[a].CurrentStep?.Offset)
                 {
@@ -338,13 +342,14 @@ namespace JANOARG.Shared.Data.ChartInfo
 
                 Steps[a].CurrentStep = step;
 
-                stepCount += float.IsNaN(offset) ? 1 :
-                    Mathf.CeilToInt((offset == Steps[a].Offset ? Steps[a].Offset > time ? 1 : 0 : Mathf.Clamp01((time - Steps[a].Offset) / (offset - Steps[a].Offset))) * (step.IsLinear ? 1 : 16));
+                stepCount += float.IsNaN(offset) 
+                    ? 1 : Mathf.CeilToInt((offset == Steps[a].Offset ? Steps[a].Offset > time ? 1 : 0 : Mathf.Clamp01((time - Steps[a].Offset) / (offset - Steps[a].Offset))) * (step.IsLinear ? 1 : 16));
 
                 offset = Steps[a].Offset;
             }
 
-            while (Steps.Count > CurrentLane.LaneSteps.Count) Steps.RemoveAt(CurrentLane.LaneSteps.Count);
+            while (Steps.Count > CurrentLane.LaneSteps.Count) 
+                Steps.RemoveAt(CurrentLane.LaneSteps.Count);
 
             var index = 0;
             var verts = new Vector3[stepCount * 2];
@@ -374,15 +379,20 @@ namespace JANOARG.Shared.Data.ChartInfo
                     }
                     else if (next.CurrentStep.IsLinear)
                     {
-                        float p = curr.Offset == next.Offset ? curr.Offset < time ? 1 : 0 : Mathf.Clamp01((time - curr.Offset) / (next.Offset - curr.Offset));
-                        float dist = Mathf.Lerp(curr.Distance, next.Distance, p);
-                        verts[index] = Vector3.Lerp(curr.CurrentStep.StartPointPosition, next.CurrentStep.StartPointPosition, p) + Vector3.forward * dist;
-                        verts[index + 1] = Vector3.Lerp(curr.CurrentStep.EndPointPosition, next.CurrentStep.EndPointPosition, p) + Vector3.forward * dist;
+                        float offsetLerpProgress = curr.Offset == next.Offset 
+                            ? curr.Offset < time 
+                                ? 1 : 0 
+                            : Mathf.Clamp01((time - curr.Offset) / (next.Offset - curr.Offset));
+                      
+                        float dist = Mathf.Lerp(curr.Distance, next.Distance, offsetLerpProgress);
+                      
+                        verts[index] = Vector3.Lerp(curr.CurrentStep.StartPointPosition, next.CurrentStep.StartPointPosition, offsetLerpProgress) + Vector3.forward * dist;
+                        verts[index + 1] = Vector3.Lerp(curr.CurrentStep.EndPointPosition, next.CurrentStep.EndPointPosition, offsetLerpProgress) + Vector3.forward * dist;
 
                         // Debug.Log(index + "/" + verts.Length + " " + verts[index] + " " + verts[index + 1]);
                         index += 2;
 
-                        if (p > 0)
+                        if (offsetLerpProgress > 0)
                         {
                             CurrentDistance = dist;
 
@@ -393,7 +403,11 @@ namespace JANOARG.Shared.Data.ChartInfo
                     }
                     else
                     {
-                        float p = curr.Offset == next.Offset ? curr.Offset < time ? 1 : 0 : Mathf.Clamp01((time - curr.Offset) / (next.Offset - curr.Offset));
+                        float p = curr.Offset == next.Offset 
+                            ? curr.Offset < time 
+                                ? 1 : 0 
+                            : Mathf.Clamp01((time - curr.Offset) / (next.Offset - curr.Offset));
+                        
                         float dist = 0;
 
                         for (var i = 15; i >= 0; i--)
@@ -425,7 +439,8 @@ namespace JANOARG.Shared.Data.ChartInfo
                     next = curr;
                 }
 
-            if (float.IsNaN(CurrentDistance) && Steps.Count > 0) CurrentDistance = Steps[0].Distance + Steps[0].CurrentStep.Speed * CurrentSpeed * (time - Steps[0].Offset);
+            if (float.IsNaN(CurrentDistance) && Steps.Count > 0) 
+                CurrentDistance = Steps[0].Distance + Steps[0].CurrentStep.Speed * CurrentSpeed * (time - Steps[0].Offset);
 
             for (var a = 0; a < verts.Length; a++) uvs[a] = new Vector2(a % 2, verts[a].z);
 
@@ -576,54 +591,119 @@ namespace JANOARG.Shared.Data.ChartInfo
             return mesh;
         }
 
-        public LanePosition GetLanePosition(float sec, float speed = 1)
+        public LanePosition GetLanePosition(float sec, float speed = 1f)
         {
-            if (sec < Steps[0].Offset || Steps.Count <= 1)
+            int stepCount = Steps.Count;
+            
+            // Early exit for invalid input or single step
+            if (stepCount <= 1)
+            {
+                if (stepCount == 0) return null;
+                
+                var firstStep = Steps[0];
+                var firstLaneStep = CurrentLane.LaneSteps[0];
                 return new LanePosition
                 {
-                    StartPosition = CurrentLane.LaneSteps[0].StartPointPosition,
-                    EndPosition = CurrentLane.LaneSteps[0].EndPointPosition,
-                    Offset = Steps[0].Distance - Steps[0].CurrentStep.Speed * speed * (Steps[0].Offset - sec)
+                    StartPosition = firstLaneStep.StartPointPosition,
+                    EndPosition = firstLaneStep.EndPointPosition,
+                    Offset = firstStep.Distance - firstStep.CurrentStep.Speed * speed * (firstStep.Offset - sec)
                 };
-            else if (sec > Steps[Steps.Count - 1].Offset)
+            }
+            
+            var firstStepOffset = Steps[0].Offset;
+            var lastStepOffset = Steps[stepCount - 1].Offset;
+            
+            // Handle time before first step
+            if (sec < firstStepOffset)
+            {
+                var firstStep = Steps[0];
+                var firstLaneStep = CurrentLane.LaneSteps[0];
                 return new LanePosition
                 {
-                    StartPosition = CurrentLane.LaneSteps[Steps.Count - 1].StartPointPosition,
-                    EndPosition = CurrentLane.LaneSteps[Steps.Count - 1].EndPointPosition,
-                    Offset = Steps[Steps.Count - 1].Distance + Steps[Steps.Count - 1].CurrentStep.Speed * speed * (sec - Steps[Steps.Count - 1].Offset)
+                    StartPosition = firstLaneStep.StartPointPosition,
+                    EndPosition = firstLaneStep.EndPointPosition,
+                    Offset = firstStep.Distance - firstStep.CurrentStep.Speed * speed * (firstStepOffset - sec)
                 };
-            else
-                for (var i = 1; i < Steps.Count; i++)
+            }
+            
+            // Handle time after last step
+            if (sec > lastStepOffset)
+            {
+                var lastStep = Steps[stepCount - 1];
+                var lastLaneStep = CurrentLane.LaneSteps[stepCount - 1];
+                return new LanePosition
                 {
-                    LaneStepManager prev = Steps[i - 1];
-                    LaneStep prevS = prev.CurrentStep;
-                    LaneStepManager curr = Steps[i];
-                    LaneStep currS = curr.CurrentStep;
+                    StartPosition = lastLaneStep.StartPointPosition,
+                    EndPosition = lastLaneStep.EndPointPosition,
+                    Offset = lastStep.Distance + lastStep.CurrentStep.Speed * speed * (sec - lastStepOffset)
+                };
+            }
+            
+            // Binary search for the correct step interval
+            int stepIndex = FindStepIndex(sec);
+            
+            var prev = Steps[stepIndex - 1];
+            var prevStep = prev.CurrentStep;
+            var current = Steps[stepIndex];
+            var currentStep = current.CurrentStep;
+            
+            float timeDelta = current.Offset - prev.Offset;
+            float prevToCurrentProgress = (sec - prev.Offset) / timeDelta;
+            float offsetValue = prev.Distance + currentStep.Speed * speed * (sec - prev.Offset);
+            
+            if (currentStep.IsLinear)
+            {
+                return new LanePosition
+                {
+                    StartPosition = Vector2.LerpUnclamped(prevStep.StartPointPosition, currentStep.StartPointPosition, prevToCurrentProgress),
+                    EndPosition = Vector2.LerpUnclamped(prevStep.EndPointPosition, currentStep.EndPointPosition, prevToCurrentProgress),
+                    Offset = offsetValue
+                };
+            }
+            
+            // Non-linear interpolation
+            float startEaseX = currentStep.StartEaseX.Get(prevToCurrentProgress);
+            float startEaseY = currentStep.StartEaseY.Get(prevToCurrentProgress);
+            float endEaseX = currentStep.EndEaseX.Get(prevToCurrentProgress);
+            float endEaseY = currentStep.EndEaseY.Get(prevToCurrentProgress);
+            
+            return new LanePosition
+            {
+                StartPosition = new Vector2(
+                    Mathf.LerpUnclamped(prevStep.StartPointPosition.x, currentStep.StartPointPosition.x, startEaseX),
+                    Mathf.LerpUnclamped(prevStep.StartPointPosition.y, currentStep.StartPointPosition.y, startEaseY)
+                ),
+                EndPosition = new Vector2(
+                    Mathf.LerpUnclamped(prevStep.EndPointPosition.x, currentStep.EndPointPosition.x, endEaseX),
+                    Mathf.LerpUnclamped(prevStep.EndPointPosition.y, currentStep.EndPointPosition.y, endEaseY)
+                ),
+                Offset = offsetValue
+            };
+        }
 
-                    if (sec > curr.Offset) continue;
-
-
-                    float p = (sec - prev.Offset) / (curr.Offset - prev.Offset);
-
-                    if (currS.IsLinear)
-                        return new LanePosition
-                        {
-                            StartPosition = Vector2.LerpUnclamped(prevS.StartPointPosition, currS.StartPointPosition, p),
-                            EndPosition = Vector2.LerpUnclamped(prevS.EndPointPosition, currS.EndPointPosition, p),
-                            Offset = prev.Distance + currS.Speed * speed * (sec - prev.Offset)
-                        };
-                    else
-                        return new LanePosition
-                        {
-                            StartPosition = new Vector2(Mathf.LerpUnclamped(prevS.StartPointPosition.x, currS.StartPointPosition.x, currS.StartEaseX.Get(p)),
-                                Mathf.LerpUnclamped(prevS.StartPointPosition.y, currS.StartPointPosition.y, currS.StartEaseY.Get(p))),
-                            EndPosition = new Vector2(Mathf.LerpUnclamped(prevS.EndPointPosition.x, currS.EndPointPosition.x, currS.EndEaseX.Get(p)),
-                                Mathf.LerpUnclamped(prevS.EndPointPosition.y, currS.EndPointPosition.y, currS.EndEaseY.Get(p))),
-                            Offset = prev.Distance + currS.Speed * speed * (sec - prev.Offset)
-                        };
+        // Binary search to find the step index - O(log n) instead of O(n)
+        private int FindStepIndex(float sec)
+        {
+            int left = 1;
+            int right = Steps.Count - 1;
+            
+            while (left <= right)
+            {
+                int mid = (left + right) / 2;
+                
+                if (Steps[mid].Offset > sec)
+                {
+                    if (mid == 1 || Steps[mid - 1].Offset <= sec)
+                        return mid;
+                    right = mid - 1;
                 }
-
-            return null;
+                else
+                {
+                    left = mid + 1;
+                }
+            }
+            
+            return Steps.Count - 1;
         }
 
         public void Dispose()
@@ -835,38 +915,59 @@ namespace JANOARG.Shared.Data.ChartInfo
         {
             CurrentHit = data;
             TimeStart = main.Song.Timing.ToSeconds(data.Offset);
-            TimeEnd = data.HoldLength > 0 ? main.Song.Timing.ToSeconds(data.Offset + data.HoldLength) : TimeStart;
+            
+            // Calculate TimeEnd only once and cache the comparison
+            bool isHoldNote = data.HoldLength > 0;
+            TimeEnd = isHoldNote ? main.Song.Timing.ToSeconds(data.Offset + data.HoldLength) : TimeStart;
 
-            if (HoldMesh) Object.DestroyImmediate(HoldMesh);
+            // Destroy hold mesh early if it exists
+            if (HoldMesh) 
+            {
+                Object.DestroyImmediate(HoldMesh);
+                HoldMesh = null; // Explicit null assignment for clarity
+            }
 
+            // Early return if time is past the end - no need to process further
+            if (time > TimeEnd)
+                return;
+
+            // Handle remaining counts (only when time <= TimeStart)
             if (time <= TimeStart)
             {
                 main.HitObjectsRemaining[(int)data.Type]++;
-                if (data.Flickable) main.FlicksRemaining++;
+                
+                if (data.Flickable) 
+                    main.FlicksRemaining++;
             }
 
-            if (time <= TimeEnd)
-            {
-                LanePosition pos = lane.GetLanePosition(Mathf.Max(TimeStart, time), main.CurrentSpeed);
+            // Main position calculations - only execute when time <= TimeEnd
+            LanePosition pos = lane.GetLanePosition(Mathf.Max(TimeStart, time), main.CurrentSpeed);
+            Vector3 forwardedOffset = Vector3.forward * pos.Offset;
+            
+            // Cache data.Position to avoid multiple property access
+            float dataPosition = data.Position;
+            StartPos = Vector3.LerpUnclamped(pos.StartPosition, pos.EndPosition, dataPosition) + forwardedOffset;
+            EndPos = Vector3.LerpUnclamped(pos.StartPosition, pos.EndPosition, dataPosition + data.Length) + forwardedOffset;
 
-                Vector3 fwd = Vector3.forward * pos.Offset;
-                StartPos = Vector3.LerpUnclamped(pos.StartPosition, pos.EndPosition, data.Position) + fwd;
-                EndPos = Vector3.LerpUnclamped(pos.StartPosition, pos.EndPosition, data.Position + data.Length) + fwd;
+            Position = (StartPos + EndPos) * 0.5f; // Multiply by 0.5f is slightly faster than divide by 2
+            Rotation = Quaternion.LookRotation(EndPos - StartPos) * Quaternion.Euler(0, 90, 0);
+            Length = Vector3.Distance(StartPos, EndPos);
 
-                Position = (StartPos + EndPos) / 2;
-                Rotation = Quaternion.LookRotation(EndPos - StartPos) * Quaternion.Euler(0, 90, 0);
-                Length = Vector3.Distance(StartPos, EndPos);
+            // Cache the distance check result
+            bool isInRange = pos.Offset < lane.CurrentDistance + 250;
+            
+            // Generate hold mesh only if needed
+            HoldMesh = (isInRange && isHoldNote) 
+                ? lane.GetPartOfLane(Mathf.Max(TimeStart, time), TimeEnd, dataPosition, data.Length) 
+                : null;
 
-                HoldMesh = pos.Offset < lane.CurrentDistance + 250 && TimeStart < TimeEnd ? lane.GetPartOfLane(Mathf.Max(TimeStart, time), TimeEnd, data.Position, data.Length) : null;
-
-                if (pos.Offset < lane.CurrentDistance + 250) main.ActiveHitCount++;
-                main.ActiveLaneVerts += HoldMesh?.vertices.Length ?? 0;
-                main.ActiveLaneTris += HoldMesh?.triangles.Length ?? 0;
-            }
-            else
-            {
-                HoldMesh = null;
-            }
+            // Update counters
+            if (isInRange) 
+                main.ActiveHitCount++;
+            
+            // Use null-conditional operators for cleaner code
+            main.ActiveLaneVerts += HoldMesh?.vertices.Length ?? 0;
+            main.ActiveLaneTris += HoldMesh?.triangles.Length ?? 0;
         }
     }
 }

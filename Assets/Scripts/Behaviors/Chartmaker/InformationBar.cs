@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using JANOARG.Shared.Data.ChartInfo;
 using TMPro;
@@ -9,6 +10,7 @@ using UnityEngine.UI;
 
 public class InformationBar : MonoBehaviour
 {
+    private static WaitForSeconds _waitForSeconds0 = new WaitForSeconds(0);
     public static InformationBar main;
 
     [Header("Objects")]
@@ -63,9 +65,9 @@ public class InformationBar : MonoBehaviour
         sec = Chartmaker.main.SongSource.timeSamples / (float)Chartmaker.main.SongSource.clip.frequency;
         beat = Chartmaker.main.CurrentSong.Timing.ToBeat(sec);
         barPos = Chartmaker.main.CurrentSong.Timing.ToDividedBeat(sec);
-            
-        SecondTimeLabel.text = Mathf.Floor(sec / 60).ToString("00") + ":" + Mathf.Floor(sec % 60).ToString("00") + "s" + Mathf.Floor(sec * 1000 % 1000).ToString("000");
-        BeatTimeLabel.text = beat.ToString("0.000").Replace('.', 'b');
+
+
+        StartCoroutine(UpdateTimeLabel());
 
         if (!TimelinePanel.main.isDragged && PlayOptions.MetronomeVolume > 0 && Mathf.Floor(beat) > MetronomeIndex)
             SoundPlayer.PlayOneShot(barPos < 1 ? MetronomeSoundMain : MetronomeSoundSub, PlayOptions.MetronomeVolume);
@@ -73,6 +75,14 @@ public class InformationBar : MonoBehaviour
         MetronomeIndex = Mathf.Floor(beat);
 
         UpdateVisualizer();
+    }
+
+    private IEnumerator UpdateTimeLabel()
+    {
+        SecondTimeLabel.text = Mathf.Floor(sec / 60).ToString("00") + ":" + Mathf.Floor(sec % 60).ToString("00") + "s" + Mathf.Floor(sec * 1000 % 1000).ToString("000");
+        BeatTimeLabel.text = beat.ToString("0.000").Replace('.', 'b');
+
+        yield return null;
     }
 
     public void UpdateButtonActivity() 

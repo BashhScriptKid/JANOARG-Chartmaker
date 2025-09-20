@@ -488,10 +488,11 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                         continue;
 
                     float index = Array.FindIndex(types, x => x.ID == timestamp.ID) - ScrollOffset;
-                    if (index < -1 || index >= TimelineHeight + 1) continue;
+                    if (index < -1 || index >= TimelineHeight + 1)
+                        continue;
 
                     float posX = InverseLerpUnclamped(PeekRange.x, PeekRange.y, time);
-                    Image tail = null;
+                    Image tail;
                     if (!Mathf.Approximately(time, timeEndPoint))
                     {
                         tail = GetItemTail(tailCount);
@@ -861,12 +862,18 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
             return;
         }
         
-        WaveformImage.enabled = true;
+        if (!WaveformImage.enabled)
+            WaveformImage.enabled = true;
+        
         Color color = Themer.main.Keys["TimelineTickMain"];
 
         Texture2D texture = null;
-        if (WaveformImage.texture is Texture2D) texture = (Texture2D)WaveformImage.texture;
+        
+        if (WaveformImage.texture is Texture2D imageTexture)
+            texture = imageTexture;
+        
         RectTransform waveRT = WaveformImage.rectTransform;
+        
         if (!texture || texture.width != (int)waveRT.rect.width || texture.height != (int)waveRT.rect.height)
         {
             Destroy(WaveformImage.texture);
@@ -916,6 +923,7 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
 
         switch (Options.WaveformMode) 
         {
+            // Waveform
             case 1: {
                 float[] data = new float[Mathf.CeilToInt(Math.Min(density, 1024) / clip.channels) * clip.channels];
                 float denY = 1f / texture.height * clip.channels;
@@ -988,6 +996,7 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
                 }
             } break;
 
+            // Spectrogram
             case 2: {
                 int resolution = 512;
 
@@ -1179,18 +1188,22 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
     private float RoundBeat(float time) 
     {
         Metronome metronome = Chartmaker.main.CurrentSong.Timing;
+        
         float density = (PeekRange.y - PeekRange.x) * metronome.GetStop(time, out _).BPM / TicksHolder.rect.width / 8;
         float factor = Mathf.Floor(Mathf.Log(density, SeparationFactor));
         float step = Mathf.Pow(SeparationFactor, factor + 1);
+        
         return Mathf.Round(metronome.ToBeat(time) / step) * step;
     }
 
     public BeatPosition ToRoundedBeat(float beat) 
     {
         Metronome metronome = Chartmaker.main.CurrentSong.Timing;
+       
         float density = (PeekRange.y - PeekRange.x) * metronome.GetStop(beat, out _).BPM / TicksHolder.rect.width / 8;
         float factor = Mathf.Floor(Mathf.Log(density, SeparationFactor));
         float step = Mathf.Pow(SeparationFactor, -1 - factor);
+        
         if (step > 1) 
         {
             return new BeatPosition(
@@ -1208,6 +1221,7 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
     {
         int fMin = (int)Math.Pow(sep, Math.Max(factor, 0));
         int fMax = (int)Math.Pow(sep, Math.Max(-factor, 0));
+    
         return new(
             (int)(Mathf.Floor(time / fMin) * fMin),
             fMax == 1 ? 0 : (int)(Mathf.Floor(time % 1 * fMax)),
@@ -1218,6 +1232,7 @@ public class TimelinePanel : MonoBehaviour, IPointerDownHandler, IPointerUpHandl
     {
         int fMin = (int)Math.Pow(sep, Math.Max(factor, 0));
         int fMax = (int)Math.Pow(sep, Math.Max(-factor, 0));
+     
         return new(0, fMin, fMax);
     }
 

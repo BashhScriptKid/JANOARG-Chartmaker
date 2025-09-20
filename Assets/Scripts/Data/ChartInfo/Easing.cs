@@ -38,7 +38,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         public static float Get(float x, EaseFunction easeFunc, EaseMode mode)
         {
             //Ease funcs = sEases[(int)easeFunc];
-            x = x > 1 ? 1 : x;;
+            x = x > 1 ? 1 : x;
             x = x < 0 ? 0 : x;
     
             return mode switch

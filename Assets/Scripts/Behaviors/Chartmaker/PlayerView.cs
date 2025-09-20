@@ -141,7 +141,8 @@ public class PlayerView : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         float camRatio = safeZone.height / bound.height;
         MainCamera.fieldOfView = Mathf.Atan2(Mathf.Tan(30 * Mathf.Deg2Rad), camRatio) * 2 * Mathf.Rad2Deg;
 
-        if (!Mathf.Approximately(CurrentTime, Chartmaker.main.SongSource.time) || !Mathf.Approximately(targetAspect, lastTargetAspect)) UpdateObjects();
+        if (!Mathf.Approximately(CurrentTime, Chartmaker.main.SongSource.time) || !Mathf.Approximately(targetAspect, lastTargetAspect)) 
+            UpdateObjects();
         lastTargetAspect = targetAspect;
     }
 
@@ -318,6 +319,7 @@ public class PlayerView : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                     {
                         float scale = CoverBackground.rectTransform.localScale.x;
                         Vector2 offset = new Vector2(0, 16) + CoverPosition * (1 - layer.ParallaxFactor);
+                       
                         if (CurrentCoverViewMode == CoverViewMode.Icon) 
                             offset -= (1 - layer.ParallaxFactor) / scale * Chartmaker.main.CurrentSong.Cover.IconCenter;
                     
@@ -975,7 +977,7 @@ public class PlayerView : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             {
                 image.rectTransform.sizeDelta = CoverBackground.rectTransform.sizeDelta;
                 image.rectTransform.anchoredPosition3D = Vector2.zero;
-                Vector2 imgSize = new Vector2(1, (float)layer.Texture.height / layer.Texture.width) * 880 * layer.Scale;
+                Vector2 imgSize = new Vector2(1, (float)layer.Texture.height / layer.Texture.width) * (880 * layer.Scale);
                 image.uvRect = Rect2UV(new (
                     -CoverBackground.rectTransform.sizeDelta * .5f,
                     CoverBackground.rectTransform.sizeDelta
@@ -986,7 +988,7 @@ public class PlayerView : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             }
             else 
             {
-                image.rectTransform.sizeDelta = new Vector2(1, (float)layer.Texture.height / layer.Texture.width) * layer.Scale * 880;
+                image.rectTransform.sizeDelta = new Vector2(1, (float)layer.Texture.height / layer.Texture.width) * (layer.Scale * 880);
                 image.rectTransform.anchoredPosition3D = layer.Position + parallaxOffset * layer.ParallaxFactor;
                 image.uvRect = new (0, 0, 1, 1);
             }

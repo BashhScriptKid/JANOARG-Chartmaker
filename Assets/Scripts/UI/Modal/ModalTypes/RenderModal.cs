@@ -353,7 +353,7 @@ public class RenderModal : Modal
             RenderFormat format = formats[Prefs.OutputType];
 
             int totalFrames = (int)((TimeRange.y - TimeRange.x) * Prefs.FrameRate);
-            int crf = Mathf.RoundToInt(Mathf.Lerp(format.CRFRange.x, format.CRFRange.y, Prefs.VideoQuality));
+            int crf = Mathf.RoundToInt(Mathf.LerpUnclamped(format.CRFRange.x, format.CRFRange.y, Prefs.VideoQuality));
 
             Chartmaker.main.LoaderPanel.ProgressLabel.text = $"Rendering frames... ({frames}/{totalFrames})";
 

@@ -50,7 +50,7 @@ namespace JANOARG.Shared.Data.ChartInfo
     public class Storyboard
     {
         public  List<Timestamp>                 Timestamps = new();
-        private Dictionary<string, Timestamp[]> _TypeCache = new();
+        private Dictionary<int, Timestamp[]> _TypeCache = new();
 
 
         public void Add(Timestamp timestamp)
@@ -63,10 +63,10 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public Timestamp[] FromType(TimestampIDs type)
         {
-            if (!_TypeCache.TryGetValue(type.ToString(), out Timestamp[] array))
+            if (!_TypeCache.TryGetValue((int)type, out Timestamp[] array))
             {
                 array = Timestamps.Where(x => x.ID == type).ToArray();
-                _TypeCache[type.ToString()] = array;
+                _TypeCache[(int)type] = array;
             }
             return array;
 
@@ -75,7 +75,8 @@ namespace JANOARG.Shared.Data.ChartInfo
         public Storyboard SelfReference()
         {
             var clone = new Storyboard();
-            foreach (Timestamp timestamp in Timestamps) clone.Timestamps.Add(timestamp.DeepClone());
+            foreach (Timestamp timestamp in Timestamps) 
+                clone.Timestamps.Add(timestamp.DeepClone());
 
             return clone;
         }
