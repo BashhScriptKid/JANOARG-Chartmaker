@@ -182,6 +182,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             
             // Change colour of the context button, MS Office style
             ContextColour.Mode = tMode;
+            ContextColour.SetColors();
             // ContextColour.color = tMode switch
             // {
             //     // Where's my 255 RGB values :despair:
