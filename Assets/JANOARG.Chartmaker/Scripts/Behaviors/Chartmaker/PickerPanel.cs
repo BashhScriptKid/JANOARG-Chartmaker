@@ -7,6 +7,7 @@ using JANOARG.Shared.Data.ChartInfo;
 using JANOARG.Chartmaker.Utils;
 using UnityEngine;
 using UnityEngine.UI;
+using JANOARG.Shared.Utils;
 
 namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 {
@@ -18,14 +19,18 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public List<Button>       HierarchyButtons;
         public List<Button>       TimelineButtons;
 
-        public ContextualItemThemeable ContextColour;
-    
+        [Space]
+        public GraphicThemeable PickerHighlighter;
+        public RectTransform TimelineHighlighterHolder;
+        public GraphicThemeable TimelineHighlighter;
+
+        [Space]
         public GameObject HierarchySongItems;
         public GameObject HierarchyChartItems;
     
         // Funni thing
-        public GameObject hmmm;
-        public GameObject hmmm2;
+        [Space]
+        public GameObject EasterEggButton;
 
         public void Awake()
         {
@@ -179,26 +184,27 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             TimelineButtons[6].gameObject.SetActive(tMode == TimelineMode.LaneSteps);
             TimelineButtons[7].gameObject.SetActive(tMode == TimelineMode.HitObjects);
             TimelineButtons[8].gameObject.SetActive(tMode == TimelineMode.HitObjects);
-            
+
             // Change colour of the context button, MS Office style
-            ContextColour.Mode = tMode;
-            ContextColour.SetColors();
-            // ContextColour.color = tMode switch
-            // {
-            //     // Where's my 255 RGB values :despair:
-            //     TimelineMode.Storyboard => new Color(41/255f, 207/255f, 35/255f, 1f),
-            //     TimelineMode.Timing     => new Color(170/255f, 35/255f, 207/255f, 1f),
-            //     TimelineMode.Lanes      => new Color(49/255f, 35/255f, 207/255f, 1f),
-            //     TimelineMode.LaneSteps  => new Color(35/255f, 144/255f, 207/255f, 1f),
-            //     TimelineMode.HitObjects => new Color(207/255f, 132/255f, 35/255f, 1f),
-            //     _                       => new Color(ContextColour.color.r, ContextColour.color.g, ContextColour.color.b, 0f),
-            //
-            // };
-            
+            Button[] timelineTabs = {
+                TimelinePanel.main.StoryboardTab,
+                TimelinePanel.main.TimingTab,
+                TimelinePanel.main.LaneTab,
+                TimelinePanel.main.LaneStepTab,
+                TimelinePanel.main.HitObjectTab,
+            };
+            TimelineHighlighterHolder.SetParent(
+                System.Array.Find(timelineTabs, x => !x.interactable).transform
+            );
+            TimelineHighlighterHolder.anchoredPosition = Vector2.zero;
+            TimelineHighlighterHolder.sizeDelta *= new Vector2Frag(x: 0);
+            TimelineHighlighter.ID = PickerHighlighter.ID = "TimelineMode" + tMode;
+            TimelineHighlighter.SetColors();
+            PickerHighlighter.SetColors();
 
             HierarchyMode hMode = HierarchyPanel.main.CurrentMode;
-            HierarchySongItems.gameObject.SetActive(hMode == HierarchyMode.PlayableSong);
-            HierarchyChartItems.gameObject.SetActive(hMode == HierarchyMode.Chart);
+            HierarchySongItems.SetActive(hMode == HierarchyMode.PlayableSong);
+            HierarchyChartItems.SetActive(hMode == HierarchyMode.Chart);
 
             bool isTimelinePickable = false;
         
@@ -213,15 +219,13 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 SetTimelinePickerMode(TimelinePickerMode.Cursor);
 
             bool hmm = Random.value < 0.005;
-            hmmm.SetActive(hmm);
-            hmmm2.SetActive(hmm);
+            EasterEggButton.SetActive(hmm);
         }
 
         public void DoTheFunnyThing()
         {
             Application.OpenURL("https://file.garden/X9Xrm_GIBmpbTDCZ/omnicharting");
-            hmmm.SetActive(false);
-            hmmm2.SetActive(false);
+            EasterEggButton.SetActive(false);
         }
     }
 
