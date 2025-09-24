@@ -1,4 +1,5 @@
-using System.Linq;
+
+using JANOARG.Chartmaker.Utils.Math;
 using TMPro;
 
 namespace JANOARG.Chartmaker.UI.Form.FormTypes
@@ -15,21 +16,12 @@ namespace JANOARG.Chartmaker.UI.Form.FormTypes
 
         public void Reset() 
             => Field.SetTextWithoutNotify(CurrentValue.ToString());
-    
+
         public void SetValue(string value)
         {
-            // Check if it looks like a math expression (contains an operator)
-            if (MathableInputField.OpList.Any(op => value.Contains(op)))
+            if (ExpressionUtils.TryEvaluate(value, out int result))
             {
-                SetValue(value);
-
-                return;
-            }
-
-            // Fallback: raw integer parse
-            if (int.TryParse(value, out int intValue))
-            {
-                SetValue(intValue);
+                SetValue(result);
             }
         }
     }
