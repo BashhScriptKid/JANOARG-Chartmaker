@@ -914,6 +914,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
                     if (FFmpegProcess.HasExited)
                     {
+                        rendering = false;
                         throw new Exception("FFmpeg process ended prematurely. Your copy of FFmpeg might not support the selected encoders.");
                     }
 
@@ -941,6 +942,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
                     if (cancelFlag)
                     {
+                        rendering = false;  
                         throw new TaskCanceledException("Cancelled");
                     }
                 }
