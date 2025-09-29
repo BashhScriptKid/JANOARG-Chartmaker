@@ -860,6 +860,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 bool rendering = true;
                 bool brokenPipe = false;
                 Exception Pipe_e = null;
+                const int framebufferLimit = 2000000000; // 2GB Limit
                 
                 var pipingThread = new Thread(() =>
                 {
@@ -897,10 +898,29 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 // Pre-allocate buffer for raw frame data
                 int frameSize = (resolution.x * resolution.y) * 3; // RGB24 = 3 bytes per pixel
                 byte[] frameBuffer = new byte[frameSize];
+                int frameBufferSize = frameBuffer.Length;
+                
+                // Pre-calculate thresholds
+                int maxFrameCount = framebufferLimit / frameBufferSize;
+                int resumeFrameCount = maxFrameCount / 4; // 25% threshold
 
                 // Main rendering loop
                 while (time < timeRange.y && frameIndex < totalFrames)
                 {
+                    if (frameQueue.Count >= maxFrameCount)
+                    {
+                        // Wait until queue drops to 25% of limit
+                        while (frameQueue.Count >= resumeFrameCount)
+                        {
+                            await Task.Yield();
+        
+                            int overdueFrames = frameQueue.Count - resumeFrameCount;
+        
+                            loaderPanel.ProgressLabel.text = $"Streaming frames... ({frameIndex}/{totalFrames})\nWaiting for FFMpeg...{overdueFrames} overdue frames pending\n{_EtaString}";
+                            UpdateETAProgress(frameIndex, totalFrames);
+                        }
+                        continue;
+                    }
                     // Update scene
                     songSource.time = Mathf.Clamp(time, 0f, songSource.clip.length);
                     informationBar.Update();
