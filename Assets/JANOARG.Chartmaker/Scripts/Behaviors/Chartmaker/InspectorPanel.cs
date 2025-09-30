@@ -47,6 +47,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public Dictionary<Type, ChartmakerMultiHandler> MultiHandlers = new ();
         [Space]
         public DebugStatsInspector DebugStatsSample;
+        public LaneStatsInspector  LaneStatsSample;
+        public LaneGroupStatsInspector LaneGroupStatsSample;
         [Space]
         public Button EaseCopyToRightButtonSample;
         public EaseCopyToBottomItem EaseCopyToButtomItemSample;
@@ -482,6 +484,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                                             SpawnForm<FormEntryHeader>("Transform");
                                             SpawnForm<FormEntryVector3, Vector3>("Position", () => group.Position, x => Chartmaker.main.SetItem(group, "Position", x));
                                             SpawnForm<FormEntryVector3, Vector3>("Rotation", () => group.Rotation, x => Chartmaker.main.SetItem(group, "Rotation", x));
+                                            SpawnForm<FormEntryHeader>("Statistics");
+                                            LaneGroupStatsSample.HightlightedLaneGroup = group;
+                                            Instantiate(LaneGroupStatsSample, FormHolder);
                                             break;
                                 
                                         case CameraController camera when camera != Chartmaker.main.CurrentChart?.Camera:
@@ -509,6 +514,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                                             SpawnForm<FormEntryVector3, Vector3>("Rotation", () => lane.Rotation, x => Chartmaker.main.SetItem(lane, "Rotation", x));
                                             SpawnForm<FormEntryHeader>("Appearance");
                                             MakeLaneStyleEntry(lane);
+                                            SpawnForm<FormEntryHeader>("Statistics");
+                                            LaneStatsSample.HightlightedLane = lane;
+                                            Instantiate(LaneStatsSample, FormHolder);
+                                            
                                             break;
                                 
                                         case LaneStep step when CurrentHierarchyObject is not Lane l || !l.LaneSteps.Contains(step):
