@@ -132,6 +132,35 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public ContextMenuList GetViewMenu()
         {
             return new ContextMenuList(
+                new ContextMenuListAction("Maximise Player View", () =>
+                {
+                    if (PlayerView.main.IsMaximised)
+                    {
+                        if (HierarchyPanel.main.IsCollapsed)
+                            HierarchyPanel.main.Restore();
+
+                        if (InspectorPanel.main.IsCollapsed)
+                            InspectorPanel.main.Restore();
+
+                        if (TimelinePanel.main.TimelineHeight <= 0)
+                            TimelinePanel.main.Restore();
+                        
+                        PlayerView.main.IsMaximised = false;
+                    }
+                    else
+                    {
+                        if (!HierarchyPanel.main.IsCollapsed)
+                            HierarchyPanel.main.Collapse();
+
+                        if (!InspectorPanel.main.IsCollapsed)
+                            InspectorPanel.main.Collapse();
+
+                        if (TimelinePanel.main.TimelineHeight > 0)
+                            TimelinePanel.main.Collapse();
+                        
+                        PlayerView.main.IsMaximised = true;
+                    }
+                }, _checked: HierarchyPanel.main.IsCollapsed && InspectorPanel.main.IsCollapsed && TimelinePanel.main.TimelineHeight <= 0),
                 new ContextMenuListSublist("Show", 
                     new ContextMenuListAction("Hierarchy Panel", () => {
                         if (HierarchyPanel.main.IsCollapsed) 

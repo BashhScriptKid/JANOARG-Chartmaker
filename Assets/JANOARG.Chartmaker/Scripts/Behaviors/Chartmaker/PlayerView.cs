@@ -68,6 +68,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public float[] GridSize = {0.5f};
 
         float CurrentTime;
+
+        public bool IsMaximised = false;
     
         int[] HitObjectsRemaining = new [] { 0, 0 };
         int   FlicksRemaining     = 0;

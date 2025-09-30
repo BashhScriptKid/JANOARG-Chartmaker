@@ -35,7 +35,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         [Space]
         public Button PropertiesButton;
-        public Button ExtraModesButton;
+        [Space]
+        public GameObject Collapser;
+        [Space]
+        public Button     ExtraModesButton;
         [Space]
         public Button BackButton;
         [Space]
@@ -196,6 +199,14 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             PropertiesButton.interactable = IsCollapsed || CurrentMode != InspectorMode.Properties;
         }
 
+        public void EventCollapsible()
+        {
+            if (IsCollapsed)
+                Restore();
+            else
+                Collapse();
+        }
+        
         public void UpdateForm()
         {
             ClearForm();
@@ -203,11 +214,15 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             switch (CurrentMode)
             {
                 case InspectorMode.Properties when CurrentObject == null:
+                    Collapser.SetActive(true);
                     FormTitle.text = "No object selected";
                     SpawnForm<FormEntryLabel>("Select an item to get started.");
                     break;
             
                 case InspectorMode.Properties:
+                    
+                    Collapser.SetActive(true);
+                    
                     switch (CurrentTimestamp.Count)
                     {
                         case 1:
@@ -594,6 +609,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     break;
                 case InspectorMode.DebugStats:
                     FormTitle.text = "Debug Stats";
+                    Collapser.SetActive(false);
 
                     Instantiate(DebugStatsSample, FormHolder);
 
@@ -924,11 +940,14 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public void Collapse()
         {
             ResizeInspector(27, true);
+            Collapser.gameObject.SetActive(false);
         }
     
         public void Restore()
         {
             ResizeInspector(320, true);
+            Collapser.gameObject.SetActive(true);
+            PlayerView.main.IsMaximised = false;
         }
     }
 

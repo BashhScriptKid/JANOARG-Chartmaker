@@ -38,10 +38,18 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         [Header("Objects")]
         public Button StoryboardTab;
+        [HideInInspector] public RectTransform StoryboardTabRect;
         public Button TimingTab;
+        [HideInInspector] public RectTransform TimingTabRect;
         public Button LaneTab;
+        [HideInInspector] public RectTransform LaneTabRect;
         public Button LaneStepTab;
+        [HideInInspector] public RectTransform LaneStepTabRect;
         public Button HitObjectTab;
+        [HideInInspector] public RectTransform HitObjectTabRect;
+        [Space]
+        public RectTransform CollapserTransform;
+        public Button Collapser;
         [Space]
         public RectTransform TimeSliderHolder;
         public RectTransform CurrentTimeSlider;
@@ -216,6 +224,14 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             UpdateTimeline();
         }
 
+        public void EventCollapsible()
+        {
+            if (TimelineHeight <= 0)
+                Restore();
+            else
+                Collapse();
+        }
+        
         public void UpdateTabs()
         {
 
@@ -233,6 +249,27 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         
             HitObjectTab.gameObject.SetActive(HierarchyPanel.main.CurrentMode == HierarchyMode.Chart && InspectorPanel.main.CurrentHierarchyObject is Lane);
             HitObjectTab.interactable = TimelineHeight <= 0 || CurrentMode != TimelineMode.HitObjects;
+
+            switch (CurrentMode)
+            {
+                case TimelineMode.Timing:
+                    CollapserTransform.anchoredPosition = TimingTabRect.anchoredPosition;
+                    break;
+                case TimelineMode.Storyboard:
+                    CollapserTransform.anchoredPosition = StoryboardTabRect.anchoredPosition;
+                    break;
+                case TimelineMode.Lanes:
+                    CollapserTransform.anchoredPosition = LaneTabRect.anchoredPosition;
+                    break;
+                case TimelineMode.LaneSteps:
+                    CollapserTransform.anchoredPosition = LaneStepTabRect.anchoredPosition;
+                    break;
+                case TimelineMode.HitObjects:
+                    CollapserTransform.anchoredPosition = HitObjectTabRect.anchoredPosition;
+                    break;
+            }
+            Collapser.gameObject.SetActive(TimelineHeight > 0);
+            Collapser.interactable = TimelineHeight > 0;
         
             LaneOptionsHolder.SetActive(CurrentMode == TimelineMode.Lanes);
             HitObjectOptionsHolder.SetActive(CurrentMode == TimelineMode.HitObjects);
@@ -245,6 +282,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public void SetTabMode(TimelineMode mode)
         {
             CurrentMode = mode;
+            
             if (TimelineExpandHeight != TimelineHeight) 
             {
                 ResizeTimeline(TimelineExpandHeight * 24 + 80);
@@ -1874,6 +1912,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public void Restore()
         {
             if (TimelineHeight <= 0) ResizeTimeline(TimelineRestoreHeight * 24 + 80);
+            PlayerView.main.IsMaximised = false;
         }
 
         public void OnScroll(PointerEventData eventData)

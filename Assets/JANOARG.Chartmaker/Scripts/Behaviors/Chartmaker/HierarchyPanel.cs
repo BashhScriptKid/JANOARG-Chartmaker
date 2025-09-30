@@ -26,6 +26,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public HierarchyMode CurrentMode;
         public RectTransform PanelHolder;
         [Space]
+        public GameObject HierarchyTab;
+        [Space]
         public Sprite[] Icons;
         [Space]
         public HierarchyItemHolder HolderSample;
@@ -464,11 +466,14 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public void Collapse()
         {
             ResizeHierarchy(0, true);
+            HierarchyTab.SetActive(true);
         }
     
         public void Restore()
         {
             ResizeHierarchy(240, true);
+            HierarchyTab.SetActive(false);
+            PlayerView.main.IsMaximised = false;
         }
 
         // -------------------------------------------------- Dragging
