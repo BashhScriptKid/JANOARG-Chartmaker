@@ -1166,8 +1166,8 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                     UnityEngine.Debug.LogWarning($"FFmpeg output task error: {e.Message}");
                 }
                 
-                UnityEngine.Debug.Log($"Measurement ended: {sw.Elapsed}");
                 sw.Stop();
+                UnityEngine.Debug.Log($"Measurement ended: {sw.Elapsed}");
                 
                 QualitySettings.antiAliasing = originalAntiAliasing;
 
