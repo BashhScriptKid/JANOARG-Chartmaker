@@ -42,7 +42,6 @@ namespace JANOARG.Chartmaker.Utils.Memory
         {
             if (backing.TryTake(out var item))
             {
-                UnityEngine.Debug.Log($"Took {item.GetHashCode()}");
                 return new FixedSizeEntry()
                 {
                     _ref = item,
@@ -52,7 +51,6 @@ namespace JANOARG.Chartmaker.Utils.Memory
 
             var new_buf = new buf(size, Allocator.Persistent);
 
-            UnityEngine.Debug.Log($"New {new_buf.GetHashCode()}");
             return new FixedSizeEntry()
             {
                 _ref = new_buf,
@@ -67,10 +65,8 @@ namespace JANOARG.Chartmaker.Utils.Memory
         {
             if (item._cachedSize != size)
             {
-                UnityEngine.Debug.Log($"Invalid size");
                 return false;
             }
-            UnityEngine.Debug.Log($"Return {item._ref.GetHashCode()}");
             backing.Add(item._ref);
             return true;
         }
