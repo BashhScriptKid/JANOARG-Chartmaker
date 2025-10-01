@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -15,10 +16,13 @@ using JANOARG.Chartmaker.UI.Form;
 using JANOARG.Chartmaker.UI.Form.FormTypes;
 using JANOARG.Shared.Data.ChartInfo;
 using JANOARG.Chartmaker.Utils;
+using JANOARG.Chartmaker.Utils.Memory;
 using TMPro;
+using Unity.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using Random = UnityEngine.Random;
+using entry = JANOARG.Chartmaker.Utils.Memory.FixedSizeBufferPool.FixedSizeEntry;
 
 namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 {
@@ -868,7 +872,8 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
             bool cancelFlag = false;
 
-
+            FixedSizeBufferPool pool = null;
+            
             try
             {
                 InitializeETATracking();
@@ -935,13 +940,20 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
                 // Setup FFmpeg arguments for streaming input
                 string qualityOptions = Prefs.AdaptiveBitrate ? $"-crf {crf}" : $"-b:v {Prefs.VideoBitRate}k";
-                string audioPath = Path.Combine(Path.GetDirectoryName(chartmaker.CurrentSongPath), chartmaker.CurrentSong.ClipPath);
+                var cur = Path.GetDirectoryName(chartmaker.CurrentSongPath);
+                if (cur is null)
+                {
+                    UnityEngine.Debug.LogError("CurrentSongPath is null");
+                    return;
+                }
+                string audioPath = Path.Combine(cur, chartmaker.CurrentSong.ClipPath);
 
                 string ffmpegArgs = $"-f rawvideo -pix_fmt rgb24 -s {resolution.x}x{resolution.y} -r {frameRate} -i pipe:0 " +
                                     $"-ss {timeRange.x} -t {timeRange.y - timeRange.x} -i \"{audioPath}\" " +
                                     $"-vcodec {videoFormatArg} -acodec {audioFormatArg} " +
                                     $"{qualityOptions} -b:a {Prefs.AudioBitRate}k " +
-                                    $"-y \"{outputPath}\"";
+                                    $"-y \"{outputPath}\" " +
+                                    "-vf \"vflip\""; // flipped vertically
 
                 UnityEngine.Debug.Log("FFmpeg args: " + ffmpegArgs);
 
@@ -984,7 +996,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
                 loaderPanel.ProgressLabel.text = $"Streaming frames... (0/{totalFrames})";
 
-                ConcurrentQueue<byte[]> frameQueue = new();
+                ConcurrentQueue<entry> frameQueue = new();
                 bool rendering = true;
                 bool brokenPipe = false;
                 Exception pipeError = null;
@@ -993,7 +1005,17 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                     framebufferLimit,
                     SystemInfo.systemMemorySize * 1_048_576L // 20% of system's memory
                 );
+                
+                // Pre-allocate buffer for raw frame data
+                int frameSize = resolution.x * resolution.y * 3; // RGB24 = 3 bytes per pixel
+                byte[] frameBuffer = new byte[frameSize];
+                int frameBufferSize = frameBuffer.Length;
 
+                // Pre-calculate thresholds
+                int maxFrameCount = (int)(framebufferLimit / frameBufferSize);
+                int resumeFrameCount = maxFrameCount * 3 / 4;
+                pool = new FixedSizeBufferPool(frameBufferSize);
+#region StdIn
                 var pipingThread = new Thread(() =>
                 {
                     while (rendering || !frameQueue.IsEmpty)
@@ -1002,9 +1024,10 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                         {
                             try
                             {
-                                ffmpegInputStream.Write(frame, 0, frame.Length);
+                                ffmpegInputStream.Write(frame.AsSpan());
                                 ffmpegInputStream.Flush();
                                 framePipedIndex++;
+                                pool.Return(frame);
                             }
                             catch (Exception e)
                             {
@@ -1019,7 +1042,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                     }
                     if (rendering && frameQueue.IsEmpty)
                     {
-                        UnityEngine.Debug.Log("Waiting for new frame.");
+                            UnityEngine.Debug.Log("Waiting for new frame.");
                     }
 
                     if (!rendering)
@@ -1027,15 +1050,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 });
 
                 pipingThread.Start();
-
-                // Pre-allocate buffer for raw frame data
-                int frameSize = resolution.x * resolution.y * 3; // RGB24 = 3 bytes per pixel
-                byte[] frameBuffer = new byte[frameSize];
-                int frameBufferSize = frameBuffer.Length;
-
-                // Pre-calculate thresholds
-                int maxFrameCount = (int)(framebufferLimit / frameBufferSize);
-                int resumeFrameCount = maxFrameCount * 3 / 4;
+#endregion
 
                 // Main rendering loop
                 while (time < timeRange.y && frameIndex < totalFrames)
@@ -1054,7 +1069,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                         }
                         continue;
                     }
-
+#region HotPath
                     // Update scene
                     songSource.time = Mathf.Clamp(time, 0f, songSource.clip.length);
                     informationBar.Update();
@@ -1068,18 +1083,11 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                     tex.ReadPixels(rectConfig, 0, 0);
                     tex.Apply();
 
-                    // Get raw RGB data directly
-                    byte[] rawData = tex.GetRawTextureData();
-
-                    // Unity's texture data might need to be flipped vertically for FFmpeg
-                    int stride = resolution.x * 3; // 3 bytes per pixel for RGB24
-
-                    for (int y = 0; y < resolution.y; y++)
-                    {
-                        int srcOffset = (resolution.y - 1 - y) * stride;
-                        int dstOffset = y * stride;
-                        Array.Copy(rawData, srcOffset, frameBuffer, dstOffset, stride);
-                    }
+                    // Get raw RGB data directly, without copying
+                    // Should be fine because we're using it 'immediately' i.e not across an await
+                    NativeArray<byte> rawData = tex.GetRawTextureData<byte>();
+                    var entry = pool.Rent();
+                    entry.CopyFrom(rawData);
 
                     if (FFmpegProcess.HasExited)
                     {
@@ -1087,9 +1095,8 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                         throw new Exception("FFmpeg process ended prematurely. Your copy of FFmpeg might not support the selected encoders.");
                     }
 
-                    // Queue frame for FFmpeg
-                    frameQueue.Enqueue((byte[])frameBuffer.Clone());
-
+                    frameQueue.Enqueue(entry);
+#endregion
                     frameIndex++;
                     frameYieldIndex++;
 
@@ -1146,7 +1153,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 }
 
                 // Wait for output reading task to complete
-                if (ffmpegTask != null)
+                if (ffmpegTask is not null)
                 {
                     try
                     {
@@ -1186,6 +1193,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
             }
             finally
             {
+                pool?.Dispose();
                 KillFFmpegProcess();
 
                 loaderPanel.SetNoCancelButton();
@@ -1193,6 +1201,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
                 _Camera.targetTexture = null;
                 RenderTexture.active = null;
+                
 
                 if (rtex != null)
                 {
