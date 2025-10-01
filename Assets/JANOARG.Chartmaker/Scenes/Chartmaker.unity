@@ -889,7 +889,7 @@ GameObject:
   - component: {fileID: 33501691}
   - component: {fileID: 33501690}
   m_Layer: 5
-  m_Name: Cover Layer
+  m_Name: New Cover Layer
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3055,7 +3055,7 @@ GameObject:
   - component: {fileID: 105400187}
   - component: {fileID: 105400186}
   m_Layer: 5
-  m_Name: Hit Style
+  m_Name: New Hit Style
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -6130,6 +6130,8 @@ MonoBehaviour:
   ExtraModesButton: {fileID: 1240274868}
   BackButton: {fileID: 1478809413}
   DebugStatsSample: {fileID: 8311844125951479924, guid: 1fbd1f8b6fa14e84cb36b911454c948c, type: 3}
+  LaneStatsSample: {fileID: 8305561078053470523, guid: 49254c06e8da7c7c48b1e03c65e9c40b, type: 3}
+  LaneGroupStatsSample: {fileID: 8825761266565416860, guid: 66757ad81898a415290d358d11befdc3, type: 3}
   EaseCopyToRightButtonSample: {fileID: 5372098700683617563, guid: 4c8ce988f02209d5ab557a8d1528bcee, type: 3}
   EaseCopyToButtomItemSample: {fileID: 6426409857856121458, guid: 8d8adb91d49f4c5b5a48c0a5ba398cb3, type: 3}
   IsCollapsed: 0
@@ -16455,7 +16457,7 @@ GameObject:
   - component: {fileID: 434723593}
   - component: {fileID: 434723592}
   m_Layer: 5
-  m_Name: Lane Group
+  m_Name: New Lane Group
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -66859,7 +66861,7 @@ GameObject:
   - component: {fileID: 1443472113}
   - component: {fileID: 1443472112}
   m_Layer: 5
-  m_Name: Lane
+  m_Name: New Lane
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -83588,7 +83590,7 @@ GameObject:
   - component: {fileID: 2053800672}
   - component: {fileID: 2053800671}
   m_Layer: 5
-  m_Name: Lane Style
+  m_Name: New Lane Style
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
