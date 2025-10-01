@@ -42,7 +42,7 @@ namespace JANOARG.Chartmaker.Utils.Memory
         {
             if (backing.TryTake(out var item))
             {
-
+                UnityEngine.Debug.Log($"Took {item.GetHashCode()}");
                 return new FixedSizeEntry()
                 {
                     _ref = item,
@@ -50,9 +50,12 @@ namespace JANOARG.Chartmaker.Utils.Memory
                 };
             }
 
+            var new_buf = new buf(size, Allocator.Persistent);
+
+            UnityEngine.Debug.Log($"New {new_buf.GetHashCode()}");
             return new FixedSizeEntry()
             {
-                _ref = new buf(size, Allocator.Persistent),
+                _ref = new_buf,
                 _cachedSize = size
             };
         }
@@ -64,8 +67,10 @@ namespace JANOARG.Chartmaker.Utils.Memory
         {
             if (item._cachedSize != size)
             {
+                UnityEngine.Debug.Log($"Invalid size");
                 return false;
             }
+            UnityEngine.Debug.Log($"Return {item._ref.GetHashCode()}");
             backing.Add(item._ref);
             return true;
         }
@@ -129,16 +134,20 @@ namespace JANOARG.Chartmaker.Utils.Memory
         {
             if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 0)
             {
-                var present = new HashSet<Hash128>();
+                var present = new HashSet<int>();
+                UnityEngine.Debug.Log($"Capacity: {backing.Count}");
                 foreach (var each in backing)
                 {
-                    var hash = Hash128.Compute(each);
+                    var hash = each.GetHashCode();
                     if (!present.Contains(hash))
                     {
                         present.Add(hash);
                         each.Dispose();
                     }
-                    UnityEngine.Debug.LogWarning("Possible multiple returns attempted in this pool.");
+                    else
+                    {
+                        UnityEngine.Debug.LogWarning($"Possible multiple returns of {hash} attempted in this pool.");  
+                    }
                 }
 
                 if (disposing)

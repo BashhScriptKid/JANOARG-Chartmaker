@@ -854,6 +854,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
         }
 
         private string _EtaString;
+        Stopwatch sw = new Stopwatch();
 
         private Queue<float> _RecentFrameTimes;
         public async Task RenderRoutine()
@@ -866,6 +867,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
             Texture2D tex = null;
             RenderTexture rtex = null;
+            float start, end;
             
             var chartmaker = Behaviors.Chartmaker.Chartmaker.main;
             var loaderPanel = chartmaker.LoaderPanel;
@@ -948,13 +950,14 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 }
                 string audioPath = Path.Combine(cur, chartmaker.CurrentSong.ClipPath);
 
-                string ffmpegArgs = $"-f rawvideo -pix_fmt rgb24 -s {resolution.x}x{resolution.y} -r {frameRate} -i pipe:0 " +
-                                    $"-ss {timeRange.x} -t {timeRange.y - timeRange.x} -i \"{audioPath}\" " +
-                                    $"-vcodec {videoFormatArg} -acodec {audioFormatArg} " +
-                                    $"{qualityOptions} -b:a {Prefs.AudioBitRate}k " +
-                                    $"-y \"{outputPath}\" " +
-                                    "-vf \"vflip\""; // flipped vertically
-
+                string ffmpegArgs =
+                        $"-f rawvideo -pix_fmt rgb24 -s {resolution.x}x{resolution.y} -r {frameRate} -i pipe:0 " +
+                        $"-ss {timeRange.x} -t {timeRange.y - timeRange.x} -i \"{audioPath}\" " +
+                        $"-vcodec {videoFormatArg} -acodec {audioFormatArg} " +
+                        $"{qualityOptions} -b:a {Prefs.AudioBitRate}k " +
+                        "-vf \"vflip\" " +
+                        $"-y \"{outputPath}\""
+                    ;
                 UnityEngine.Debug.Log("FFmpeg args: " + ffmpegArgs);
 
                 // Start FFmpeg process
@@ -1014,7 +1017,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 // Pre-calculate thresholds
                 int maxFrameCount = (int)(framebufferLimit / frameBufferSize);
                 int resumeFrameCount = maxFrameCount * 3 / 4;
-                pool = new FixedSizeBufferPool(frameBufferSize);
+                pool = new FixedSizeBufferPool(frameBufferSize, 8);
 #region StdIn
                 var pipingThread = new Thread(() =>
                 {
@@ -1051,7 +1054,8 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
                 pipingThread.Start();
 #endregion
-
+                sw.Start();
+                UnityEngine.Debug.Log($"Start measuring: {sw.Elapsed}");
                 // Main rendering loop
                 while (time < timeRange.y && frameIndex < totalFrames)
                 {
@@ -1153,21 +1157,23 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 }
 
                 // Wait for output reading task to complete
-                if (ffmpegTask is not null)
+                try
                 {
-                    try
-                    {
-                        ffmpegTask.Wait(5000); // 5 second timeout
-                    }
-                    catch (Exception e)
-                    {
-                        UnityEngine.Debug.LogWarning($"FFmpeg output task error: {e.Message}");
-                    }
+                    ffmpegTask.Wait(5000); // 5 second timeout
                 }
+                catch (Exception e)
+                {
+                    UnityEngine.Debug.LogWarning($"FFmpeg output task error: {e.Message}");
+                }
+                
+                UnityEngine.Debug.Log($"Measurement ended: {sw.Elapsed}");
+                sw.Stop();
+                
                 QualitySettings.antiAliasing = originalAntiAliasing;
 
                 Close();
                 chartmaker.Notify("Render completed!");
+                
 
                 if (Prefs.OpenOnComplete && !string.IsNullOrEmpty(outputPath))
                 {
