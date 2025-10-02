@@ -5,9 +5,11 @@ using System.IO;
 using JANOARG.Chartmaker.Data.Chartmaker;
 using JANOARG.Chartmaker.Data.Chartmaker.Actions;
 using JANOARG.Chartmaker.UI.Cursor;
+using JANOARG.Chartmaker.UI.Modal;
 using JANOARG.Chartmaker.UI.NativeUI;
 using JANOARG.Shared.Data.ChartInfo;
 using JANOARG.Chartmaker.Utils;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -16,7 +18,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 {
     public class PlayerView : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPointerMoveHandler, IDragHandler, IEndDragHandler
     {
-        public static PlayerView main;
+        public static PlayerView    main;
+        public RectTransform playerViewBound;
 
         public Camera MainCamera;
         public Image  BoundingBox;
@@ -540,12 +543,14 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 ArrowFlickIndicator = mesh;
             }
         }
-
+        float holdDurationThreshold = 0.8f;
+        
         public void OnPointerDown(PointerEventData eventData)
         {
             if (isAnimating) return;
 
-            bool Contains(RectTransform rt) => rt.gameObject.activeInHierarchy && RectTransformUtility.RectangleContainsScreenPoint(rt, eventData.pressPosition, eventData.pressEventCamera);
+            bool Contains(RectTransform rt) =>
+                rt.gameObject.activeInHierarchy && RectTransformUtility.RectangleContainsScreenPoint(rt, eventData.pressPosition, eventData.pressEventCamera);
 
             CurrentDragMode = HandleDragMode.None;
 
@@ -560,7 +565,67 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             else if (HierarchyPanel.main.CurrentMode == HierarchyMode.PlayableSong)
                 CurrentDragMode = HandleDragMode.Background;
 
-            if (CurrentDragMode == HandleDragMode.None) return;
+            if (CurrentDragMode == HandleDragMode.None)
+            {
+                if (HierarchyPanel.main.CurrentMode == HierarchyMode.Chart)
+                {
+
+                    if (isDragged)
+                        return;
+
+                    float closestDistance = float.MaxValue;
+                    switch (TimelinePanel.main.CurrentMode)
+                    { 
+                        case TimelineMode.Lanes:
+                            Lane candidateLane = null;
+
+                            var lanes = Chartmaker.main.CurrentChart?.Lanes;
+
+                            if (lanes == null || lanes.Count == 0)
+                                break;
+
+                            
+                            foreach (Lane lane in lanes)
+                            {
+                                // Skip invisible lanes
+                                if (lane.StyleIndex == -1)
+                                    continue;
+                                
+                                Vector2 localLanePosition = MainCamera.WorldToScreenPoint(lane.Position);
+                                float cursorLaneDistance = Vector2.Distance(localLanePosition, eventData.pressPosition);
+
+                                if (cursorLaneDistance >= closestDistance)
+                                    continue;
+
+                                closestDistance = cursorLaneDistance;
+                                candidateLane = lane;
+                            }
+
+                            if (candidateLane != null)
+                                InspectorPanel.main.SetObject(candidateLane);
+
+                            break;
+
+                        case TimelineMode.HitObjects:
+                            
+                            Exception e = new NotImplementedException("Duducat, your shallow copy shenanigans really fucked me over (or, I am simply incompetent for the codebase's structure).\nHence; please implement this (PlayerView Hit Object selector) yourself if you see this. \nRegards, Bashh");
+                            
+                            UI.Modal.ModalTypes.DialogModal bruh = ModalHolder.main.Spawn<UI.Modal.ModalTypes.DialogModal>();
+                            
+                            bruh.SetDialog("Hit Object selection support not implemented", e.Message, new []{"OK"}, i => {});
+
+                            throw e;
+                            
+                            break;
+                        default:
+                            UnityEngine.Debug.LogWarning("Invalid auto-highlighting mode");
+
+                            break;
+                    }
+                }
+                else 
+                    return;
+            }
 
             if (HierarchyPanel.main.CurrentMode == HierarchyMode.PlayableSong && CurrentDragMode == HandleDragMode.Background)
             {

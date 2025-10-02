@@ -14,6 +14,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         public MeshRenderer HoldTail;
         public MeshRenderer FlickEmblem;
+        
+        public Transform HitObjectPosition;
 
         public void OnDestroy()
         {
