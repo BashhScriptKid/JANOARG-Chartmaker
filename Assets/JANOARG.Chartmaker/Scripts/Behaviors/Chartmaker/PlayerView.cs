@@ -72,7 +72,42 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         float CurrentTime;
 
-        public bool IsMaximised = false;
+        public bool IsMaximised
+        {
+            get
+            {
+                return
+                    HierarchyPanel.main.IsCollapsed
+                    && InspectorPanel.main.IsCollapsed
+                    && TimelinePanel.main.TimelineHeight <= 0
+                ;
+            }
+            set
+            {
+                if (value)
+                {
+                    if (!HierarchyPanel.main.IsCollapsed)
+                        HierarchyPanel.main.Collapse();
+
+                    if (!InspectorPanel.main.IsCollapsed)
+                        InspectorPanel.main.Collapse();
+
+                    if (TimelinePanel.main.TimelineHeight > 0)
+                        TimelinePanel.main.Collapse();
+                }
+                else
+                {
+                    if (HierarchyPanel.main.IsCollapsed)
+                        HierarchyPanel.main.Restore();
+
+                    if (InspectorPanel.main.IsCollapsed)
+                        InspectorPanel.main.Restore();
+
+                    if (TimelinePanel.main.TimelineHeight <= 0)
+                        TimelinePanel.main.Restore();
+                }
+            }
+        }
     
         int[] HitObjectsRemaining = new [] { 0, 0 };
         int   FlicksRemaining     = 0;

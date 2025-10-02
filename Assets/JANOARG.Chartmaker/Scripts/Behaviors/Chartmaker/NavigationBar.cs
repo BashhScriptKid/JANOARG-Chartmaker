@@ -132,38 +132,15 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public ContextMenuList GetViewMenu()
         {
             return new ContextMenuList(
-                new ContextMenuListAction("Maximize Player View", () =>
-                {
-                    if (PlayerView.main.IsMaximised)
+                new ContextMenuListSublist("Show", 
+                    new ContextMenuListAction("Maximized Player View", () =>
+                    {
+                        PlayerView.main.IsMaximised = !PlayerView.main.IsMaximised;
+                    }, _checked: PlayerView.main.IsMaximised),
+                    new ContextMenuListSeparator(),
+                    new ContextMenuListAction("Hierarchy Panel", () =>
                     {
                         if (HierarchyPanel.main.IsCollapsed)
-                            HierarchyPanel.main.Restore();
-
-                        if (InspectorPanel.main.IsCollapsed)
-                            InspectorPanel.main.Restore();
-
-                        if (TimelinePanel.main.TimelineHeight <= 0)
-                            TimelinePanel.main.Restore();
-                        
-                        PlayerView.main.IsMaximised = false;
-                    }
-                    else
-                    {
-                        if (!HierarchyPanel.main.IsCollapsed)
-                            HierarchyPanel.main.Collapse();
-
-                        if (!InspectorPanel.main.IsCollapsed)
-                            InspectorPanel.main.Collapse();
-
-                        if (TimelinePanel.main.TimelineHeight > 0)
-                            TimelinePanel.main.Collapse();
-                        
-                        PlayerView.main.IsMaximised = true;
-                    }
-                }, _checked: HierarchyPanel.main.IsCollapsed && InspectorPanel.main.IsCollapsed && TimelinePanel.main.TimelineHeight <= 0),
-                new ContextMenuListSublist("Show", 
-                    new ContextMenuListAction("Hierarchy Panel", () => {
-                        if (HierarchyPanel.main.IsCollapsed) 
                             HierarchyPanel.main.Restore();
                         else
                             HierarchyPanel.main.Collapse();

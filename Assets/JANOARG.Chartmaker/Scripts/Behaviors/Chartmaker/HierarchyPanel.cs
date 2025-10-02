@@ -693,8 +693,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
     
         public void ResizeHierarchy(float width, bool snap = true)
         {
-            if (snap) width = width < 168 ? 68 : 268;
-            else width = Mathf.Clamp(Mathf.Floor(width), 68, 268);
+            if (snap) width = width < 168 ? 69 : 268;
+            else width = Mathf.Clamp(Mathf.Floor(width), 69, 268);
 
             PanelHolder.anchoredPosition = new(width - 226, PanelHolder.anchoredPosition.y);
             Chartmaker.main.PlayerViewHolder.anchoredPosition = new(
