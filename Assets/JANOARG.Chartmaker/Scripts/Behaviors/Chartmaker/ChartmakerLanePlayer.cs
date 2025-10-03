@@ -34,7 +34,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         
             Renderer.sharedMaterial = Renderer.enabled ? styles[index].LaneMaterial : null;
 
-            if (Collider.enabled) Collider.sharedMesh = lane.CurrentMesh;
+            if (!PlayerView.main.MainCamera.activeTexture && Collider.enabled) Collider.sharedMesh = lane.CurrentMesh;
             else Collider.sharedMesh = null;
             Filter.sharedMesh = Renderer.enabled ? lane.CurrentMesh : null;
 
