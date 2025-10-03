@@ -13,6 +13,7 @@ using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using JANOARG.Chartmaker.Behaviors.Chartmaker.PickHandler;
 
 namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 {
@@ -70,7 +71,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         [Space]
         public float[] GridSize = {0.5f};
 
-        float CurrentTime;
+        public float CurrentTime { get; private set; }
 
         public bool IsMaximised
         {
@@ -604,62 +605,17 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             {
                 if (HierarchyPanel.main.CurrentMode == HierarchyMode.Chart)
                 {
-
-                    if (isDragged)
-                        return;
-
-                    float closestDistance = float.MaxValue;
-                    switch (TimelinePanel.main.CurrentMode)
-                    { 
-                        case TimelineMode.Lanes:
-                            Lane candidateLane = null;
-
-                            var lanes = Chartmaker.main.CurrentChart?.Lanes;
-
-                            if (lanes == null || lanes.Count == 0)
-                                break;
-
-                            
-                            foreach (Lane lane in lanes)
-                            {
-                                // Skip invisible lanes
-                                if (lane.StyleIndex == -1)
-                                    continue;
-                                
-                                Vector2 localLanePosition = MainCamera.WorldToScreenPoint(lane.Position);
-                                float cursorLaneDistance = Vector2.Distance(localLanePosition, eventData.pressPosition);
-
-                                if (cursorLaneDistance >= closestDistance)
-                                    continue;
-
-                                closestDistance = cursorLaneDistance;
-                                candidateLane = lane;
-                            }
-
-                            if (candidateLane != null)
-                                InspectorPanel.main.SetObject(candidateLane);
-
-                            break;
-
-                        case TimelineMode.HitObjects:
-                            
-                            Exception e = new NotImplementedException("Duducat, your shallow copy shenanigans really fucked me over (or, I am simply incompetent for the codebase's structure).\nHence; please implement this (PlayerView Hit Object selector) yourself if you see this. \nRegards, Bashh");
-                            
-                            UI.Modal.ModalTypes.DialogModal bruh = ModalHolder.main.Spawn<UI.Modal.ModalTypes.DialogModal>();
-                            
-                            bruh.SetDialog("Hit Object selection support not implemented", e.Message, new []{"OK"}, i => {});
-
-                            throw e;
-                            
-                            break;
-                        default:
-                            UnityEngine.Debug.LogWarning("Invalid auto-highlighting mode");
-
-                            break;
+                    Ray ray = MainCamera.ScreenPointToRay(eventData.position);
+                    RaycastHit[] raycastHits = Physics.RaycastAll(ray, 1000, -1, QueryTriggerInteraction.Collide);
+                    Array.Sort(raycastHits, (x, y) => x.distance.CompareTo(y.distance));
+                    foreach (RaycastHit raycastHit in raycastHits)
+                    {
+                        var pickHandler = raycastHit.collider.GetComponent<PlayerViewPickHandler>();
+                        if (pickHandler && pickHandler.Pick()) break;
                     }
                 }
-                else 
-                    return;
+
+                return;
             }
 
             if (HierarchyPanel.main.CurrentMode == HierarchyMode.PlayableSong && CurrentDragMode == HandleDragMode.Background)
@@ -698,8 +654,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     if (index < 0) return;
                     LaneManager laneManager = Manager.Lanes[index];
                     LaneGroupManager laneGroupManager = null;
-                    bool hasGroup = !string.IsNullOrEmpty(laneManager.CurrentLane.Group) 
-                                    && Manager.Groups.TryGetValue(laneManager.CurrentLane.Group, out laneGroupManager);
+                    bool hasGroup = !string.IsNullOrEmpty(laneManager.Current.Group) 
+                                    && Manager.Groups.TryGetValue(laneManager.Current.Group, out laneGroupManager);
                 
                     Vector3 Inv(Vector3 x)      => Quaternion.Inverse(laneManager.FinalRotation) * (x - laneManager.FinalPosition);
                     Vector3 GroupInv(Vector3 x) => hasGroup ? Quaternion.Inverse(laneGroupManager.FinalRotation) * (x - laneGroupManager.FinalPosition) : x;
@@ -847,9 +803,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
                     Func<Vector3> get = CurrentDragMode switch
                     {
-                        HandleDragMode.Start => (() => Vector3.right * hitObjectManager.CurrentHit.Position),
-                        HandleDragMode.Center => (() => Vector3.right * (hitObjectManager.CurrentHit.Position + hitObjectManager.CurrentHit.Length / 2)),
-                        HandleDragMode.End => (() => Vector3.right * (hitObjectManager.CurrentHit.Position + hitObjectManager.CurrentHit.Length)),
+                        HandleDragMode.Start => (() => Vector3.right * hitObjectManager.Current.Position),
+                        HandleDragMode.Center => (() => Vector3.right * (hitObjectManager.Current.Position + hitObjectManager.Current.Length / 2)),
+                        HandleDragMode.End => (() => Vector3.right * (hitObjectManager.Current.Position + hitObjectManager.Current.Length)),
                         _ => null
                     };
                     

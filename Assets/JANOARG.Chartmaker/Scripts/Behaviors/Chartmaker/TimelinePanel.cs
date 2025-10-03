@@ -1627,7 +1627,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                             if (InspectorPanel.main.CurrentObject is not Storyboardable thing)
                                 break;
 
-                            TimestampType[] types = (TimestampType[])thing.GetType().GetField("TimestampTypes").GetValue(null);
+                            TimestampType[] types = thing.timestampTypes;
                             Storyboard storyboard = thing.Storyboard;
 
                             int yStart = Mathf.FloorToInt(Mathf.Clamp((ItemsHolder.rect.height - Mathf.Max(dragStart.y, dragEnd.y) - 3) / 24, 0, TimelineHeight - 1)) + ScrollOffset;
@@ -1703,7 +1703,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                             {
                                 if (InspectorPanel.main.CurrentObject is not Storyboardable thing) break;
 
-                                TimestampType[] types = (TimestampType[])thing.GetType().GetField("TimestampTypes").GetValue(null);
+                                TimestampType[] types = thing.timestampTypes;
                                 Storyboard storyboard = thing.Storyboard;
                                 TimestampType type = types[Math.Clamp(Mathf.FloorToInt((ItemsHolder.rect.height - dragEnd.y - 3) / 24) + ScrollOffset, 0, types.Length - 1)];
                         

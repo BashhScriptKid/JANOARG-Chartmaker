@@ -11,6 +11,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public Transform      Holder;
         public MeshRenderer   Renderer;
         public MeshFilter     Filter;
+        public MeshCollider   Collider;
         public MeshRenderer   JudgeLine;
         public MeshRenderer[] JudgeEnds;
 
@@ -26,15 +27,18 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         
             List<LaneStyleManager> styles = PlayerView.main.Manager.PalleteManager.LaneStyles;
         
-            int index = lane.CurrentLane.StyleIndex;
+            int index = lane.Current.StyleIndex;
         
-            Renderer.enabled = index >= 0 && index < styles.Count;
+            Collider.enabled = lane.Steps.Count >= 2 && PlayerView.main.CurrentTime < lane.Steps[^1].Offset;
+            Renderer.enabled = Collider.enabled && index >= 0 && index < styles.Count;
         
             Renderer.sharedMaterial = Renderer.enabled ? styles[index].LaneMaterial : null;
-        
+
+            if (Collider.enabled) Collider.sharedMesh = lane.CurrentMesh;
+            else Collider.sharedMesh = null;
             Filter.sharedMesh = Renderer.enabled ? lane.CurrentMesh : null;
 
-            if (InformationBar.main.sec >= lane.Steps[0].Offset && InformationBar.main.sec < lane.Steps[^1].Offset)
+            if (PlayerView.main.CurrentTime >= lane.Steps[0].Offset && PlayerView.main.CurrentTime < lane.Steps[^1].Offset)
             {
                 JudgeLine.gameObject.SetActive(Renderer.enabled);
                 JudgeEnds[0].gameObject.SetActive(Renderer.enabled);
@@ -51,6 +55,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 JudgeLine.transform.localPosition    = (lane.StartPosLocal + lane.EndPosLocal) / 2;
                 JudgeLine.transform.localScale       = new (Vector3.Distance(lane.StartPosLocal, lane.EndPosLocal), .05f, .05f);
                 JudgeLine.transform.localEulerAngles = Vector3.back * Vector2.SignedAngle(lane.EndPosLocal - lane.StartPosLocal, Vector2.left);
+                
             }
             else 
             {
