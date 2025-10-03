@@ -11,6 +11,10 @@ using UnityEngine;
 using UnityEngine.UI;
 using FFTWindow = JANOARG.Chartmaker.Utils.FFTWindow;
 
+#if UNITY_STANDALONE_WIN
+using JANOARG.Chartmaker.UI.Cursor;
+#endif
+
 namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 {
     public class PreferencesModal : Modal

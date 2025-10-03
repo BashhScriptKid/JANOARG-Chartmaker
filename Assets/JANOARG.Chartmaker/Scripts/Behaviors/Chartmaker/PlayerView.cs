@@ -132,6 +132,12 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         public void Update()
         {
+            // Camera is being used by the render modal
+            if (MainCamera.targetTexture)
+            {
+                return;
+            }
+
             RectTransform rt = (RectTransform)transform;
             Vector3[] corners = new Vector3[4];
             rt.GetWorldCorners(corners);

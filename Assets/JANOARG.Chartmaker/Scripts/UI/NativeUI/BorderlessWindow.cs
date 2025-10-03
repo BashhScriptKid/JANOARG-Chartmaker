@@ -174,10 +174,10 @@ namespace JANOARG.Chartmaker.UI.NativeUI
             RenameWindow("JANOARG Chartmaker");
 
             Nothing = new Texture2D(0, 0);
-            Cursor.SetCursor(Nothing, Vector2.zero, CursorMode.ForceSoftware);
+            UnityEngine.Cursor.SetCursor(Nothing, Vector2.zero, CursorMode.ForceSoftware);
             CursorChanger.PushCursor(CursorType.Arrow);
             
-            IsFramed = Chartmaker.Preferences.UseDefaultWindow;
+            IsFramed = Behaviors.Chartmaker.Chartmaker.Preferences.UseDefaultWindow;
             if (!IsFramed)
             {
                 SetFramelessWindow();
