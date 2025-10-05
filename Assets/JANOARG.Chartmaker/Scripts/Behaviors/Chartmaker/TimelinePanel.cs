@@ -1404,7 +1404,21 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         
                         hitobjectRect.sizeDelta = new Vector2(6, length);
                     }
+                    else if (InspectorPanel.main.CurrentObject is Storyboardable thing)
+                    {
+                        TimestampType[] types = thing.timestampTypes;
+                        int index = Math.Clamp(
+                            Mathf.FloorToInt((ItemsHolder.rect.height - eventData.pressPosition.y - 3) / 24) + ScrollOffset, 
+                            0, 
+                            types.Length - 1
+                        );
+
+                        // Snap PreviewerTail to the center of the selected row
+                        float yPosition = ItemsHolder.rect.height - (index - ScrollOffset) * 24 - 3 - 12; // -12 to center in 24px row
     
+                        PreviewerTail.gameObject.transform.position *= new Vector2Frag(y: yPosition);
+                    }
+
                     PreviewerTail.gameObject.transform.position = eventData.pressPosition;
                     initialPreviewersPosition = PreviewerTail.gameObject.transform.position;
                 }
@@ -1691,7 +1705,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
                                 hitTailRectTransform.anchorMin = new Vector2(hitMinX, 1);
                                 hitTailRectTransform.anchorMax = new Vector2(hitMaxX, 1);
-                                hitTailRectTransform.sizeDelta = new Vector2(0, PreviewerTail.gameObject.GetComponent<RectTransform>().rect.height);;
+                                hitTailRectTransform.sizeDelta = new Vector2(0, PreviewerTail.GetComponent<RectTransform>().rect.height);;
                                 hitTailRectTransform.position  *= new Vector3Frag(y: PreviewerTail.gameObject.transform.position.y);
                                 
                                 if (eventData.position.x < initialPreviewersPosition.x)
