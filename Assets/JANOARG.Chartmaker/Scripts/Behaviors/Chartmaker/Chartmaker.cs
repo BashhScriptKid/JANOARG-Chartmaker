@@ -583,10 +583,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         public void OnHistoryDo()
         {
-            InspectorPanel.main?.UpdateForm();
-            TimelinePanel.main?.UpdateItems();
-            PlayerView.main?.UpdateObjects();
-            HierarchyPanel.main?.UpdateHierarchy();
+            InspectorPanel.main.UpdateForm();
+            TimelinePanel.main.UpdateItems();
+            PlayerView.main.UpdateObjects();
+            HierarchyPanel.main.UpdateHierarchy();
             IsDirty = true;
         }
 
@@ -625,9 +625,11 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 return;
         
             History.SetItem(target, field, value);
-        
-            if (field == "Offset") 
+
+            if (field == "Offset")
                 SortList(GetListTarget(target));
+            if (target is Timestamp)
+                ((Storyboardable)InspectorPanel.main.CurrentObject).Storyboard.InvalidateCache();
         
             TimelinePanel.main.UpdateItems();
             PlayerView.main.UpdateObjects();
@@ -639,7 +641,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         public IList GetListTarget(object obj) => obj switch {
             IList list  => list.Count > 0 ? GetListTarget(list[0]) : throw new ArgumentException("Can't determine list target of an empty list"),
-            Timestamp   => ((Storyboardable)InspectorPanel.main.CurrentObject).Storyboard.Timestamps,
+            Timestamp   => (IList)((Storyboardable)InspectorPanel.main.CurrentObject).Storyboard,
             BPMStop     => CurrentSong.Timing.Stops,
             LaneStyle   => CurrentChart.Palette.LaneStyles,
             HitStyle    => CurrentChart.Palette.HitStyles,
