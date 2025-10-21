@@ -578,7 +578,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             Lane       =>       "Lane",
             LaneStep   =>       "Lane Step",
             HitObject  =>       "Hit Object",
-            _          =>       item.ToString()
+            _          =>       item?.ToString().Split(".")[^1] ?? "Null"
         };
 
         public void OnHistoryDo()
