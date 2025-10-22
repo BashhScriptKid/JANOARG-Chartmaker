@@ -733,11 +733,11 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             if (list[0] is BPMStop firstBpmStop)
             {
                 float minOffset = float.PositiveInfinity;
-            
+
                 foreach (object item in list)
                 {
                     BPMStop stop = (BPMStop)item;
-                    stop.Offset += Mathf.Min(minOffset, stop.Offset);
+                    minOffset = Mathf.Min(minOffset, stop.Offset);
                 }
 
                 float offset = startingOffset - minOffset;
@@ -753,7 +753,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         {
             IList list = obj is IList listObject 
                 ? listObject : new [] { obj };
-        
+
             FieldInfo field = list[0].GetType().GetField("Offset");
         
             if (list[0] is Lane firstLane)
@@ -791,6 +791,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 }
 
                 BeatPosition offset = startingOffset - minOffset;
+
+                UnityEngine.Debug.Log(startingOffset + " " + minOffset + " " + offset);
+
                 foreach (object item in list)
                 {
                     field.SetValue(item, (BeatPosition)field.GetValue(item) + offset);
