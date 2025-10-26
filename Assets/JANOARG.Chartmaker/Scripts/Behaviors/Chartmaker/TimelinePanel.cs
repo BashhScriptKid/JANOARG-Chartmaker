@@ -121,7 +121,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         
         [HideInInspector] public List<TMP_Text> StoryboardEntries;
 
-        [HideInInspector] [SerializeField] private Image StoryboardHinter;
+        [HideInInspector] [SerializeField] private TMP_Text StoryboardText;
     
         [Header("Icons")]
         public Sprite LineIcon;
@@ -499,7 +499,6 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 return label;
             }
 
-            StoryboardHinter.gameObject.SetActive(CurrentMode != TimelineMode.Storyboard && InspectorPanel.main.CurrentObject is Storyboardable);
 
             
             if (Mathf.Approximately(PeekRange.x, PeekRange.y))
@@ -816,6 +815,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     BlockerLabel.text = "No lane selected - Select a lane first to view its Hit Objects.";
                     break;
             }
+
+            StoryboardText.alpha = InspectorPanel.main.CurrentHierarchyObject is not Storyboardable ? 0.5f : 1f;
 
             while (Items.Count > count)
             {
