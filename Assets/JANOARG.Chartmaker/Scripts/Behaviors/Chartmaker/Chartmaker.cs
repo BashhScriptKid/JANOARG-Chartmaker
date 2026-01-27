@@ -27,6 +27,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
     public class Chartmaker : MonoBehaviour
     {
         public static Chartmaker main;
+        public Canvas ChartmakerCanvas;
 
         public string CurrentSongPath;
         public string CurrentChartPath;
