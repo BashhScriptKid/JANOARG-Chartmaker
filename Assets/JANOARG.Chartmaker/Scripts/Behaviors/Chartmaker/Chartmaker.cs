@@ -5,6 +5,7 @@ using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
 using JANOARG.Chartmaker.Constants;
+using JANOARG.Chartmaker.Data;
 using JANOARG.Chartmaker.Data.Chartmaker;
 using JANOARG.Chartmaker.Data.Chartmaker.Actions;
 using JANOARG.Chartmaker.UI;
@@ -14,12 +15,12 @@ using JANOARG.Chartmaker.UI.NativeUI;
 using JANOARG.Chartmaker.UI.Themeable;
 using JANOARG.Shared.Data.ChartInfo;
 using JANOARG.Chartmaker.Utils;
+using JANOARG.Shared.Data.Chartmaker;
 using JANOARG.Shared.Data.Files;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Assertions;
 using UnityEngine.Networking;
-using JANOARG.Shared.Data.Chartmaker;
 
 namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 {
