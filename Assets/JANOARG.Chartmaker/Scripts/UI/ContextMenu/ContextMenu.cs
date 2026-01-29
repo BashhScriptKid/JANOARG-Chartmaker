@@ -128,9 +128,12 @@ namespace JANOARG.Chartmaker.UI.ContextMenu
         
             Rect rect = GetWorldRect(target);
 
-            bool hasBeenFunnied = false;
+            bool oopsItGotClipped = false;
             funny:
-            if (direction == ContextMenuDirection.Cursor) 
+
+            if (oopsItGotClipped) UnityEngine.Debug.Log($"Oops! Context menu clipped off the canvas, redirecting.");
+            else UnityEngine.Debug.Log($"Attempting normal render direction {direction}");
+            switch (direction)
             {
                 rt.anchoredPosition = new Vector2(
                     Mathf.Round(Input.mousePosition.x),
