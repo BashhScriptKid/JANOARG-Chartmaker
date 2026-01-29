@@ -121,6 +121,8 @@ namespace JANOARG.Chartmaker.UI.ContextMenu
         
             gameObject.SetActive(true);
 
+            float scale = Behaviors.Chartmaker.Chartmaker.main.ChartmakerCanvas.scaleFactor;
+
             RectTransform rt = (RectTransform)transform;
             LayoutRebuilder.ForceRebuildLayoutImmediate(rt);
 
@@ -135,68 +137,107 @@ namespace JANOARG.Chartmaker.UI.ContextMenu
             else UnityEngine.Debug.Log($"Attempting normal render direction {direction}");
             switch (direction)
             {
-                rt.anchoredPosition = new Vector2(
-                    Mathf.Round(Input.mousePosition.x),
-                    Mathf.Round(Input.mousePosition.y)
-                ) + offset;
-                if (rt.anchoredPosition.x + rt.sizeDelta.x > Screen.width) 
+                case ContextMenuDirection.Cursor:
                 {
-                    rt.anchoredPosition += Vector2.left * rt.rect.width;
-                    UnityEngine.Debug.Log(rt.rect.width - rect.width);
+                    rt.anchorMin = rt.anchorMax = new Vector2(0, 0);
+                    rt.anchoredPosition = new Vector2(
+                        Mathf.Round(Input.mousePosition.x),
+                        Mathf.Round(Input.mousePosition.y)
+                    ) + offset;
+                    if (rt.anchoredPosition.x + rt.sizeDelta.x > Screen.width)
+                    {
+                        rt.anchoredPosition += Vector2.left * rt.rect.width;
+                        UnityEngine.Debug.Log(rt.rect.width - rect.width);
+                    }
+                    if (rt.anchoredPosition.y - rt.sizeDelta.y < 0)
+                    {
+                        rt.anchoredPosition += Vector2.up * rt.rect.height;
+                    }
+
+                    break;
                 }
-                if (rt.anchoredPosition.y - rt.sizeDelta.y < 0) 
+                case ContextMenuDirection.Down:
                 {
-                    rt.anchoredPosition += Vector2.up * rt.rect.height;
+                    rt.anchorMin = rt.anchorMax = new Vector2(0, 1);
+                    rt.anchoredPosition = new Vector2(
+                        Mathf.Round(rect.xMin / scale),
+                        Mathf.Round(rect.yMin / scale)
+                    ) + offset;
+                    if (rt.anchoredPosition.x + rt.sizeDelta.x > Screen.width) 
+                    {
+                        rt.anchoredPosition += Vector2.left * (rt.rect.width - rect.width);
+                        UnityEngine.Debug.Log(rt.rect.width - rect.width);
+                    }
+                    if (rt.anchoredPosition.y - rt.sizeDelta.y < 0 && !oopsItGotClipped) 
+                    {
+                        direction = ContextMenuDirection.Up;
+                        oopsItGotClipped = true;
+                        goto funny;
+                    }
+
+                    break;
+                }
+                case ContextMenuDirection.Up:
+                {
+                    rt.anchorMin = rt.anchorMax = new Vector2(0, 0);
+                    rt.anchoredPosition = new Vector2(
+                        Mathf.Round(rect.xMin / scale),
+                        Mathf.Round((rect.yMax + rt.sizeDelta.y) / scale)
+                    ) + offset;
+                    if (rt.anchoredPosition.x + rt.sizeDelta.x > Screen.width)
+                    {
+                        rt.anchoredPosition += Vector2.left * (rt.rect.width - rect.width);
+                        UnityEngine.Debug.Log(rt.rect.width - rect.width);
+                    }
+                    if (rt.anchoredPosition.y > Screen.height && !oopsItGotClipped)
+                    {
+                        direction = ContextMenuDirection.Down;
+                        oopsItGotClipped = true;
+                        goto funny;
+                    }
+
+                    break;
+                }
+                case ContextMenuDirection.Left:
+                {
+                    rt.anchorMin = rt.anchorMax = new Vector2(1, 1);
+                    rt.anchoredPosition = new Vector2(
+                        Mathf.Round((rect.xMin - rt.rect.width * scale) / scale),
+                        Mathf.Round(rect.yMax / scale)
+                    ) + offset;
+                    if (rt.anchoredPosition.y - rt.sizeDelta.y < 0)
+                    {
+                        rt.anchoredPosition += Vector2.up * (rt.rect.height - rect.height);
+                    }
+
+                    break;
+                }
+                case ContextMenuDirection.Right:
+                {
+                    rt.anchorMin = rt.anchorMax = new Vector2(0, 1);
+                    rt.anchoredPosition = new Vector2(
+                        Mathf.Round(rect.xMax / scale),
+                        Mathf.Round(rect.yMax / scale)
+                    ) + offset;
+                    if (rt.anchoredPosition.y - rt.sizeDelta.y < 0)
+                    {
+                        rt.anchoredPosition += Vector2.up * (rt.rect.height - rect.height);
+                    }
+
+                    break;
                 }
             }
-            else if (direction == ContextMenuDirection.Down) 
+
+            // Clamp to screen bounds based on current anchor
+            float titleBarOffset = Behaviors.Chartmaker.Chartmaker.Preferences.UseDefaultWindow ? 0 : 28;
+            if (rt.anchorMin.x == 0) // Left-anchored
             {
                 rt.anchoredPosition = new Vector2(
-                    Mathf.Round(rect.xMin),
-                    Mathf.Round(rect.yMin)
-                ) + offset;
-                if (rt.anchoredPosition.x + rt.sizeDelta.x > Screen.width) 
-                {
-                    rt.anchoredPosition += Vector2.left * (rt.rect.width - rect.width);
-                    UnityEngine.Debug.Log(rt.rect.width - rect.width);
-                }
-                if (rt.anchoredPosition.y - rt.sizeDelta.y < 0 && !hasBeenFunnied) 
-                {
-                    direction = ContextMenuDirection.Up;
-                    hasBeenFunnied = true;
-                    goto funny;
-                }
+                    Mathf.Max(rt.anchoredPosition.x, 0),
+                    rt.anchoredPosition.y
+                );
             }
-            else if (direction == ContextMenuDirection.Up) 
-            {
-                rt.anchoredPosition = new Vector2(
-                    Mathf.Round(rect.xMin),
-                    Mathf.Round(rect.yMax + rt.sizeDelta.y)
-                ) + offset;
-                if (rt.anchoredPosition.x + rt.sizeDelta.x > Screen.width) 
-                {
-                    rt.anchoredPosition += Vector2.left * (rt.rect.width - rect.width);
-                    UnityEngine.Debug.Log(rt.rect.width - rect.width);
-                }
-                if (rt.anchoredPosition.y > Screen.height && !hasBeenFunnied) 
-                {
-                    direction = ContextMenuDirection.Down;
-                    hasBeenFunnied = true;
-                    goto funny;
-                }
-            }
-            else if (direction == ContextMenuDirection.Left) 
-            {
-                rt.anchoredPosition = new Vector2(
-                    Mathf.Round(rect.xMin - rt.rect.width),
-                    Mathf.Round(rect.yMax)
-                ) + offset;
-                if (rt.anchoredPosition.y - rt.sizeDelta.y < -Screen.height) 
-                {
-                    rt.anchoredPosition += Vector2.up * (rt.rect.height - rect.height);
-                }
-            }
-            else if (direction == ContextMenuDirection.Right) 
+            else // Right-anchored (1)
             {
                 rt.anchoredPosition = new Vector2(
                     Mathf.Round(rect.xMax),
