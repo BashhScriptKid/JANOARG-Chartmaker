@@ -240,19 +240,25 @@ namespace JANOARG.Chartmaker.UI.ContextMenu
             else // Right-anchored (1)
             {
                 rt.anchoredPosition = new Vector2(
-                    Mathf.Round(rect.xMax),
-                    Mathf.Round(rect.yMax)
-                ) + offset;
-                if (rt.anchoredPosition.y - rt.sizeDelta.y < -Screen.height) 
-                {
-                    rt.anchoredPosition += Vector2.up * (rt.rect.height - rect.height);
-                }
+                    Mathf.Min(rt.anchoredPosition.x, 0),
+                    rt.anchoredPosition.y
+                );
             }
 
-            rt.anchoredPosition = new (
-                Mathf.Max(rt.anchoredPosition.x, 0),
-                Mathf.Min(rt.anchoredPosition.y, Screen.height - (Behaviors.Chartmaker.Chartmaker.Preferences.UseDefaultWindow ? 0 : 28))
-            );
+            if (rt.anchorMin.y == 0) // Bottom-anchored
+            {
+                rt.anchoredPosition = new Vector2(
+                    rt.anchoredPosition.x,
+                    Mathf.Max(rt.anchoredPosition.y, 0)
+                );
+            }
+            else // Top-anchored (1)
+            {
+                rt.anchoredPosition = new Vector2(
+                    rt.anchoredPosition.x,
+                    Mathf.Min(rt.anchoredPosition.y, -titleBarOffset)
+                );
+            }
 
             isOpen = true;
             StopCoroutine(Intro());
