@@ -221,9 +221,8 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                         IsDirty = true;
                     });
                     
-                    // Taking osu! lazer's range
-                    interfaceScaling.Range.minValue = 0.8f;
-                    interfaceScaling.Range.maxValue = 1.6f;
+                    interfaceScaling.Range.minValue = 0.75f;
+                    interfaceScaling.Range.maxValue = 2.5f;
                     
                    interfaceScaling.EndDragTrigger = () => Behaviors.Chartmaker.Chartmaker.main.ChartmakerCanvas.scaleFactor = prefs.InterfaceScaling;
 
