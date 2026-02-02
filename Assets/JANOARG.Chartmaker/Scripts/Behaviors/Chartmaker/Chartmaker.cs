@@ -27,6 +27,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
     public class Chartmaker : MonoBehaviour
     {
         public static Chartmaker main;
+        public Canvas ChartmakerCanvas;
 
         public string CurrentSongPath;
         public string CurrentChartPath;
@@ -90,6 +91,12 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             TimelinePanel.main.Options.Init();
             if (Preferences.AutoUpdateCheck) VersionCheckerModal.InitFetch(true);
             SetEditorActive(false);
+            
+            UnityEngine.Debug.Log($"Checking for scaling mismatch: {ChartmakerCanvas.scaleFactor} == {Preferences.InterfaceScaling}");
+            if (!Mathf.Approximately(ChartmakerCanvas.scaleFactor, Preferences.InterfaceScaling))
+            {
+                ChartmakerCanvas.scaleFactor = Preferences.InterfaceScaling;
+            }
         }
 
         public void Update()
