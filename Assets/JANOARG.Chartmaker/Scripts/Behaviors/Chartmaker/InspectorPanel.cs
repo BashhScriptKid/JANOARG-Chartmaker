@@ -779,7 +779,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     if (x) beatHandler.SetLerp(thing);
                     UpdateForm();
                 });
-                if (advanced) SpawnForm<FormEntryBeatPosition, BeatPosition>("From", () => beatHandler.From, x => { beatHandler.From = x; });
+                if (advanced)
+                    SpawnForm<FormEntryBeatPosition, BeatPosition>("From", () => beatHandler.From, x => { beatHandler.From = x; });
+                
                 SpawnForm<FormEntryBeatPosition, BeatPosition>("To", () => beatHandler.To, x => { beatHandler.To = x; });
             
                 if (advanced) 
@@ -800,38 +802,63 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 ).TargetEnum(typeof(BeatPositionOperation));
             }
 
-            if (MultiHandler is ChartmakerMultiHandlerBoolean boolHandler) {
-                SpawnForm<FormEntryDropdown, object>("To", () => boolHandler.To == null ? 2 : (bool)boolHandler.To ? 1 : 0, x => {
-                    boolHandler.To = new bool?[] {true, false, null}[(int)x];
-                }).TargetList("False", "True", "Toggle");
-            } else if (MultiHandler is ChartmakerMultiHandlerBeatPosition beatHandler) {
-                MakeBeatPositionEditor(beatHandler);
-            } else if (MultiHandler is ChartmakerMultiHandlerFloat floatHandler) {
-                MakeLerpableEditor(floatHandler);
-            } else if (MultiHandler is ChartmakerMultiHandlerVector2 v2Handler) {
-                SpawnForm<FormEntryDropdown, object>("Axis", () => v2Handler.Axis, x => { v2Handler.Axis = (int)x; }).TargetList("X", "Y");
-                SpawnForm<FormEntrySpace>("");
-                MakeLerpableEditor(v2Handler);
-            } else if (MultiHandler is ChartmakerMultiHandlerVector3 v3Handler) {
-                SpawnForm<FormEntryDropdown, object>("Axis", () => v3Handler.Axis, x => { v3Handler.Axis = (int)x; }).TargetList("X", "Y", "Z");
-                SpawnForm<FormEntrySpace>("");
-                MakeLerpableEditor(v3Handler);
-            } else if (MultiHandler is ChartmakerMultiHandler<int> intHandler) {
-                MultiHandler.To ??= 0;
-                SpawnForm<FormEntryInt, int>("To", () => (int)intHandler.To, x => { intHandler.To = x; });
-            } else if (MultiHandler is ChartmakerMultiHandler<string> stringHandler) {
-                MultiHandler.To ??= "";
-                SpawnForm<FormEntryString, string>("To", () => (string)stringHandler.To, x => { stringHandler.To = x; });
-            } else if (MultiHandler is ChartmakerMultiHandler<IEaseDirective> easeHandler) {
-                MultiHandler.To ??= new BasicEaseDirective();
-                SpawnForm<FormEntryEasing, IEaseDirective>("To", () => (IEaseDirective)easeHandler.To, x => { easeHandler.To = x; });
-            } else if (MultiHandler.TargetType.IsEnum) {
-                MultiHandler.To ??= MultiHandler.TargetType.GetEnumValues().GetValue(0);
-                SpawnForm<FormEntryDropdown, object>("To", () => MultiHandler.To, x => {
-                    MultiHandler.To = x;
-                }).TargetEnum(MultiHandler.TargetType);
-            } else {
-                SpawnForm<FormEntryLabel>("Unknown field type " + CurrentMultiField?.FieldType);
+            switch (MultiHandler)
+            {
+                case ChartmakerMultiHandlerBoolean boolHandler:
+                    SpawnForm<FormEntryDropdown, object>("To", () => boolHandler.To == null ? 2 : (bool)boolHandler.To ? 1 : 0, x => 
+                    {
+                        boolHandler.To = new bool?[] {true, false, null}[(int)x];
+                    }).TargetList("False", "True", "Toggle");
+
+                    break;
+                case ChartmakerMultiHandlerBeatPosition beatHandler:
+                    MakeBeatPositionEditor(beatHandler);
+    
+                    break;
+                case ChartmakerMultiHandlerFloat floatHandler:
+                    MakeLerpableEditor(floatHandler);
+
+                    break;
+                case ChartmakerMultiHandlerVector2 v2Handler:
+                    SpawnForm<FormEntryDropdown, object>("Axis", () => v2Handler.Axis, x => { v2Handler.Axis = (int)x; }).TargetList("X", "Y");
+                    SpawnForm<FormEntrySpace>("");
+                    MakeLerpableEditor(v2Handler);
+
+                    break;
+                case ChartmakerMultiHandlerVector3 v3Handler:
+                    SpawnForm<FormEntryDropdown, object>("Axis", () => v3Handler.Axis, x => { v3Handler.Axis = (int)x; }).TargetList("X", "Y", "Z");
+                    SpawnForm<FormEntrySpace>("");
+                    MakeLerpableEditor(v3Handler);
+
+                    break;
+                case ChartmakerMultiHandler<int> intHandler:
+                    MultiHandler.To ??= 0;
+                    SpawnForm<FormEntryInt, int>("To", () => (int)intHandler.To, x => { intHandler.To = x; });
+
+                    break;
+                case ChartmakerMultiHandler<string> stringHandler:
+                    MultiHandler.To ??= "";
+                    SpawnForm<FormEntryString, string>("To", () => (string)stringHandler.To, x => { stringHandler.To = x; });
+
+                    break;
+                case ChartmakerMultiHandler<IEaseDirective> easeHandler:
+                    MultiHandler.To ??= new BasicEaseDirective();
+                    SpawnForm<FormEntryEasing, IEaseDirective>("To", () => (IEaseDirective)easeHandler.To, x => { easeHandler.To = x; });
+
+                    break;
+                default:
+                {
+                    if (MultiHandler.TargetType.IsEnum) {
+                        MultiHandler.To ??= MultiHandler.TargetType.GetEnumValues().GetValue(0);
+                        SpawnForm<FormEntryDropdown, object>("To", () => MultiHandler.To, x => {
+                            MultiHandler.To = x;
+                        }).TargetEnum(MultiHandler.TargetType);
+                    } else {
+                        SpawnForm<FormEntryLabel>("Unknown field type " + CurrentMultiField?.FieldType);
+                    }
+
+                    break;
+                }
             }
 
             SpawnForm<FormEntrySpace>("");
