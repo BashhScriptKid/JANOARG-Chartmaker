@@ -21,20 +21,44 @@ namespace JANOARG.Chartmaker.Utils
                 ;
         }
 
-        public static string GetDataFolder() 
+        public static string GetDataFolder()
         {
-            string path = Environment.GetFolderPath(Environment.SpecialFolder.Personal);
-
-            if (string.IsNullOrEmpty(path)) 
+            string path;
+            
+            if (Application.platform == RuntimePlatform.Android)
             {
-                path = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                using (AndroidJavaClass environment = new AndroidJavaClass("android.os.Environment"))
+                using (AndroidJavaObject externalStorage = environment.CallStatic<AndroidJavaObject>("getExternalStorageDirectory"))
+                {
+                    if (externalStorage != null)
+                    {
+                        path = externalStorage.Call<string>("getAbsolutePath");
+                    }
+                    else
+                    {
+                        // Fallback if external storage unavailable
+                        path = Application.persistentDataPath;
+                    }
+                }
 
-                if (string.IsNullOrEmpty(path)) path = Path.GetDirectoryName(Application.dataPath);
-                else path += Path.Combine(path, "JANOARG Chartmaker");
+                return path;
             }
-            else path = Path.Combine(path, "JANOARG Chartmaker");
+            else
+            {
+                // Fallback for editor and other platforms
+                path = Environment.GetFolderPath(Environment.SpecialFolder.Personal);
 
-            return path;
+                if (string.IsNullOrEmpty(path))
+                    path = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+                // Double fallback!
+                if (string.IsNullOrEmpty(path))
+                    path = Path.GetDirectoryName(Application.dataPath);
+                else
+                    path = Path.Combine(path, "JANOARG Chartmaker");
+
+                return path;
+            }
         }
 
         public static string GetSongFolder() 
