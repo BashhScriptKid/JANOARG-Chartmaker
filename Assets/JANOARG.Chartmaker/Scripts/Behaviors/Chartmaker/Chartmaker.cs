@@ -19,6 +19,7 @@ using JANOARG.Shared.Data.Chartmaker;
 using JANOARG.Shared.Data.Files;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Android;
 using UnityEngine.Assertions;
 using UnityEngine.Networking;
 
@@ -149,6 +150,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public void OpenSongModal() 
         {
             FileModal dialogModal = ModalHolder.main.Spawn<FileModal>();
+            
+            if (Application.platform != RuntimePlatform.Android && Application.platform != RuntimePlatform.IPhonePlayer)
+                 Permission.RequestUserPermission(Permission.ExternalStorageRead);
             dialogModal.AcceptedTypes = new List<FileModalFileType> {
                 new("JANOARG Playable Song file", "japs"),
                 new("All files"),
