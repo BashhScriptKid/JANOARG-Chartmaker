@@ -63,12 +63,18 @@ namespace JANOARG.Chartmaker.Utils
 
         public static string GetSongFolder() 
         {
-            return Path.Combine(GetDataFolder(), "Songs");
+            string path = Path.Combine(GetDataFolder(), "Songs");
+            if (!Directory.Exists(path)) Directory.CreateDirectory(path);
+
+            return path;
         }
 
         public static string GetRenderFolder() 
         {
-            return Path.Combine(GetDataFolder(), "Renders");
+            string path = Path.Combine(GetDataFolder(), "Renders");
+            if (!Directory.Exists(path)) Directory.CreateDirectory(path);
+
+            return path;
         }
     }
 }
