@@ -136,8 +136,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         chartItem.Children.Add(worldItem = new ()
                         {
                             Name = "World",
-                            Type = HierarchyItemType.World,
-                            Target = chart.World,
+                            Type = HierarchyItemType.World
                         });
                     }
 

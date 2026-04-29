@@ -48,9 +48,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public Dictionary<Type, ChartmakerMultiHandler> MultiHandlers = new ();
         [Space]
         public DebugStatsInspector DebugStatsSample;
+        public ChartStatsInspector ChartStatsSample;
         public LaneStatsInspector  LaneStatsSample;
         public LaneGroupStatsInspector LaneGroupStatsSample;
-        public WorldStatsInspector WorldStatsSample;
         [Space]
         public Button EaseCopyToRightButtonSample;
         public EaseCopyToBottomItem EaseCopyToButtomItemSample;
@@ -656,6 +656,14 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 case InspectorMode.Statistics:
                     switch (CurrentObject)
                     {
+                        case Chart chart:
+                            FormTitle.text = "Statistics of World";
+
+                            var wstatsHolder = Instantiate(ChartStatsSample, FormHolder);
+                            wstatsHolder.Chart = chart;
+                            
+                            break;
+                            
                         case Lane lane:
                             FormTitle.text = "Statistics of Lane";
 
@@ -672,12 +680,6 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                             
                             break;
 
-                        case World world:
-                            FormTitle.text = "Statistics of World";
-
-                            // var wstatsHolder = Instantiate(WorldStatsSample, FormHolder);
-
-                            break;
 
                         default:
                             FormTitle.text = "Statistics of " + Chartmaker.GetItemName(CurrentObject);
