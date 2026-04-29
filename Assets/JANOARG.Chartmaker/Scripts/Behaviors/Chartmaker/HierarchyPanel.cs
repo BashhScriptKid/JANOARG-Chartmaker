@@ -137,6 +137,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         {
                             Name = "World",
                             Type = HierarchyItemType.World,
+                            Target = chart.World,
                         });
                     }
 

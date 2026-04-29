@@ -50,6 +50,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public DebugStatsInspector DebugStatsSample;
         public LaneStatsInspector  LaneStatsSample;
         public LaneGroupStatsInspector LaneGroupStatsSample;
+        public WorldStatsInspector WorldStatsSample;
         [Space]
         public Button EaseCopyToRightButtonSample;
         public EaseCopyToBottomItem EaseCopyToButtomItemSample;
@@ -473,6 +474,12 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                                         SpawnForm<FormEntryColor, Color>("Color", () => hitStyle.HoldTailColor, x => Chartmaker.main.SetItem(hitStyle, "HoldTailColor", x));
                                         break;
 
+                                    case World world:
+                                        FormTitle.text = "World";
+                                        
+                                        SpawnForm<FormEntryHeader>("This object does not have any properties.");
+                                        break;
+                                        
                                     default:
                                         {
                                             if (CurrentObject == Chartmaker.main.CurrentChart?.Groups)
@@ -663,6 +670,13 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                             var lstatsHolder = Instantiate(LaneGroupStatsSample, FormHolder);
                             lstatsHolder.HightlightedLaneGroup = laneGroup;
                             
+                            break;
+
+                        case World world:
+                            FormTitle.text = "Statistics of World";
+
+                            // var wstatsHolder = Instantiate(WorldStatsSample, FormHolder);
+
                             break;
 
                         default:
