@@ -520,9 +520,6 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                                                     SpawnForm<FormEntryHeader>("Transform");
                                                     SpawnForm<FormEntryVector3, Vector3>("Position", () => group.Position, x => Chartmaker.main.SetItem(group, "Position", x));
                                                     SpawnForm<FormEntryVector3, Vector3>("Rotation", () => group.Rotation, x => Chartmaker.main.SetItem(group, "Rotation", x));
-                                                    SpawnForm<FormEntryHeader>("Statistics");
-                                                    LaneGroupStatsSample.HightlightedLaneGroup = group;
-                                                    Instantiate(LaneGroupStatsSample, FormHolder);
                                                     break;
 
                                                 case CameraController camera when camera != Chartmaker.main.CurrentChart?.Camera:
@@ -664,14 +661,24 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                             
                             break;
                         case Lane lane:
+                        {
                             FormTitle.text = "Statistics of Lane";
 
                             var statsHolder = Instantiate(LaneStatsSample, FormHolder);
                             statsHolder.HightlightedLane = lane;
 
                             break;
-                        case LaneGroup laneGroup:
+                        }
+
+                        case LaneGroup group:
+                        {
                             FormTitle.text = "Statistics of Lane Group";
+
+                            var statsHolder = Instantiate(LaneGroupStatsSample, FormHolder);
+                            statsHolder.HightlightedLaneGroup = group;
+
+                            break;
+                        }
 
                             var lstatsHolder = Instantiate(LaneGroupStatsSample, FormHolder);
                             lstatsHolder.HightlightedLaneGroup = laneGroup;
