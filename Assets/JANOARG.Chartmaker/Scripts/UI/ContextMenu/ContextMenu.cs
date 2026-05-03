@@ -134,6 +134,8 @@ namespace JANOARG.Chartmaker.UI.ContextMenu
             rect.position /= scale;
             rect.size /= scale;
 
+            Vector2 screenSize = new Vector2(Screen.width, Screen.height) / scale;
+
             bool oopsItGotClipped = false;
             funny:
 
@@ -145,8 +147,8 @@ namespace JANOARG.Chartmaker.UI.ContextMenu
                 {
                     rt.anchorMin = rt.anchorMax = new Vector2(0, 0);
                     rt.anchoredPosition = new Vector2(
-                        Mathf.Round(Input.mousePosition.x),
-                        Mathf.Round(Input.mousePosition.y)
+                        Mathf.Round(Input.mousePosition.x / scale),
+                        Mathf.Round(Input.mousePosition.y / scale)
                     ) + offset;
                     if (rt.anchoredPosition.x + rt.sizeDelta.x > Screen.width)
                     {
@@ -167,7 +169,7 @@ namespace JANOARG.Chartmaker.UI.ContextMenu
                         Mathf.Round(rect.xMin),
                         Mathf.Round(rect.yMin)
                     ) + offset;
-                    if (rt.anchoredPosition.x + rt.sizeDelta.x > Screen.width) 
+                    if (rt.anchoredPosition.x + rt.sizeDelta.x > screenSize.x) 
                     {
                         rt.anchoredPosition += Vector2.left * (rt.rect.width - rect.width);
                         UnityEngine.Debug.Log(rt.rect.width - rect.width);
@@ -188,12 +190,12 @@ namespace JANOARG.Chartmaker.UI.ContextMenu
                         Mathf.Round(rect.xMin),
                         Mathf.Round(rect.yMax + rt.sizeDelta.y)
                     ) + offset;
-                    if (rt.anchoredPosition.x + rt.sizeDelta.x > Screen.width)
+                    if (rt.anchoredPosition.x + rt.sizeDelta.x > screenSize.x)
                     {
                         rt.anchoredPosition += Vector2.left * (rt.rect.width - rect.width);
                         UnityEngine.Debug.Log(rt.rect.width - rect.width);
                     }
-                    if (rt.anchoredPosition.y > Screen.height && !oopsItGotClipped)
+                    if (rt.anchoredPosition.y > screenSize.y && !oopsItGotClipped)
                     {
                         direction = ContextMenuDirection.Down;
                         oopsItGotClipped = true;
@@ -206,7 +208,7 @@ namespace JANOARG.Chartmaker.UI.ContextMenu
                 {
                     rt.anchorMin = rt.anchorMax = new Vector2(1, 1);
                     rt.anchoredPosition = new Vector2(
-                        Mathf.Round(rect.xMin - rt.rect.width * scale),
+                        Mathf.Round(rect.xMin - rt.rect.width - Screen.width / scale),
                         Mathf.Round(rect.yMax)
                     ) + offset;
                     if (rt.anchoredPosition.y - rt.sizeDelta.y < 0)
@@ -248,8 +250,7 @@ namespace JANOARG.Chartmaker.UI.ContextMenu
             else // Right-anchored (1)
             {
                 UnityEngine.Debug.Log("Right-anchored");
-                rt.anchoredPosition *= new Vector2Frag(x: Mathf.Min(rt.anchoredPosition.x, 0)
-                );
+                rt.anchoredPosition *= new Vector2Frag(x: Mathf.Min(rt.anchoredPosition.x, 0));
             }
 
             if (rt.anchorMin.y == 0) // Bottom-anchored

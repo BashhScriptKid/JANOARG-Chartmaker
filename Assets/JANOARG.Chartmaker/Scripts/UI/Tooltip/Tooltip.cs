@@ -1,6 +1,8 @@
+using System;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.UIElements;
 
 namespace JANOARG.Chartmaker.UI.Tooltip
 {
@@ -24,46 +26,58 @@ namespace JANOARG.Chartmaker.UI.Tooltip
             RectTransform rt = (RectTransform)transform;
             LayoutRebuilder.ForceRebuildLayoutImmediate(rt);
 
-            Rect curRect = rt.rect;
+            float scale = Behaviors.Chartmaker.Chartmaker.main.ChartmakerCanvas.scaleFactor;
+
+            Rect selfRect = rt.rect;
+
             Vector3[] corners = new Vector3[4];
             target.GetWorldCorners(corners);
-            Rect tarRect = new(corners[0], corners[2] - corners[0]);
+            Rect targetRect = new(corners[0], corners[2] - corners[0]);
+            targetRect.position /= scale;
+            targetRect.size /= scale;
+
+            Vector2 screenSize = new Vector2(Screen.width, Screen.height) / scale;
 
             if (positionMode == TooltipPositionMode.Cursor)
             {
                 rt.anchoredPosition = new (
-                    Mathf.Clamp(Input.mousePosition.x + 18, 5, Screen.width - curRect.width - 5),
-                    Mathf.Clamp(Input.mousePosition.y - 18 - curRect.height, 5, Screen.height - curRect.height - 5)
+                    Input.mousePosition.x / scale + 18,
+                    Input.mousePosition.y / scale - 18 - selfRect.height
                 );
             }
             if (positionMode == TooltipPositionMode.Up)
             {
                 rt.anchoredPosition = new (
-                    Mathf.Clamp(tarRect.xMin + tarRect.width / 2 - curRect.width / 2, 5, Screen.width - curRect.width - 5),
-                    Mathf.Clamp(tarRect.yMax + 2, 5, Screen.height - curRect.height - 5)
+                    targetRect.xMin + targetRect.width / 2 - selfRect.width / 2,
+                    targetRect.yMax + 2
                 );
             }
             else if (positionMode == TooltipPositionMode.Down)
             {
                 rt.anchoredPosition = new (
-                    Mathf.Clamp(tarRect.xMin + tarRect.width / 2 - curRect.width / 2, 5, Screen.width - curRect.width - 5),
-                    Mathf.Clamp(tarRect.yMin - curRect.height - 2, 5, Screen.height - curRect.height - 5)
+                    targetRect.xMin + targetRect.width / 2 - selfRect.width / 2,
+                    targetRect.yMin - selfRect.height - 2
                 );
             }
             else if (positionMode == TooltipPositionMode.Left)
             {
                 rt.anchoredPosition = new (
-                    Mathf.Clamp(tarRect.xMin - curRect.height - 2, 5, Screen.width - curRect.width - 5),
-                    Mathf.Clamp(tarRect.yMin + tarRect.height / 2 - curRect.height / 2, 5, Screen.height - curRect.height - 5)
+                    targetRect.xMin - selfRect.height - 2,
+                    targetRect.yMin + targetRect.height / 2 - selfRect.height / 2
                 );
             }
             else if (positionMode == TooltipPositionMode.Right)
             {
                 rt.anchoredPosition = new (
-                    Mathf.Clamp(tarRect.xMax + 2, 5, Screen.width - curRect.width - 5),
-                    Mathf.Clamp(tarRect.yMin + tarRect.height / 2 - curRect.height / 2, 5, Screen.height - curRect.height - 5)
+                    targetRect.xMax + 2,
+                    targetRect.yMin + targetRect.height / 2 - selfRect.height / 2
                 );
             }
+
+            rt.anchoredPosition = new (
+                Mathf.Clamp(rt.anchoredPosition.x, 5, screenSize.x - rt.sizeDelta.x - 5),  
+                Mathf.Clamp(rt.anchoredPosition.y, 5, screenSize.y - rt.sizeDelta.y - 5)
+            );
         }
 
         public void Hide()
