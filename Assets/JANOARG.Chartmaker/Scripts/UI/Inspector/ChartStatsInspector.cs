@@ -19,12 +19,14 @@ namespace JANOARG.Chartmaker.UI.Inspector
         public TMP_Text LaneStep;
 
         [Header( "Hit Objects" )]
-        public TMP_Text TotalHitObjects;
-        public TMP_Text Taps;
-        public TMP_Text Catches;
-        public TMP_Text Flickables;
-        public TMP_Text Holds;
-        public TMP_Text HoldTicks;
+        public TMP_Text HitObjectCount;
+        public TMP_Text HitObjectTapCatchCount;
+        public TMP_Text FlickCount;
+        public TMP_Text FlickTapCatchCount;
+        public TMP_Text FlickDirOmniCount;
+        public TMP_Text HoldCount;
+        public TMP_Text HoldTapCatchCount;
+        public TMP_Text HoldTickCount;
 
         [Header("Score")]
         public TMP_Text EXScore;
@@ -44,11 +46,14 @@ namespace JANOARG.Chartmaker.UI.Inspector
                 LaneCount.text = "-";
                 LaneGroupCount.text = "-";
                 LaneStep.text = "-";
-                TotalHitObjects.text = "-";
-                Taps.text = "-";
-                Catches.text = "-";
-                Flickables.text = "-";
-                Holds.text = "-";
+                HitObjectCount.text = "-";
+                HitObjectTapCatchCount.text = "-";
+                FlickCount.text = "-";
+                FlickTapCatchCount.text = "-";
+                FlickDirOmniCount.text = "-";
+                HoldCount.text = "-";
+                HoldTapCatchCount.text = "-";
+                HoldTickCount.text = "-";
                 EXScore.text = "-";
                 MaxStreak.text = "-";
                 return;
@@ -66,8 +71,10 @@ namespace JANOARG.Chartmaker.UI.Inspector
             int totalHitObjects = 0;
             int taps = 0;
             int catches = 0;
-            int omniFlickables = 0;
-            int directionalFlickables = 0;
+            int tapFlicks = 0;
+            int catchFlicks = 0;
+            int omniFlicks = 0;
+            int dirFlicks = 0;
             int tapHolds = 0;
             int catchHolds = 0;
             int holdTicks = 0;
@@ -90,9 +97,14 @@ namespace JANOARG.Chartmaker.UI.Inspector
                     if (obj.Flickable)
                     {
                         if (float.IsFinite(obj.FlickDirection))
-                            directionalFlickables++;
+                            dirFlicks++;
                         else
-                            omniFlickables++;
+                            omniFlicks++;
+
+                        if (obj.Type is HitObject.HitType.Normal)
+                            tapFlicks++;
+                        else if (obj.Type is HitObject.HitType.Catch)
+                            catchFlicks++;
                     }
                     if (obj.HoldLength > 0)
                     {
@@ -106,12 +118,14 @@ namespace JANOARG.Chartmaker.UI.Inspector
             }
 
             LaneStep.text = laneStepCount.ToString();
-            TotalHitObjects.text = totalHitObjects.ToString();
-            Taps.text = taps.ToString();
-            Catches.text = catches.ToString();
-            Flickables.text = $"{omniFlickables}/{directionalFlickables}";
-            Holds.text = $"{tapHolds}/{catchHolds}";
-            HoldTicks.text = holdTicks.ToString();
+            HitObjectCount.text = totalHitObjects.ToString();
+            HitObjectTapCatchCount.text =  $"({taps}+{catches})";
+            FlickCount.text = (tapFlicks + catchFlicks).ToString();
+            FlickTapCatchCount.text =  $"({tapFlicks}+{catchFlicks})";
+            FlickDirOmniCount.text =  $"({dirFlicks}+{omniFlicks})";
+            HoldCount.text = (tapHolds + catchHolds).ToString();
+            HoldTapCatchCount.text = $"({tapHolds}+{catchHolds})";
+            HoldTickCount.text = holdTicks.ToString();
 
             // Score
             // Get Max Streak
@@ -121,8 +135,8 @@ namespace JANOARG.Chartmaker.UI.Inspector
                 (taps * 3) +
                 catches +
                 holdTicks +
-                omniFlickables +
-                (directionalFlickables * 2)
+                omniFlicks +
+                (dirFlicks * 2)
             ).ToString();
             
             MaxStreak.text = (totalHitObjects + holdTicks).ToString();
