@@ -957,13 +957,18 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         public void Copy()
         {
-            if (!CanCopy()) 
+            if (!CanCopy())
+            {
+                Notify("This object cannot be copied.");
                 return;
-        
+            }
+
             if ((InspectorPanel.main.CurrentTimestamp?.Count ?? 0) > 0)
                 ClipboardItem = InspectorPanel.main.CurrentTimestamp;
             else
                 ClipboardItem = InspectorPanel.main.CurrentObject;
+            
+            Notify("Copied " + GetItemName(ClipboardItem) + " to clipboard.");
         
             OnClipboardUpdate();
         }
