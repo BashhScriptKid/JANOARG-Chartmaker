@@ -903,7 +903,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 int originalAntiAliasing;
                 try
                 {
-                    rtex = new RenderTexture(resolution.x, resolution.y, 24, RenderTextureFormat.ARGB32);
+                    rtex = new RenderTexture(resolution.x, resolution.y, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
                     originalAntiAliasing = QualitySettings.antiAliasing;
                     QualitySettings.antiAliasing = Prefs.AntiAliasing;
                     _Camera.targetTexture = rtex;
