@@ -984,7 +984,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                     }
                 });
 
-                float time = timeRange.x;
+                float frameOrigin = timeRange.x;
                 int frameIndex = 0;
                 int framePipedIndex = 0;
                 int frameYieldIndex = 0;
