@@ -1067,6 +1067,8 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 });
 
                 pipingThread.Start();
+                
+                int frameSize = resolution.x * resolution.y * 3; // RGB24
 
                 // Pre-calculate thresholds
                 int maxFrameCount = (int)(framebufferLimit / frameSize);
@@ -1138,7 +1140,6 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 }
 
                 int stride = resolution.x * 3;
-                int frameSize = resolution.x * resolution.y * 3; // RGB24
 
                 // NativeArray buffers (Persistent so the Job scheduler can access them
                 // across frames without pinning managed memory).
