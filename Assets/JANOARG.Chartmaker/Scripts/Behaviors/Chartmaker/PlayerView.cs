@@ -199,12 +199,14 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             float camRatio = safeZone.height / bound.height;
             MainCamera.fieldOfView = Mathf.Atan2(Mathf.Tan(30 * Mathf.Deg2Rad), camRatio) * 2 * Mathf.Rad2Deg;
 
-            if (!Mathf.Approximately(CurrentTime, Chartmaker.main.SongSource.time) || !Mathf.Approximately(targetAspect, lastTargetAspect)) 
+            if (!Mathf.Approximately(CurrentTime, InformationBar.main.sec) || !Mathf.Approximately(targetAspect, lastTargetAspect)) 
                 UpdateObjects();
             lastTargetAspect = targetAspect;
         }
 
-        public void UpdateObjects()
+        public void UpdateObjects() => UpdateObjects(InformationBar.main.sec, InformationBar.main.beat);
+
+        public void UpdateObjects(float sec, float beat)
         {
             CurrentTime = sec;
 
@@ -215,11 +217,11 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         Chartmaker.main.CurrentSong,
                         Chartmaker.main.CurrentChart,
                         speed: 121, 
-                        time:  InformationBar.main.sec, 
-                        pos:   InformationBar.main.beat
+                        time:  sec, 
+                        pos:   beat
                     );
                 else 
-                    Manager!.Update(InformationBar.main.sec, InformationBar.main.beat);
+                    Manager!.Update(sec, beat);
             
                 MainCamera.transform.position = Manager.Camera.CameraPivot;
                 MainCamera.transform.eulerAngles = Manager.Camera.CameraRotation; 
