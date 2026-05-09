@@ -1571,8 +1571,8 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
     [BurstCompile]
     struct FlipJob : IJobParallelFor
     {
-        [ReadOnly]  public NativeArray<byte> Src;
-        [WriteOnly] public NativeArray<byte> Dst;
+        [NativeDisableParallelForRestriction] public NativeArray<byte> Src;
+        [NativeDisableParallelForRestriction] public NativeArray<byte> Dst;
         public int Width;
         public int Height;
 
