@@ -995,6 +995,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public void SetCoverViewMode(CoverViewMode mode) 
         {
             CurrentCoverViewMode = mode;
+            UpdateObjects();
         }
 
         public void MoveCoverToCenter()
@@ -1035,13 +1036,19 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         public void UpdateIconFile() 
         {
+            Vector2Int resolution = new (128, 128);
+
             Transform originalParent = CoverBackground.rectTransform.parent;
             IconRenderCanvas.gameObject.SetActive(true);
+            // Set the canvas size first — it's used in the scale calculation below.
+            IconRenderCanvas.sizeDelta = Vector2.one * resolution.x;
             CoverBackground.rectTransform.SetParent(IconRenderCanvas);
             CoverBackground.rectTransform.sizeDelta = Vector2.one * Chartmaker.main.CurrentSong.Cover.IconSize;
             CoverBackground.rectTransform.localScale = Vector2.one * IconRenderCanvas.sizeDelta.x / Chartmaker.main.CurrentSong.Cover.IconSize;
             CoverBackground.rectTransform.anchoredPosition3D = Vector3.zero;
             CoverBackground.rectTransform.localRotation = Quaternion.identity;
+            // Disable mask so it doesn't crop layers during the icon render.
+            CoverBackground.GetComponent<RectMask2D>().enabled = false;
         
             Vector2 parallaxOffset = Chartmaker.main.CurrentSong.Cover.IconCenter;
         
@@ -1075,7 +1082,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 index++;
             }
 
-            Vector2Int resolution = new (128, 128);
+            // Force the canvas to rebuild layout before rendering.
+            Canvas.ForceUpdateCanvases();
 
             RenderTexture rtex = new (resolution.x, resolution.y, 24);
             RenderTexture.active = rtex;
@@ -1083,7 +1091,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
             Camera camera = Camera.main;
             camera.targetTexture = rtex;
-            camera.rect = new Rect(0, 0, resolution.x, resolution.y);
+            camera.rect = new Rect(0, 0, 1, 1); // normalized viewport coords, not pixels
             camera.Render();
 
             Texture2D tex = new (resolution.x, resolution.y);
@@ -1096,6 +1104,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         
         
             RenderTexture.active = camera.targetTexture = null;
+            camera.rect = new Rect(0, 0, 1, 1);
             Destroy(tex);
             Destroy(rtex);
 
