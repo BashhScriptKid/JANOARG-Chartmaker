@@ -868,6 +868,10 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
             Texture2D tex = null;
             RenderTexture rtex = null;
+            RenderTexture rtex2 = null;
+            NativeArray<byte> naSrc  = default; // readback landing buffer
+            NativeArray<byte> naDst0 = default; // job output ping
+            NativeArray<byte> naDst1 = default; // job output pong
             
             var chartmaker = Behaviors.Chartmaker.Chartmaker.main;
             var loaderPanel = chartmaker.LoaderPanel;
@@ -906,17 +910,20 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 string audioFormatArg = Prefs.AudioEncoder;
                 string extensionArg = ((MediaFormat)Prefs.OutputType).ToString();
 
-                // Setup camera and render texture
+                // Setup camera and render textures (double-buffered to allow overlapping
+                // readback of frame N with render of frame N+1).
                 int originalAntiAliasing;
                 try
                 {
-                    rtex = new RenderTexture(resolution.x, resolution.y, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+                    RenderTexture MakeRT() => new RenderTexture(
+                        resolution.x, resolution.y, 24,
+                        RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+                    rtex  = MakeRT(); rtex.Create();
+                    rtex2 = MakeRT(); rtex2.Create();
                     originalAntiAliasing = QualitySettings.antiAliasing;
                     QualitySettings.antiAliasing = Prefs.AntiAliasing;
-                    _Camera.targetTexture = rtex;
                     _Camera.rect = new Rect(0, 0, resolution.x, resolution.y);
                     _Camera.fieldOfView = fov;
-                    rtex.Create();
                 }
                 catch (Exception e)
                 {
