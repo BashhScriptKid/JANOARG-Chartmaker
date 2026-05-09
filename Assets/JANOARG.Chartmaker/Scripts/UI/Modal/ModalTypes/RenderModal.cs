@@ -869,7 +869,8 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
             Texture2D tex = null;
             RenderTexture rtex = null;
             RenderTexture rtex2 = null;
-            NativeArray<byte> naSrc  = default; // readback landing buffer
+            NativeArray<byte> naSrc  = default; // readback landing buffer (ping)
+            NativeArray<byte> naSrc1 = default; // readback landing buffer (pong)
             NativeArray<byte> naDst0 = default; // job output ping
             NativeArray<byte> naDst1 = default; // job output pong
             JobHandle lastJobHandle  = default; // completed before NativeArray disposal
@@ -1144,55 +1145,73 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 // NativeArray buffers (Persistent so the Job scheduler can access them
                 // across frames without pinning managed memory).
                 naSrc  = new NativeArray<byte>(frameSize, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+                naSrc1 = new NativeArray<byte>(frameSize, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
                 naDst0 = new NativeArray<byte>(frameSize, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
                 naDst1 = new NativeArray<byte>(frameSize, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
 
                 if (useAsyncReadback)
                 {
-                    // Double-buffered async path:
+                    // Fully pipelined async path. Each iteration overlaps three things:
                     //
-                    //  Iteration k (even):  render into rtex,  readback rtex  → naSrc
-                    //                       schedule FlipJob naSrc → naDst0
-                    //  Iteration k (odd):   render into rtex2, readback rtex2 → naSrc
-                    //                       schedule FlipJob naSrc → naDst1
+                    //   GPU:  transfer RT-A (frame N-1) → naSrc-A        [WaitAllRequests]
+                    //   CPU:  FlipJob naSrc-B (frame N-2) → naDst-B      [runs during Render]
+                    //   CPU:  Camera.Render frame N into RT-B
                     //
-                    // Because we alternate RTs the GPU can transfer frame N while we
-                    // render frame N+1 into the other RT without any data race.
-                    // JobHandle.Complete() blocks only until the Burst job finishes,
-                    // which is typically sub-millisecond for a flip-only workload.
+                    // Per iteration:
+                    //   1. Complete pending FlipJob (was running since last iter's Render)
+                    //      → CopyTo pipe buffer → enqueue
+                    //   2. WaitAllRequests for the pending readback
+                    //   3. CopyTo(activeSrc) from readback data
+                    //   4. Schedule FlipJob(activeSrc → activeDst)   ← runs during step 5
+                    //   5. Render next frame into other RT
+                    //   6. Issue readback on that RT
+                    //   [loop back: step 1 completes the job scheduled in step 4]
 
-                    AsyncGPUReadbackRequest pendingRequest = default;
-                    NativeArray<byte>       pendingDst     = default;
-                    byte[]                  pendingPipeBuf = null;
-                    bool hasPending = false;
-                    bool useRT2     = false;
+                    AsyncGPUReadbackRequest pendingRequest  = default;
+                    JobHandle               pendingFlipJob  = default;
+                    NativeArray<byte>       pendingDst      = default;
+                    byte[]                  pendingPipeBuf  = null;
+                    bool                    hasFlipJob      = false;
+                    bool                    hasReadback     = false;
+                    bool                    useRT2          = false;
+                    bool                    useSrc1         = false;
 
-                    while (frameIndex < totalFrames || hasPending)
+                    while (frameIndex < totalFrames || hasReadback || hasFlipJob)
                     {
                         await WaitForQueueAsync();
+                        CheckErrors();
 
-                        // ── Collect previous readback & complete its flip job ──────────
-                        if (hasPending)
+                        // ── 1. Complete previous flip job → enqueue ───────────────────
+                        if (hasFlipJob)
+                        {
+                            pendingFlipJob.Complete();
+                            lastJobHandle = pendingFlipJob;
+                            pendingDst.CopyTo(pendingPipeBuf);
+                            frameQueue.Enqueue(pendingPipeBuf);
+                            hasFlipJob = false;
+                        }
+
+                        // ── 2. Wait for pending readback ──────────────────────────────
+                        if (hasReadback)
                         {
                             AsyncGPUReadback.WaitAllRequests();
 
                             if (!pendingRequest.hasError)
                             {
-                                // Land readback into naSrc, schedule flip job, complete it,
-                                // then copy result into managed pipe buffer and enqueue.
-                                // Job is scheduled here (after naSrc is populated) not at
-                                // render time, so it always operates on current-frame data.
-                                pendingRequest.GetData<byte>().CopyTo(naSrc);
-                                lastJobHandle = new FlipJob
+                                // ── 3. Land readback into src buffer ──────────────────
+                                useSrc1 = !useSrc1;
+                                NativeArray<byte> activeSrc = useSrc1 ? naSrc1 : naSrc;
+                                pendingRequest.GetData<byte>().CopyTo(activeSrc);
+
+                                // ── 4. Schedule flip job (runs during Render below) ───
+                                pendingFlipJob = lastJobHandle = new FlipJob
                                 {
-                                    Src    = naSrc,
+                                    Src    = activeSrc,
                                     Dst    = pendingDst,
                                     Width  = resolution.x,
                                     Height = resolution.y,
                                 }.Schedule(resolution.y, 8);
-                                lastJobHandle.Complete();
-                                pendingDst.CopyTo(pendingPipeBuf);
-                                frameQueue.Enqueue(pendingPipeBuf);
+                                hasFlipJob = true;
                             }
                             else
                             {
@@ -1200,17 +1219,16 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                                 RenderTexture fallbackRT = useRT2 ? rtex2 : rtex;
                                 RenderTexture.active = fallbackRT;
                                 tex.ReadPixels(rectConfig, 0, 0);
-                                byte[] fallbackBuf = useRT2 ? pipeBuffer1 : pipeBuffer0;
                                 byte[] raw = tex.GetRawTextureData();
                                 for (int y = 0; y < resolution.y; y++)
                                     Buffer.BlockCopy(raw, (resolution.y - 1 - y) * stride,
-                                                     fallbackBuf, y * stride, stride);
-                                frameQueue.Enqueue(fallbackBuf);
+                                                     pendingPipeBuf, y * stride, stride);
+                                frameQueue.Enqueue(pendingPipeBuf);
                             }
-                            hasPending = false;
+                            hasReadback = false;
                         }
 
-                        // ── Render next frame ─────────────────────────────────────────
+                        // ── 5+6. Render next frame and issue readback ─────────────────
                         if (frameIndex < totalFrames)
                         {
                             useRT2 = !useRT2;
@@ -1221,19 +1239,15 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                             UpdateScene(frameIndex);
                             _Camera.targetTexture = activeRT;
                             RenderTexture.active  = activeRT;
-                            _Camera.Render();
+                            _Camera.Render();          // ← FlipJob runs concurrently here
 
-                            // Issue readback. The flip job will be scheduled next
-                            // iteration after WaitAllRequests() populates naSrc.
                             pendingRequest = AsyncGPUReadback.Request(activeRT, 0, GraphicsFormat.R8G8B8_UNorm);
                             pendingDst     = dst;
                             pendingPipeBuf = pipe;
-                            hasPending     = true;
+                            hasReadback    = true;
                             frameIndex++;
                             frameYieldIndex++;
                         }
-
-                        CheckErrors();
 
                         if (frameYieldIndex > Mathf.Clamp(Mathf.RoundToInt(
                                 (_RecentFrameTimes.Count > 0 ? 1f / (_RecentFrameTimes.Sum() / _RecentFrameTimes.Count) : 30f)) / 5, 10, 120)
@@ -1374,6 +1388,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 // Ensure any in-flight flip job is done before disposing NativeArrays.
                 lastJobHandle.Complete();
                 if (naSrc.IsCreated)  naSrc.Dispose();
+                if (naSrc1.IsCreated) naSrc1.Dispose();
                 if (naDst0.IsCreated) naDst0.Dispose();
                 if (naDst1.IsCreated) naDst1.Dispose();
                 if (tex != null)
