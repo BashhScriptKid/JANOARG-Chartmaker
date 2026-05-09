@@ -103,6 +103,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     FlickEmblem = Instantiate(PlayerView.main.HoldMeshSample, transform);
                 } 
             
+                
+                FlickEmblem.gameObject.SetActive(true);
                 FlickEmblem.sharedMaterial = mainMaterial;
                 FlickEmblem.transform.eulerAngles = PlayerView.main.MainCamera.transform.eulerAngles;
             
