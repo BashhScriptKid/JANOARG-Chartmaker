@@ -17,7 +17,9 @@ using JANOARG.Chartmaker.UI.Form.FormTypes;
 using JANOARG.Shared.Data.ChartInfo;
 using JANOARG.Chartmaker.Utils;
 using TMPro;
+using Unity.Burst;
 using Unity.Collections;
+using Unity.Jobs;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
@@ -1513,6 +1515,29 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
         
     }
     
+
+    /// <summary>
+    /// Burst-compiled parallel job that vertically flips an RGB24 frame.
+    /// Each job index corresponds to one row; rows are processed in parallel.
+    /// Src and Dst must be sized Width * Height * 3 (RGB24, no alpha).
+    /// </summary>
+    [BurstCompile]
+    struct FlipJob : IJobParallelFor
+    {
+        [ReadOnly]  public NativeArray<byte> Src;
+        [WriteOnly] public NativeArray<byte> Dst;
+        public int Width;
+        public int Height;
+
+        public void Execute(int y)
+        {
+            int stride  = Width * 3;
+            int srcRow  = (Height - 1 - y) * stride;
+            int dstRow  = y * stride;
+            for (int i = 0; i < stride; i++)
+                Dst[dstRow + i] = Src[srcRow + i];
+        }
+    }
 
     public class RenderPrefs 
     {
