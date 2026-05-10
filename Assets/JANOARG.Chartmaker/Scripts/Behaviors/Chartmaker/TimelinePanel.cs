@@ -317,12 +317,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 UpdateItems();
                 UpdateWaveform();
             }
-            else if (waveTimeouted) 
-            {
-                UpdateWaveform();
-            }
         }
-
         TimelineItem GetTimelineItem(int index)
         {
             TimelineItem item;
@@ -1067,10 +1062,38 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             tickViewportWidth  = 0;
         }
 
-        int    waveOffset                = 0;
-        float  waveTime, waveLastDensity = 0;
-        bool   waveTimeouted             = false;
-        bool[] waveBaked;
+        // Flat sbyte[] audio cache populated once on clip load.
+        // Interleaved: index = sample * channels + channel, range [-127, 127].
+        sbyte[] waveCache;
+        int     waveCacheChannels;
+        int     waveCacheFrequency;
+
+        public void CacheWaveformData()
+        {
+            AudioClip clip = Chartmaker.main.SongSource.clip;
+            if (clip == null) { waveCache = null; return; }
+
+            float[] raw = new float[clip.samples * clip.channels];
+            clip.GetData(raw, 0);
+
+            waveCache          = new sbyte[raw.Length];
+            waveCacheChannels  = clip.channels;
+            waveCacheFrequency = clip.frequency;
+
+            for (int i = 0; i < raw.Length; i++)
+                waveCache[i] = (sbyte)Mathf.RoundToInt(Mathf.Clamp(raw[i], -1f, 1f) * 127f);
+
+            DiscardWaveform();
+        }
+
+        // Read-ahead waveform buffer: 4× viewport on each side (9× total).
+        const int   WaveBufferMultiplier     = 9;
+        const int   WaveBufferHalfPad        = 4;
+        const float WaveReconstructThreshold = 0.62f;
+
+        int   waveViewportWidth  = 0;
+        int   waveViewportHeight = 0;
+        float waveTime, waveLastDensity = 0;
 
         public void UpdateWaveform()
         {
@@ -1079,218 +1102,192 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 || Mathf.Approximately(PeekRange.y, PeekRange.x)
                 || Options.WaveformMode == 0
                 || Options.WaveformIdle < (Chartmaker.main.SongSource.isPlaying ? 1 : 0)
+                || waveCache == null
             )
             {
                 WaveformImage.enabled = false;
                 return;
             }
-        
+
             if (!WaveformImage.enabled)
                 WaveformImage.enabled = true;
-        
+
             Color color = Themer.main.Keys["TimelineTickMain"];
 
-            Texture2D texture = null;
-        
-            if (WaveformImage.texture is Texture2D imageTexture)
-                texture = imageTexture;
-        
             RectTransform waveRT = WaveformImage.rectTransform;
-        
-            if (!texture || texture.width != (int)waveRT.rect.width || texture.height != (int)waveRT.rect.height)
+            int vpWidth  = Mathf.Max(1, (int)waveRT.rect.width);
+            int vpHeight = Mathf.Max(1, (int)waveRT.rect.height);
+            int texWidth = vpWidth * WaveBufferMultiplier;
+
+            float step    = (PeekRange.y - PeekRange.x) / vpWidth;
+            float density = waveCacheFrequency * step;
+
+            Texture2D texture = WaveformImage.texture as Texture2D;
+
+            if (waveViewportWidth != vpWidth || waveViewportHeight != vpHeight)
             {
-                Destroy(WaveformImage.texture);
-                WaveformImage.texture = texture = new Texture2D((int)waveRT.rect.width, (int)waveRT.rect.height);
-                waveBaked = new bool[(int)waveRT.rect.width];
-                waveOffset = 0;
+                texture = null;
+                waveViewportWidth  = vpWidth;
+                waveViewportHeight = vpHeight;
             }
 
-            AudioClip clip = Chartmaker.main.SongSource.clip;
+            if (!(Math.Abs(waveLastDensity / density - 1) < 0.0001f))
+                texture = null;
 
-            float density = clip.frequency * (PeekRange.y - PeekRange.x) / texture.width;
-
-            float step = (PeekRange.y - PeekRange.x) / texture.width;
-            float sec = Mathf.Floor(PeekRange.x / step - 1) * step;
-            int waveNewOffset = (int)((sec - waveTime) / step);
-
-            if (!(Math.Abs(waveLastDensity / density - 1) < 0.0001f) || Mathf.Abs(waveOffset - waveNewOffset) >= texture.width) {
+            if (!texture || texture.width != texWidth || texture.height != vpHeight)
+            {
                 Destroy(WaveformImage.texture);
-                WaveformImage.texture = texture = new Texture2D((int)waveRT.rect.width, (int)waveRT.rect.height);
-                waveBaked = new bool[(int)waveRT.rect.width];
+                WaveformImage.texture = texture = new Texture2D(texWidth, vpHeight)
+                {
+                    filterMode = FilterMode.Point,
+                    wrapMode   = TextureWrapMode.Clamp,
+                };
                 waveLastDensity = density;
-                waveTime = sec;
-                waveOffset = waveNewOffset = 0;
+                waveTime        = PeekRange.x - step * vpWidth * WaveBufferHalfPad;
+                waveBakeAll(texture, texWidth, vpHeight, step, color);
+                return;
             }
 
-            Color[] lineBuffer = new Color[texture.height];
-            while (waveOffset < waveNewOffset) 
+            int   viewportLeftCol   = Mathf.RoundToInt((PeekRange.x - waveTime) / step);
+            float reconstructMargin = WaveBufferHalfPad * vpWidth * WaveReconstructThreshold;
+
+            if (viewportLeftCol < reconstructMargin || viewportLeftCol + vpWidth > texWidth - reconstructMargin)
             {
-                int sLine = (waveOffset % texture.width + texture.width) % texture.width;
-                waveBaked[sLine] = false;
-                texture.SetPixels(sLine, 0, 1, texture.height, lineBuffer);
-                waveOffset++;
-            }
-            while (waveOffset > waveNewOffset) 
-            {
-                int sLine = (waveOffset % texture.width + texture.width) % texture.width;
-                waveBaked[sLine] = false;
-                texture.SetPixels(sLine, 0, 1, texture.height, lineBuffer);
-                waveOffset--;
+                waveTime = PeekRange.x - step * vpWidth * WaveBufferHalfPad;
+                waveBakeAll(texture, texWidth, vpHeight, step, color);
+                return;
             }
 
-            WaveformImage.uvRect = new Rect(waveOffset / (float)texture.width, 0, 1, 1);
-
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-            bool Timeout() => stopwatch.ElapsedMilliseconds >= 15;
-            waveTimeouted = false;
-
-            switch (Options.WaveformMode) 
-            {
-                // Waveform
-                case 1: {
-                    float[] data = new float[Mathf.CeilToInt(Math.Min(density, 1024) / clip.channels) * clip.channels];
-                    float denY = 1f / texture.height * clip.channels;
-                    float[] lastMin = new float[clip.channels], lastMax = new float[clip.channels];
-
-                    float darkAlpha = Mathf.Clamp(Mathf.Sqrt(5 / density), 0.5f, 0.8f);
-
-                    for (int a = 0; a < clip.channels; a++)
-                    {
-                        lastMin[a] = -1;
-                        lastMax[a] = 1;
-                    }
-
-                    for (int x = 0; x < texture.width; x++) 
-                    {
-                        int sampleLine = ((x + waveOffset) % texture.width + texture.width) % texture.width;
-                        if (waveBaked[sampleLine])
-                            continue;
-                   
-                        sec = waveTime + (x + waveOffset) * step;
-                        float[] min = new float[clip.channels], max = new float[clip.channels];
-                        float[] rms = new float[clip.channels];
-                        int position = (int)(sec * clip.frequency);
-                    
-                        if (position >= 0 && position < clip.samples - data.Length)
-                        {
-                            clip.GetData(data, position);
-                            for (int a = 0; a < clip.channels; a++)
-                            {
-                                min[a] = 1;
-                                max[a] = -1;
-                            }
-                            for (int a = 0; a < data.Length; a++)
-                            {
-                                int channels = (a) % clip.channels;
-                                min[channels] = Math.Min(min[channels], data[a]);
-                                max[channels] = Math.Max(max[channels], data[a]);
-                                rms[channels] += data[a] * data[a];
-                            }
-                        
-                            for (int a = 0; a < clip.channels; a++)
-                            {
-                                float temp;
-                                min[a] = Math.Min(lastMax[a], temp = min[a]) * .8f;
-                                max[a] = Math.Max(lastMin[a], lastMax[a] = max[a]) * .8f;
-                                rms[a] = Mathf.Sqrt(rms[a] / data.Length * clip.channels) * .8f;
-                                lastMin[a] = temp;
-                            }
-                        }
-                        float samplePos = 0;
-                        for (int y = 0; y < texture.height; y++) 
-                        {
-                            int channel = Mathf.FloorToInt(samplePos);
-                            float window = 1 - (samplePos % 1) * 2f;
-                            color.a = window >= min[channel] - denY && window <= max[channel] + denY ? (
-                                Mathf.Abs(window) < rms[channel] - denY ? 0.8f : darkAlpha
-                            ) : 0;
-                            lineBuffer[y] = color;
-                            samplePos += denY;
-                        }
-                    
-                        texture.SetPixels(sampleLine, 0, 1, texture.height, lineBuffer);
-                        waveBaked[sampleLine] = true;
-                    
-                        if (Timeout())
-                        {
-                            waveTimeouted = true;
-                            break;
-                        }
-                    }
-                } break;
-
-                // Spectrogram
-                case 2: {
-                    int resolution = 512;
-
-                    float[] data = new float[resolution * clip.channels];
-                    float[][] fft = new float[clip.channels][];
-                    float denY = 1f / texture.height * clip.channels;
-
-                    for (int i = 0; i < clip.channels; i++) 
-                        fft[i] = new float[resolution];
-
-                    FrequencyScaling.GetScalingFunctions(Chartmaker.Preferences.FrequencyScale, out var scale, out var unscale);
-
-                    float minScale = scale(Chartmaker.Preferences.FrequencyMin);
-                    float maxScale = scale(Chartmaker.Preferences.FrequencyMax);
-                
-                    for (int x = 0; x < texture.width; x++) 
-                    {
-                        int sampleLine = ((x + waveOffset) % texture.width + texture.width) % texture.width;
-                        if (waveBaked[sampleLine]) continue;
-                        sec = waveTime + (x + waveOffset) * step;
-                        int position = (int)(sec * clip.frequency - resolution / 2);
-                        if (position >= 0 && position < clip.samples - data.Length)
-                        {
-                            clip.GetData(data, position);
-                        
-                            for (int y = 0; y < data.Length; y++) 
-                            {
-                                int chan = (position + y) % clip.channels;
-                                int p = y / clip.channels;
-                                fft[chan][p] = data[y];
-                            }
-                        
-                            foreach (var t in fft)
-                                FFT.Transform(t, Chartmaker.Preferences.FFTWindow);
-                        }
-                    
-                        float sPos = 0;
-                        for (int y = 0; y < texture.height; y++) 
-                        {
-                            int channel = Mathf.FloorToInt(sPos);
-                            float cPos = Mathf.Clamp(unscale(Mathf.Lerp(minScale, maxScale, sPos % 1)) / clip.frequency * resolution, 0, resolution - 1);
-                            float value = Mathf.Sqrt(Mathf.Lerp(fft[channel][Mathf.FloorToInt(cPos)], fft[channel][Mathf.CeilToInt(cPos)], cPos % 1) / resolution * cPos) / 4;
-                            lineBuffer[y] = color * new Color(1, 1, 1, value);
-                            sPos += denY;
-                        }
-                        texture.SetPixels(sampleLine, 0, 1, texture.height, lineBuffer);
-                        waveBaked[sampleLine] = true;
-                    
-                        if (Timeout())
-                        {
-                            waveTimeouted = true;
-                            break;
-                        }
-                    }
-                } break;
-            }
-
-            texture.Apply();
+            float uvLeft = (float)viewportLeftCol / texWidth;
+            float uvSize = (float)vpWidth / texWidth;
+            WaveformImage.uvRect = new Rect(uvLeft, 0f, uvSize, 1f);
         }
 
-        public void DiscardWaveform() 
+        void waveBakeAll(Texture2D texture, int texWidth, int texHeight, float step, Color color)
         {
-            var waveRT = WaveformImage.rectTransform;
-       
+            Color[] pixels = new Color[texWidth * texHeight];
+
+            switch (Options.WaveformMode)
+            {
+                case 1: waveBakeWaveform(pixels, texWidth, texHeight, step, color);    break;
+                case 2: waveBakeSpectrogram(pixels, texWidth, texHeight, step, color); break;
+            }
+
+            texture.SetPixels(pixels);
+            texture.Apply();
+
+            int   vpWidth      = waveViewportWidth;
+            int   viewportLeft = Mathf.RoundToInt((PeekRange.x - waveTime) / step);
+            float uvLeft       = (float)viewportLeft / texWidth;
+            float uvSize       = (float)vpWidth / texWidth;
+            WaveformImage.uvRect = new Rect(uvLeft, 0f, uvSize, 1f);
+        }
+
+        void waveBakeWaveform(Color[] pixels, int texWidth, int texHeight, float step, Color color)
+        {
+            int   channels     = waveCacheChannels;
+            float density      = waveCacheFrequency * step;
+            float denY         = 1f / texHeight * channels;
+            float darkAlpha    = Mathf.Clamp(Mathf.Sqrt(5 / density), 0.5f, 0.8f);
+            int   sampleWindow = Mathf.Max(1, Mathf.CeilToInt(density / channels) * channels);
+
+            float[] lastMin = new float[channels];
+            float[] lastMax = new float[channels];
+            for (int a = 0; a < channels; a++) { lastMin[a] = -1; lastMax[a] = 1; }
+
+            for (int x = 0; x < texWidth; x++)
+            {
+                float sec    = waveTime + x * step;
+                int   pos    = (int)(sec * waveCacheFrequency) * channels;
+                int   posEnd = Mathf.Min(pos + sampleWindow, waveCache.Length);
+
+                float[] min = new float[channels], max = new float[channels], rms = new float[channels];
+                for (int a = 0; a < channels; a++) { min[a] = 1; max[a] = -1; }
+
+                if (pos >= 0 && posEnd <= waveCache.Length && pos < posEnd)
+                {
+                    for (int i = pos; i < posEnd; i++)
+                    {
+                        int   ch = i % channels;
+                        float s  = waveCache[i] / 127f;
+                        if (s < min[ch]) min[ch] = s;
+                        if (s > max[ch]) max[ch] = s;
+                        rms[ch] += s * s;
+                    }
+                    for (int a = 0; a < channels; a++)
+                    {
+                        float temp;
+                        min[a] = Math.Min(lastMax[a], temp = min[a]) * .8f;
+                        max[a] = Math.Max(lastMin[a], lastMax[a] = max[a]) * .8f;
+                        rms[a] = Mathf.Sqrt(rms[a] / sampleWindow * channels) * .8f;
+                        lastMin[a] = temp;
+                    }
+                }
+
+                float samplePos = 0;
+                for (int y = 0; y < texHeight; y++)
+                {
+                    int   ch     = Mathf.FloorToInt(samplePos);
+                    float window = 1 - (samplePos % 1) * 2f;
+                    color.a = window >= min[ch] - denY && window <= max[ch] + denY
+                        ? (Mathf.Abs(window) < rms[ch] - denY ? 0.8f : darkAlpha)
+                        : 0;
+                    pixels[y * texWidth + x] = color;
+                    samplePos += denY;
+                }
+            }
+        }
+
+        void waveBakeSpectrogram(Color[] pixels, int texWidth, int texHeight, float step, Color color)
+        {
+            int   channels   = waveCacheChannels;
+            int   resolution = 512;
+            float denY       = 1f / texHeight * channels;
+
+            float[][] fft = new float[channels][];
+            for (int i = 0; i < channels; i++)
+                fft[i] = new float[resolution];
+
+            FrequencyScaling.GetScalingFunctions(Chartmaker.Preferences.FrequencyScale, out var scale, out var unscale);
+            float minScale = scale(Chartmaker.Preferences.FrequencyMin);
+            float maxScale = scale(Chartmaker.Preferences.FrequencyMax);
+
+            for (int x = 0; x < texWidth; x++)
+            {
+                float sec = waveTime + x * step;
+                int   pos = ((int)(sec * waveCacheFrequency) - resolution / 2) * channels;
+
+                if (pos >= 0 && pos + resolution * channels <= waveCache.Length)
+                {
+                    for (int y = 0; y < resolution * channels; y++)
+                    {
+                        int ch = (pos + y) % channels;
+                        int p  = y / channels;
+                        fft[ch][p] = waveCache[pos + y] / 127f;
+                    }
+                    foreach (var t in fft)
+                        FFT.Transform(t, Chartmaker.Preferences.FFTWindow);
+                }
+
+                float sPos = 0;
+                for (int y = 0; y < texHeight; y++)
+                {
+                    int   ch    = Mathf.FloorToInt(sPos);
+                    float cPos  = Mathf.Clamp(unscale(Mathf.Lerp(minScale, maxScale, sPos % 1)) / waveCacheFrequency * resolution, 0, resolution - 1);
+                    float value = Mathf.Sqrt(Mathf.Lerp(fft[ch][Mathf.FloorToInt(cPos)], fft[ch][Mathf.CeilToInt(cPos)], cPos % 1) / resolution * cPos) / 4;
+                    pixels[y * texWidth + x] = color * new Color(1, 1, 1, value);
+                    sPos += denY;
+                }
+            }
+        }
+
+        public void DiscardWaveform()
+        {
             Destroy(WaveformImage.texture);
-        
-            WaveformImage.texture = new Texture2D((int)waveRT.rect.width, (int)waveRT.rect.height);
-        
-            if (waveBaked != null)
-                waveBaked = new bool[waveBaked.Length];
-            waveTimeouted = true;
+            WaveformImage.texture = null;
+            waveLastDensity   = 0;
+            waveViewportWidth  = 0;
+            waveViewportHeight = 0;
         }
 
         string FormatNumber(float number, int type) 
