@@ -329,23 +329,31 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         
             if (Items.Count <= index)
                 Items.Add(item = Instantiate(ItemSample, ItemsHolder));
-            else 
+            else
+            {
                 item = Items[index];
+                if (!item.gameObject.activeSelf)
+                    item.gameObject.SetActive(true);
+            }
         
             return item;
         }
         Image GetItemTail(int index)
         {
-            Image item;
-        
-            // Special case for previewer 
+            // Special case for previewer
             if (index == -3280)
                 return Instantiate(ItemTailSample, TailsHolder);
-            
-            if (ItemTails.Count <= index) 
+
+            Image item;
+
+            if (ItemTails.Count <= index)
                 ItemTails.Add(item = Instantiate(ItemTailSample, TailsHolder));
-            else 
+            else
+            {
                 item = ItemTails[index];
+                if (!item.gameObject.activeSelf)
+                    item.gameObject.SetActive(true);
+            }
         
             return item;
         }
@@ -356,7 +364,11 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             if (Labels.Count <= index)
                 Labels.Add(item = Instantiate(LabelSample, LabelsHolder));
             else
+            {
                 item = Labels[index];
+                if (!item.gameObject.activeSelf)
+                    item.gameObject.SetActive(true);
+            }
         
             return item;
         }
@@ -366,8 +378,12 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         
             if (Graphs.Count <= index)
                 Graphs.Add(item = Instantiate(GraphSample, GraphsHolder));
-            else 
+            else
+            {
                 item = Graphs[index];
+                if (!item.gameObject.activeSelf)
+                    item.gameObject.SetActive(true);
+            }
         
             return item;
         }
@@ -378,7 +394,11 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             if (StoryboardEntries.Count <= index)
                 StoryboardEntries.Add(item = Instantiate(StoryboardEntrySample, StoryboardEntryHolder));
             else
+            {
                 item = StoryboardEntries[index];
+                if (!item.gameObject.activeSelf)
+                    item.gameObject.SetActive(true);
+            }
         
             return item;
         }
@@ -766,35 +786,25 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
             StoryboardText.alpha = InspectorPanel.main.CurrentObject == null || InspectorPanel.main.CurrentHierarchyObject is not Storyboardable ? 0.5f : 1f;
 
-            while (Items.Count > count)
-            {
-                Destroy(Items[^1].gameObject);
-                Items.RemoveAt(Items.Count - 1);
-            }
-        
-            while (ItemTails.Count > tailCount)
-            {
-                Destroy(ItemTails[^1].gameObject);
-                ItemTails.RemoveAt(ItemTails.Count - 1);
-            }
-        
-            while (Labels.Count > labelCount)
-            {
-                Destroy(Labels[^1].gameObject);
-                Labels.RemoveAt(Labels.Count - 1);
-            }
-        
-            while (Graphs.Count > graphCount)
-            {
-                Destroy(Graphs[^1].gameObject);
-                Graphs.RemoveAt(Graphs.Count - 1);
-            }
-        
-            while (StoryboardEntries.Count > sbcount)
-            {
-                Destroy(StoryboardEntries[^1].gameObject);
-                StoryboardEntries.RemoveAt(StoryboardEntries.Count - 1);
-            }
+            for (int i = count; i < Items.Count; i++)
+                if (Items[i].gameObject.activeSelf)
+                    Items[i].gameObject.SetActive(false);
+
+            for (int i = tailCount; i < ItemTails.Count; i++)
+                if (ItemTails[i].gameObject.activeSelf)
+                    ItemTails[i].gameObject.SetActive(false);
+
+            for (int i = labelCount; i < Labels.Count; i++)
+                if (Labels[i].gameObject.activeSelf)
+                    Labels[i].gameObject.SetActive(false);
+
+            for (int i = graphCount; i < Graphs.Count; i++)
+                if (Graphs[i].gameObject.activeSelf)
+                    Graphs[i].gameObject.SetActive(false);
+
+            for (int i = sbcount; i < StoryboardEntries.Count; i++)
+                if (StoryboardEntries[i].gameObject.activeSelf)
+                    StoryboardEntries[i].gameObject.SetActive(false);
         
             if (ItemHeight != times.Count)
             {
@@ -1653,7 +1663,21 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             {
 
                 localPos(ItemsHolder, out dragEnd);
-                timeEnd = Mathf.Lerp(PeekRange.x, PeekRange.y, dragEnd.x / ItemsHolder.rect.width);
+
+                // Auto-scroll when pointer overshoots the left or right edge.
+                // Speed scales linearly with overshoot distance, capped at 3× viewport width per second.
+                float holderWidth  = ItemsHolder.rect.width;
+                float overshoot    = dragEnd.x < 0 ? dragEnd.x : dragEnd.x > holderWidth ? dragEnd.x - holderWidth : 0f;
+                if (overshoot != 0f)
+                {
+                    float viewportSec  = PeekRange.y - PeekRange.x;
+                    float scrollSpeed  = Mathf.Clamp(overshoot / holderWidth, -3f, 3f) * viewportSec;
+                    float scrollDelta  = scrollSpeed * Time.unscaledDeltaTime;
+                    PeekRange.x = Mathf.Clamp(PeekRange.x + scrollDelta, limit.x, limit.y - viewportSec);
+                    PeekRange.y = PeekRange.x + viewportSec;
+                }
+
+                timeEnd = Mathf.Lerp(PeekRange.x, PeekRange.y, dragEnd.x / holderWidth);
 
                 Metronome metronome = Chartmaker.main.CurrentSong.Timing;
                 beatEnd = RoundBeat(timeEnd);
