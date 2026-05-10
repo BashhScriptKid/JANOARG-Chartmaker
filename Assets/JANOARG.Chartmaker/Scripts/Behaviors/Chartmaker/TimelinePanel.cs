@@ -1136,6 +1136,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         volatile bool    _waveBakePending = false;
         Color[]          _wavePendingPixels;
         Texture2D        _wavePendingTexture;
+        float            _wavePendingBakeTime;
         float            _wavePendingStep;
         int              _wavePendingTexWidth;
 
@@ -1145,13 +1146,16 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             _waveBakePending = false;
 
             if (_wavePendingTexture == null || _wavePendingPixels == null) return;
-            if (_wavePendingTexture != WaveformImage.texture) return; // texture was replaced, discard
+            if (_wavePendingTexture != WaveformImage.texture) return;
 
             _wavePendingTexture.SetPixels(_wavePendingPixels);
             _wavePendingTexture.Apply(false, false);
 
-            // Compute UV from current PeekRange so we don't snap to a stale position
-            int   viewportLeft = Mathf.RoundToInt((PeekRange.x - waveTime) / _wavePendingStep);
+            // Adopt the baked buffer's time origin so UpdateWaveform uses the correct reference
+            waveTime = _wavePendingBakeTime;
+
+            // Use bakeTime (not current waveTime) — the texture was baked relative to that origin
+            int   viewportLeft = Mathf.RoundToInt((PeekRange.x - _wavePendingBakeTime) / _wavePendingStep);
             float uvLeft       = (float)viewportLeft / _wavePendingTexWidth;
             float uvSize       = (float)waveViewportWidth / _wavePendingTexWidth;
             WaveformImage.uvRect = new Rect(uvLeft, 0f, uvSize, 1f);
@@ -1257,6 +1261,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
                 _wavePendingPixels   = pixels;
                 _wavePendingTexture  = texture;
+                _wavePendingBakeTime = bakeTime;
                 _wavePendingStep     = step;
                 _wavePendingTexWidth = texWidth;
                 _waveBakePending     = true;
