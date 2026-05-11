@@ -3718,7 +3718,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8c3575a8e2f3f824ba92bd05325e044a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Text: Vertical Offset
+  Text: Vertical View Offset
   Delay: 1
   PositionMode: 1
 --- !u!114 &132610438
@@ -72307,7 +72307,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8c3575a8e2f3f824ba92bd05325e044a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Text: Vertical Scale
+  Text: Vertical View Scale
   Delay: 1
   PositionMode: 1
 --- !u!114 &1574014712
