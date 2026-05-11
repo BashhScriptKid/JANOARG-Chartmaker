@@ -1641,18 +1641,22 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             else if (contains(PeekStartSlider))
             {
                 dragMode = TimelineDragMode.PeekStart;
+                localPos(PeekStartSlider, out dragStart);
             }
             else if (contains(PeekEndSlider))
             {
                 dragMode = TimelineDragMode.PeekEnd;
+                localPos(PeekEndSlider, out dragStart);
             }
             else if (contains(CurrentTimeSlider))
             {
                 dragMode = TimelineDragMode.CurrentTime;
+                localPos(CurrentTimeSlider, out dragStart);
             }
             else if (contains(PeekRangeSlider))
             {
                 dragMode = TimelineDragMode.PeekRange;
+                localPos(PeekRangeSlider, out dragStart);
             }
             else 
                 dragMode = TimelineDragMode.None;
