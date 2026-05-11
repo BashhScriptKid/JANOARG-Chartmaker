@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using JANOARG.Chartmaker.Constants;
 using JANOARG.Chartmaker.Data.Chartmaker;
 using JANOARG.Chartmaker.Data.Chartmaker.Actions;
@@ -13,6 +14,9 @@ using JANOARG.Shared.Data.ChartInfo;
 using JANOARG.Chartmaker.Utils;
 using JANOARG.Shared.Utils;
 using TMPro;
+using Unity.Burst;
+using Unity.Collections;
+using Unity.Jobs;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -1289,57 +1293,102 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         void waveBakeWaveform(Color[] pixels, int texWidth, int texHeight, float step, Color color, float bakeTime)
         {
-            int   channels     = waveCacheChannels;
-            float density      = waveCacheFrequency * step;
-            float denY         = 1f / texHeight * channels;
-            float darkAlpha    = Mathf.Clamp(Mathf.Sqrt(5 / density), 0.5f, 0.8f);
-            int   sampleWindow = Mathf.Max(1, Mathf.CeilToInt(density / channels) * channels);
+            // Allocate shared buffers
+            sbyte[] localWaveCache = waveCache; // Assuming waveCache is already populated in your system
+            Color[] localPixels = pixels;
 
-            float[] lastMin = new float[channels];
-            float[] lastMax = new float[channels];
-            for (int a = 0; a < channels; a++) { lastMin[a] = -1; lastMax[a] = 1; }
+            // Shared settings
+            int channels = waveCacheChannels;
+            int freq = waveCacheFrequency;
+            float density = waveCacheFrequency * step;
+            float denY = 1f / texHeight * channels;
+            float darkAlpha = Mathf.Clamp(Mathf.Sqrt(5 / density), 0.5f, 0.8f);
+            int sampleWindow = Mathf.Max(1, Mathf.CeilToInt(density / channels) * channels);
 
-            float[] min = new float[channels], max = new float[channels], rms = new float[channels];
+            // Initialize the per-column tasks
+            Task[] tasks = new Task[texHeight];
 
-            for (int x = 0; x < texWidth; x++)
+            for (int y = 0; y < texHeight; y++)
             {
-                float sec    = bakeTime + x * step;
-                int   pos    = (int)(sec * waveCacheFrequency) * channels;
-                int   posEnd = Mathf.Min(pos + sampleWindow, waveCache.Length);
-
-                for (int a = 0; a < channels; a++) { min[a] = 1; max[a] = -1; rms[a] = 0; }
-
-                if (pos >= 0 && posEnd <= waveCache.Length && pos < posEnd)
+                int currentRow = y; // Capture the row for this task
+                tasks[y] = Task.Run(() =>
                 {
-                    for (int i = pos; i < posEnd; i++)
-                    {
-                        int   ch = i % channels;
-                        float s  = waveCache[i] / 127f;
-                        if (s < min[ch]) min[ch] = s;
-                        if (s > max[ch]) max[ch] = s;
-                        rms[ch] += s * s;
-                    }
+                    // Per-task local buffers
+                    float[] min = new float[channels];
+                    float[] max = new float[channels];
+                    float[] rms = new float[channels];
+                    float[] lastMin = new float[channels];
+                    float[] lastMax = new float[channels];
+
+                    // Initialize the last min and max for the task
                     for (int a = 0; a < channels; a++)
                     {
-                        float temp;
-                        min[a] = Math.Min(lastMax[a], temp = min[a]) * .8f;
-                        max[a] = Math.Max(lastMin[a], lastMax[a] = max[a]) * .8f;
-                        rms[a] = Mathf.Sqrt(rms[a] / sampleWindow * channels) * .8f;
-                        lastMin[a] = temp;
+                        lastMin[a] = -1f;
+                        lastMax[a] = 1f;
                     }
-                }
 
-                float samplePos = 0;
-                for (int y = 0; y < texHeight; y++)
-                {
-                    int   ch     = Mathf.FloorToInt(samplePos);
-                    float window = 1 - (samplePos % 1) * 2f;
-                    color.a = window >= min[ch] - denY && window <= max[ch] + denY
-                        ? (Mathf.Abs(window) < rms[ch] - denY ? 0.8f : darkAlpha)
-                        : 0;
-                    pixels[y * texWidth + x] = color;
-                    samplePos += denY;
-                }
+                    float samplePos = currentRow * denY;
+                    int channel = Mathf.FloorToInt(samplePos);
+
+                    for (int x = 0; x < texWidth; x++)
+                    {
+                        float sec = bakeTime + x * step;
+                        int pos = Mathf.FloorToInt(sec * freq) * channels;
+                        int posEnd = Mathf.Min(pos + sampleWindow, localWaveCache.Length);
+
+                        // Reset min, max, and RMS buffers
+                        for (int a = 0; a < channels; a++)
+                        {
+                            min[a] = 1f;
+                            max[a] = -1f;
+                            rms[a] = 0f;
+                        }
+
+                        // Process waveform if the range is valid
+                        if (pos >= 0 && posEnd <= localWaveCache.Length)
+                        {
+                            for (int i = pos; i < posEnd; i++)
+                            {
+                                int ch = i % channels;
+                                float sample = localWaveCache[i] / 127f;
+
+                                // Update min, max, and RMS
+                                min[ch] = sample < min[ch] ? sample : min[ch];
+                                max[ch] = sample > max[ch] ? sample : max[ch];
+                                rms[ch] += sample * sample;
+                            }
+
+                            // Smooth the current column using the last column's data
+                            for (int a = 0; a < channels; a++)
+                            {
+                                float temp = min[a];
+                                min[a] = Mathf.Min(lastMax[a], temp) * 0.8f;
+                                max[a] = Mathf.Max(lastMin[a], lastMax[a] = max[a]) * 0.8f;
+                                rms[a] = Mathf.Sqrt(rms[a] / sampleWindow * channels) * 0.8f;
+
+                                lastMin[a] = temp;
+                            }
+                        }
+
+                        // Update the pixel alpha for this column
+                        float window = 1f - (samplePos % 1f) * 2f;
+                        Color pixel = color;
+                        pixel.a = (window >= min[channel] - denY && window <= max[channel] + denY)
+                            ? (Mathf.Abs(window) < rms[channel] - denY ? 0.8f : darkAlpha)
+                            : 0f;
+
+                        localPixels[currentRow * texWidth + x] = pixel;
+                    }
+                });
+            }
+
+            // Wait for all tasks to complete
+            Task.WaitAll(tasks);
+
+            // Copy the computed pixel data back to the input array
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                pixels[i] = localPixels[i];
             }
         }
 
