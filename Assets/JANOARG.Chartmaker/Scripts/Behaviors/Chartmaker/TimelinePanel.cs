@@ -1147,8 +1147,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
             if (WaveformStagingImage.texture == null || _wavePixelBuffer == null) return;
 
-            WaveformStagingImage.texture.SetPixels(_wavePixelBuffer);
-            WaveformStagingImage.texture.Apply(false, false);
+            if (WaveformStagingImage.texture is not Texture2D stagingTex || _wavePixelBuffer == null) return;
+            stagingTex.SetPixels(_wavePixelBuffer);
+            stagingTex.Apply(false, false);
 
             // Swap textures: staging becomes live, live becomes the next staging surface
             (WaveformImage.texture, WaveformStagingImage.texture) =
@@ -1234,7 +1235,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             int   viewportLeftCol   = Mathf.RoundToInt((PeekRange.x - _waveLiveTime) / step);
             float reconstructMargin = WaveBufferHalfPad * vpWidth * WaveReconstructThreshold;
 
-            if (viewportLeftCol < reconstructMargin || viewportLeftCol + vpWidth > liveTexWidth - reconstructMargin)
+            if ((viewportLeftCol < reconstructMargin || viewportLeftCol + vpWidth > liveTexWidth - reconstructMargin) && !_waveBakePending)
             {
                 // Recentre: trigger bake of new buffer, keep showing old texture until ready
                 float newBakeTime = PeekRange.x - step * vpWidth * WaveBufferHalfPad;
@@ -1245,8 +1246,6 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 };
                 waveTime = newBakeTime;
                 TriggerWaveBake(newTex, texWidth, vpHeight, step, color);
-                // Don't update _waveLiveTime — old texture stays live with its own origin until flush
-                return;
             }
 
             float uvLeft = (float)viewportLeftCol / liveTexWidth;
