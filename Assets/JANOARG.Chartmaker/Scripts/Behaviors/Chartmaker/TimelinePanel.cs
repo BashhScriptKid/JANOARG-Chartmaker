@@ -75,6 +75,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public RawImage TicksImage;
         [Space]
         public RawImage WaveformImage;
+        public RawImage WaveformStagingImage;
         [Space]
         public Scrollbar VerticalScrollbar;
         public GameObject  Blocker;
@@ -1131,41 +1132,36 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         int   waveViewportWidth  = 0;
         int   waveViewportHeight = 0;
         float waveTime, waveLastDensity = 0;
-        float _waveLiveTime = 0; // time origin of the currently displayed texture
-        int   waveTexWidth = 0; // current live texture width (may differ from vpWidth * multiplier)
+        float _waveLiveTime = 0;
+        int   waveTexWidth  = 0;
 
-        // Pending async bake result — applied on the main thread by FlushPendingWaveBake().
-        // The old texture stays on WaveformImage until the new one is ready (stale hold).
-        volatile bool    _waveBakePending    = false;
-        Color[]          _wavePendingPixels;
-        Texture2D        _wavePendingTexture; // newly baked texture, not yet assigned
-        Texture2D        _waveOldTexture;     // previous texture, kept live during bake
-        float            _wavePendingBakeTime;
-        float            _wavePendingStep;
-        int              _wavePendingTexWidth;
+        volatile bool _waveBakePending   = false;
+        float         _wavePendingBakeTime;
+        float         _wavePendingStep;
+        int           _wavePendingTexWidth;
 
         void FlushPendingWaveBake()
         {
             if (!_waveBakePending) return;
             _waveBakePending = false;
 
-            if (_wavePendingTexture == null || _wavePendingPixels == null) return;
+            if (WaveformStagingImage.texture == null || _wavePixelBuffer == null) return;
 
-            _wavePendingTexture.SetPixels(_wavePendingPixels);
-            _wavePendingTexture.Apply(false, false);
+            WaveformStagingImage.texture.SetPixels(_wavePixelBuffer);
+            WaveformStagingImage.texture.Apply(false, false);
 
-            // Swap in the new texture, destroy the old one
-            Destroy(_waveOldTexture);
-            _waveOldTexture = null;
-            WaveformImage.texture = _wavePendingTexture;
+            // Swap textures: staging becomes live, live becomes the next staging surface
+            (WaveformImage.texture, WaveformStagingImage.texture) =
+                (WaveformStagingImage.texture, WaveformImage.texture);
+
             waveTexWidth  = _wavePendingTexWidth;
             waveTime      = _wavePendingBakeTime;
             _waveLiveTime = _wavePendingBakeTime;
 
             int   viewportLeft = Mathf.RoundToInt((PeekRange.x - _wavePendingBakeTime) / _wavePendingStep);
-            float uvLeft       = (float)viewportLeft / _wavePendingTexWidth;
+            float uvLeft       = Mathf.Clamp01((float)viewportLeft / _wavePendingTexWidth);
             float uvSize       = (float)waveViewportWidth / _wavePendingTexWidth;
-            WaveformImage.uvRect = new Rect(Mathf.Clamp01(uvLeft), 0f, uvSize, 1f);
+            WaveformImage.uvRect = new Rect(uvLeft, 0f, uvSize, 1f);
         }
 
         int ComputeWaveTexWidth(int vpWidth, float step)
@@ -1229,7 +1225,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 waveLastDensity = density;
                 waveTime        = PeekRange.x - step * vpWidth * WaveBufferHalfPad;
                 _waveLiveTime   = waveTime;
-                TriggerWaveBake(newTex, texture, texWidth, vpHeight, step, color);
+                TriggerWaveBake(newTex, texWidth, vpHeight, step, color);
                 return;
             }
 
@@ -1248,7 +1244,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     wrapMode   = TextureWrapMode.Clamp,
                 };
                 waveTime = newBakeTime;
-                TriggerWaveBake(newTex, texture, texWidth, vpHeight, step, color);
+                TriggerWaveBake(newTex, texWidth, vpHeight, step, color);
                 // Don't update _waveLiveTime — old texture stays live with its own origin until flush
                 return;
             }
@@ -1260,14 +1256,13 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         
         Color[] _wavePixelBuffer;
 
-        void TriggerWaveBake(Texture2D newTexture, Texture2D oldTexture, int texWidth, int texHeight, float step, Color color)
+        void TriggerWaveBake(Texture2D stagingTexture, int texWidth, int texHeight, float step, Color color)
         {
-            // Snapshot all values the background thread will need — no Unity API on bg thread.
             float bakeTime    = waveTime;
             int   mode        = Options.WaveformMode;
-            FrequencyScale freqScale = Chartmaker.Preferences.FrequencyScale;
-            float          freqMin  = Chartmaker.Preferences.FrequencyMin;
-            float          freqMax  = Chartmaker.Preferences.FrequencyMax;
+            FrequencyScale freqScale  = Chartmaker.Preferences.FrequencyScale;
+            float          freqMin   = Chartmaker.Preferences.FrequencyMin;
+            float          freqMax   = Chartmaker.Preferences.FrequencyMax;
             FFTWindow      fftWindow = Chartmaker.Preferences.FFTWindow;
 
             int needed = texWidth * texHeight;
@@ -1275,11 +1270,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 _wavePixelBuffer = new Color[needed];
             Color[] pixels = _wavePixelBuffer;
 
-            // Cancel any in-flight bake; its old texture reference is superseded
             _waveBakePending = false;
-            if (_waveOldTexture != null && _waveOldTexture != oldTexture)
-                Destroy(_waveOldTexture);
-            _waveOldTexture = oldTexture;
+            WaveformStagingImage.texture = stagingTexture;
 
             System.Threading.Tasks.Task.Run(() =>
             {
@@ -1289,8 +1281,6 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     case 2: waveBakeSpectrogram(pixels, texWidth, texHeight, step, color, bakeTime, freqScale, freqMin, freqMax, fftWindow); break;
                 }
 
-                _wavePendingPixels   = pixels;
-                _wavePendingTexture  = newTexture;
                 _wavePendingBakeTime = bakeTime;
                 _wavePendingStep     = step;
                 _wavePendingTexWidth = texWidth;
@@ -1402,10 +1392,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             _waveBakePending = false;
             Destroy(WaveformImage.texture);
             WaveformImage.texture = null;
-            Destroy(_wavePendingTexture);
-            _wavePendingTexture = null;
-            Destroy(_waveOldTexture);
-            _waveOldTexture    = null;
+            Destroy(WaveformStagingImage.texture);
+            WaveformStagingImage.texture = null;
             waveLastDensity    = 0;
             waveViewportWidth  = 0;
             waveViewportHeight = 0;
