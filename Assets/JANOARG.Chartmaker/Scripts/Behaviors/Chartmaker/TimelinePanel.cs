@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using JANOARG.Chartmaker.Constants;
 using JANOARG.Chartmaker.Data.Chartmaker;
@@ -1100,10 +1101,13 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         int     waveCacheChannels;
         int     waveCacheFrequency;
 
+        struct WaveformStats { public float min, max, rmsSqSum; }
+        WaveformStats[][] _waveMipChain; // Tiered stats for faster baking
+
         public void CacheWaveformData()
         {
             AudioClip clip = Chartmaker.main.SongSource.clip;
-            if (clip == null) { waveCache = null; return; }
+            if (clip == null) { waveCache = null; _waveMipChain = null; return; }
 
             int channels  = clip.channels;
             int totalSamples = clip.samples * channels;
@@ -1125,6 +1129,35 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 written += count;
             }
 
+            // Generate MipChain (Base power of 2: 64 samples)
+            int baseSize = 64;
+            int numMips = 10; // Covers up to 64*2^9 = 32768 samples per window
+            _waveMipChain = new WaveformStats[numMips][];
+            
+            for (int m = 0; m < numMips; m++)
+            {
+                int window = baseSize << m;
+                int count = clip.samples / window;
+                _waveMipChain[m] = new WaveformStats[count * channels];
+                
+                for (int i = 0; i < count; i++)
+                {
+                    for (int ch = 0; ch < channels; ch++)
+                    {
+                        float min = 1f, max = -1f, rmsSqSum = 0f;
+                        int start = i * window * channels + ch;
+                        for (int s = 0; s < window; s++)
+                        {
+                            float val = waveCache[start + s * channels] / 127f;
+                            if (val < min) min = val;
+                            if (val > max) max = val;
+                            rmsSqSum += val * val;
+                        }
+                        _waveMipChain[m][i * channels + ch] = new WaveformStats { min = min, max = max, rmsSqSum = rmsSqSum };
+                    }
+                }
+            }
+
             DiscardWaveform();
         }
 
@@ -1139,36 +1172,6 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         float _waveLiveTime = 0;
         int   waveTexWidth  = 0;
 
-        volatile bool _waveBakePending   = false;
-        float         _wavePendingBakeTime;
-        float         _wavePendingStep;
-        int           _wavePendingTexWidth;
-
-        void FlushPendingWaveBake()
-        {
-            if (!_waveBakePending) return;
-            _waveBakePending = false;
-
-            if (WaveformStagingImage.texture == null || _wavePixelBuffer == null) return;
-
-            if (WaveformStagingImage.texture is not Texture2D stagingTex || _wavePixelBuffer == null) return;
-            stagingTex.SetPixels(_wavePixelBuffer);
-            stagingTex.Apply(false, false);
-
-            // Swap textures: staging becomes live, live becomes the next staging surface
-            (WaveformImage.texture, WaveformStagingImage.texture) =
-                (WaveformStagingImage.texture, WaveformImage.texture);
-
-            waveTexWidth  = _wavePendingTexWidth;
-            waveTime      = _wavePendingBakeTime;
-            _waveLiveTime = _wavePendingBakeTime;
-
-            int   viewportLeft = Mathf.RoundToInt((PeekRange.x - _wavePendingBakeTime) / _wavePendingStep);
-            float uvLeft       = Mathf.Clamp01((float)viewportLeft / _wavePendingTexWidth);
-            float uvSize       = (float)waveViewportWidth / _wavePendingTexWidth;
-            WaveformImage.uvRect = new Rect(uvLeft, 0f, uvSize, 1f);
-        }
-
         int ComputeWaveTexWidth(int vpWidth, float step)
         {
             // Scale buffer so it covers WaveTargetBufferSeconds regardless of zoom level,
@@ -1176,6 +1179,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             int targetCols   = Mathf.RoundToInt(WaveTargetBufferSeconds / step);
             int minCols      = vpWidth * (WaveBufferHalfPad * 2 + 1);
             return Mathf.Clamp(Mathf.Max(targetCols, minCols), minCols, SystemInfo.maxTextureSize);
+        }
+
+        void FlushPendingWaveBake()
+        {
         }
 
         public void UpdateWaveform()
@@ -1222,177 +1229,173 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             if (!texture || texture.height != vpHeight)
             {
                 // Don't destroy old texture yet — keep it live as stale hold during bake
-                Texture2D newTex = new Texture2D(texWidth, vpHeight)
+                texture = new Texture2D(texWidth, vpHeight)
                 {
                     filterMode = FilterMode.Point,
                     wrapMode   = TextureWrapMode.Clamp,
                 };
+                WaveformImage.texture = texture;
                 waveLastDensity = density;
                 waveTime        = PeekRange.x - step * vpWidth * WaveBufferHalfPad;
                 _waveLiveTime   = waveTime;
-                TriggerWaveBake(newTex, texWidth, vpHeight, step, color);
+                TriggerWaveBake(texture, texWidth, vpHeight, step, color);
                 return;
             }
 
             // Use the live texture's actual width for margin check
-            int liveTexWidth = waveTexWidth > 0 ? waveTexWidth : texture.width;
             int   viewportLeftCol   = Mathf.RoundToInt((PeekRange.x - _waveLiveTime) / step);
             float reconstructMargin = WaveBufferHalfPad * vpWidth * WaveReconstructThreshold;
 
-            if ((viewportLeftCol < reconstructMargin || viewportLeftCol + vpWidth > liveTexWidth - reconstructMargin) && !_waveBakePending)
+            if (viewportLeftCol < reconstructMargin || viewportLeftCol + vpWidth > texWidth - reconstructMargin)
             {
-                // Recentre: trigger bake of new buffer, keep showing old texture until ready
-                float newBakeTime = PeekRange.x - step * vpWidth * WaveBufferHalfPad;
-                Texture2D newTex = new Texture2D(texWidth, vpHeight)
-                {
-                    filterMode = FilterMode.Point,
-                    wrapMode   = TextureWrapMode.Clamp,
-                };
-                waveTime = newBakeTime;
-                TriggerWaveBake(newTex, texWidth, vpHeight, step, color);
+                // Recentre
+                waveTime = PeekRange.x - step * vpWidth * WaveBufferHalfPad;
+                _waveLiveTime = waveTime;
+                TriggerWaveBake(texture, texWidth, vpHeight, step, color);
             }
 
-            float uvLeft = (float)viewportLeftCol / liveTexWidth;
-            float uvSize = (float)vpWidth / liveTexWidth;
+            float uvLeft = (float)viewportLeftCol / texWidth;
+            float uvSize = (float)vpWidth / texWidth;
             WaveformImage.uvRect = new Rect(uvLeft, 0f, uvSize, 1f);
         }
         
         Color[] _wavePixelBuffer;
 
-        void TriggerWaveBake(Texture2D stagingTexture, int texWidth, int texHeight, float step, Color color)
+        void TriggerWaveBake(Texture2D texture, int texWidth, int texHeight, float step, Color color)
         {
-            float bakeTime    = waveTime;
-            int   mode        = Options.WaveformMode;
-            FrequencyScale freqScale  = Chartmaker.Preferences.FrequencyScale;
-            float          freqMin   = Chartmaker.Preferences.FrequencyMin;
-            float          freqMax   = Chartmaker.Preferences.FrequencyMax;
-            FFTWindow      fftWindow = Chartmaker.Preferences.FFTWindow;
-
             int needed = texWidth * texHeight;
             if (_wavePixelBuffer == null || _wavePixelBuffer.Length != needed)
                 _wavePixelBuffer = new Color[needed];
-            Color[] pixels = _wavePixelBuffer;
 
-            _waveBakePending = false;
-            WaveformStagingImage.texture = stagingTexture;
-
-            System.Threading.Tasks.Task.Run(() =>
+            switch (Options.WaveformMode)
             {
-                switch (mode)
-                {
-                    case 1: waveBakeWaveform(pixels, texWidth, texHeight, step, color, bakeTime); break;
-                    case 2: waveBakeSpectrogram(pixels, texWidth, texHeight, step, color, bakeTime, freqScale, freqMin, freqMax, fftWindow); break;
-                }
+                case 1: waveBakeWaveform(_wavePixelBuffer, texWidth, texHeight, step, color, waveTime); break;
+                case 2: waveBakeSpectrogram(_wavePixelBuffer, texWidth, texHeight, step, color, waveTime); break;
+            }
 
-                _wavePendingBakeTime = bakeTime;
-                _wavePendingStep     = step;
-                _wavePendingTexWidth = texWidth;
-                _waveBakePending     = true;
-            });
+            texture.SetPixels(_wavePixelBuffer);
+            texture.Apply(false, false);
         }
 
         void waveBakeWaveform(Color[] pixels, int texWidth, int texHeight, float step, Color color, float bakeTime)
         {
-            // Allocate shared buffers
-            sbyte[] localWaveCache = waveCache; // Assuming waveCache is already populated in your system
-            Color[] localPixels = pixels;
+            sbyte[] localWaveCache = waveCache;
+            if (localWaveCache == null) return;
 
-            // Shared settings
             int channels = waveCacheChannels;
             int freq = waveCacheFrequency;
-            float density = waveCacheFrequency * step;
+            float density = freq * step;
             float denY = 1f / texHeight * channels;
             float darkAlpha = Mathf.Clamp(Mathf.Sqrt(5 / density), 0.5f, 0.8f);
             int sampleWindow = Mathf.Max(1, Mathf.CeilToInt(density / channels) * channels);
 
-            // Initialize the per-column tasks
-            Task[] tasks = new Task[texHeight];
+            float[] mins = new float[texWidth * channels];
+            float[] maxs = new float[texWidth * channels];
+            float[] rmss = new float[texWidth * channels];
 
-            for (int y = 0; y < texHeight; y++)
+            // Use mipmap if possible
+            int mipIndex = -1;
+            if (_waveMipChain != null)
             {
-                int currentRow = y; // Capture the row for this task
-                tasks[y] = Task.Run(() =>
+                for (int m = _waveMipChain.Length - 1; m >= 0; m--)
                 {
-                    // Per-task local buffers
-                    float[] min = new float[channels];
-                    float[] max = new float[channels];
-                    float[] rms = new float[channels];
-                    float[] lastMin = new float[channels];
-                    float[] lastMax = new float[channels];
-
-                    // Initialize the last min and max for the task
-                    for (int a = 0; a < channels; a++)
+                    if ((64 << m) <= sampleWindow)
                     {
-                        lastMin[a] = -1f;
-                        lastMax[a] = 1f;
+                        mipIndex = m;
+                        break;
                     }
+                }
+            }
 
-                    float samplePos = currentRow * denY;
-                    int channel = Mathf.FloorToInt(samplePos);
+            // 1. Calculate stats per column per channel
+            for (int ch = 0; ch < channels; ch++)
+            {
+                float lastMin = -1f;
+                float lastMax = 1f;
 
-                    for (int x = 0; x < texWidth; x++)
+                for (int x = 0; x < texWidth; x++)
+                {
+                    float min = 1f, max = -1f, rms = 0f;
+                    float secStart = bakeTime + x * step;
+                    float secEnd = secStart + step;
+
+                    if (mipIndex >= 0)
                     {
-                        float sec = bakeTime + x * step;
-                        int pos = Mathf.FloorToInt(sec * freq) * channels;
+                        int window = 64 << mipIndex;
+                        int posStart = Mathf.FloorToInt(secStart * freq / window);
+                        int posEnd = Mathf.CeilToInt(secEnd * freq / window);
+                        float rmsSqSumAccum = 0f;
+                        int bins = 0;
+
+                        for (int p = posStart; p < posEnd; p++)
+                        {
+                            int idx = p * channels + ch;
+                            if (idx >= 0 && idx < _waveMipChain[mipIndex].Length)
+                            {
+                                var stats = _waveMipChain[mipIndex][idx];
+                                if (stats.min < min) min = stats.min;
+                                if (stats.max > max) max = stats.max;
+                                rmsSqSumAccum += stats.rmsSqSum;
+                                bins++;
+                            }
+                        }
+                        if (bins > 0)
+                            rms = Mathf.Sqrt(rmsSqSumAccum / (bins * window));
+                    }
+                    else
+                    {
+                        int pos = Mathf.FloorToInt(secStart * freq) * channels + ch;
                         int posEnd = Mathf.Min(pos + sampleWindow, localWaveCache.Length);
 
-                        // Reset min, max, and RMS buffers
-                        for (int a = 0; a < channels; a++)
+                        if (pos >= 0 && pos < localWaveCache.Length)
                         {
-                            min[a] = 1f;
-                            max[a] = -1f;
-                            rms[a] = 0f;
-                        }
-
-                        // Process waveform if the range is valid
-                        if (pos >= 0 && posEnd <= localWaveCache.Length)
-                        {
-                            for (int i = pos; i < posEnd; i++)
+                            for (int i = pos; i < posEnd; i += channels)
                             {
-                                int ch = i % channels;
                                 float sample = localWaveCache[i] / 127f;
-
-                                // Update min, max, and RMS
-                                min[ch] = sample < min[ch] ? sample : min[ch];
-                                max[ch] = sample > max[ch] ? sample : max[ch];
-                                rms[ch] += sample * sample;
+                                if (sample < min) min = sample;
+                                if (sample > max) max = sample;
+                                rms += sample * sample;
                             }
-
-                            // Smooth the current column using the last column's data
-                            for (int a = 0; a < channels; a++)
-                            {
-                                float temp = min[a];
-                                min[a] = Mathf.Min(lastMax[a], temp) * 0.8f;
-                                max[a] = Mathf.Max(lastMin[a], lastMax[a] = max[a]) * 0.8f;
-                                rms[a] = Mathf.Sqrt(rms[a] / sampleWindow * channels) * 0.8f;
-
-                                lastMin[a] = temp;
-                            }
+                            rms = Mathf.Sqrt(rms / (sampleWindow / channels));
                         }
-
-                        // Update the pixel alpha for this column
-                        float window = 1f - (samplePos % 1f) * 2f;
-                        Color pixel = color;
-                        pixel.a = (window >= min[channel] - denY && window <= max[channel] + denY)
-                            ? (Mathf.Abs(window) < rms[channel] - denY ? 0.8f : darkAlpha)
-                            : 0f;
-
-                        localPixels[currentRow * texWidth + x] = pixel;
                     }
-                });
+
+                    // Post-processing
+                    float tempMin = min;
+                    min = Mathf.Min(lastMax, min) * 0.8f;
+                    max = Mathf.Max(lastMin, lastMax = max) * 0.8f;
+                    rms *= 0.8f;
+                    lastMin = tempMin;
+
+                    int pixIdx = x * channels + ch;
+                    mins[pixIdx] = min;
+                    maxs[pixIdx] = max;
+                    rmss[pixIdx] = rms;
+                }
             }
 
-            // Wait for all tasks to complete
-            Task.WaitAll(tasks);
-
-            // Copy the computed pixel data back to the input array
-            for (int i = 0; i < pixels.Length; i++)
+            // 2. Fill pixels
+            Parallel.For(0, texHeight, y =>
             {
-                pixels[i] = localPixels[i];
-            }
+                float samplePos = y * denY;
+                int channel = Mathf.FloorToInt(samplePos);
+                float window = 1f - (samplePos % 1f) * 2f;
+                int rowOffset = y * texWidth;
+
+                for (int x = 0; x < texWidth; x++)
+                {
+                    int idx = x * channels + channel;
+                    Color pixel = color;
+                    pixel.a = (window >= mins[idx] - denY && window <= maxs[idx] + denY)
+                        ? (Mathf.Abs(window) < rmss[idx] - denY ? 0.8f : darkAlpha)
+                        : 0f;
+
+                    pixels[rowOffset + x] = pixel;
+                }
+            });
         }
 
-        void waveBakeSpectrogram(Color[] pixels, int texWidth, int texHeight, float step, Color color, float bakeTime, FrequencyScale freqScale, float freqMin, float freqMax, FFTWindow fftWindow)
+        void waveBakeSpectrogram(Color[] pixels, int texWidth, int texHeight, float step, Color color, float bakeTime)
         {
             int   channels   = waveCacheChannels;
             int   resolution = 512;
@@ -1401,6 +1404,11 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             float[][] fft = new float[channels][];
             for (int i = 0; i < channels; i++)
                 fft[i] = new float[resolution];
+
+            FrequencyScale freqScale  = Chartmaker.Preferences.FrequencyScale;
+            float          freqMin   = Chartmaker.Preferences.FrequencyMin;
+            float          freqMax   = Chartmaker.Preferences.FrequencyMax;
+            FFTWindow      fftWindow = Chartmaker.Preferences.FFTWindow;
 
             FrequencyScaling.GetScalingFunctions(freqScale, out var scale, out var unscale);
             float minScale = scale(freqMin);
@@ -1437,11 +1445,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         public void DiscardWaveform()
         {
-            _waveBakePending = false;
             Destroy(WaveformImage.texture);
             WaveformImage.texture = null;
-            Destroy(WaveformStagingImage.texture);
-            WaveformStagingImage.texture = null;
             waveLastDensity    = 0;
             waveViewportWidth  = 0;
             waveViewportHeight = 0;
