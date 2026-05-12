@@ -49833,6 +49833,7 @@ MonoBehaviour:
   - {fileID: 8994450398921687177, guid: 3a46da967cd01ac42bf202184b28d720, type: 3}
   - {fileID: 1089696368199901958, guid: daa76afa5302165429deb729a39d483a, type: 3}
   - {fileID: 5521355534333191699, guid: 26c2f2dab47fef54bab9b84e1f4fbfaa, type: 3}
+  - {fileID: 723805391041900724, guid: 3b0a8a3fecc072ecc8978ed2b5100655, type: 3}
 --- !u!222 &1128432815
 CanvasRenderer:
   m_ObjectHideFlags: 0
