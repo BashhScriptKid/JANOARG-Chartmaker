@@ -74,12 +74,9 @@ Shader "UI/Waveform"
                 float2 uv = IN.texcoord;
 
                 // Which channel band does this fragment fall in?
-                float bandF    = uv.y * _Channels;
-                int   ch       = (int)floor(bandF);
-                float bandLocal = frac(bandF); // 0..1 within this channel's band
-
-                // Sample the row for this channel: row centre = (ch + 0.5) / _Channels
-                float texV = (ch + 0.5) / _Channels;
+                float bandF   = uv.y * _Channels;
+                float texV    = (floor(bandF) + 0.5) / _Channels;
+                float bandLocal = frac(bandF);
                 float4 data = tex2D(_MainTex, float2(uv.x, texV));
 
                 float minVal = (data.r * 2.0 - 1.0) - _Thickness;
