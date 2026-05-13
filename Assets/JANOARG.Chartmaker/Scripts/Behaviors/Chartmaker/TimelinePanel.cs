@@ -1167,11 +1167,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         int ComputeWaveTexWidth(int vpWidth, float step)
         {
-            // Scale buffer so it covers WaveTargetBufferSeconds regardless of zoom level,
-            // with a minimum of WaveBufferHalfPad*2+1 viewport widths and a hard cap at maxTextureSize.
-            int targetCols   = Mathf.RoundToInt(WaveTargetBufferSeconds / step);
-            int minCols      = vpWidth * (WaveBufferHalfPad * 2 + 1);
-            return Mathf.Clamp(Mathf.Max(targetCols, minCols), minCols, SystemInfo.maxTextureSize);
+            int targetCols = Mathf.RoundToInt(WaveTargetBufferSeconds / step);
+            int minCols    = vpWidth * (WaveBufferHalfPad * 2 + 1);
+            int preferred  = Mathf.Max(targetCols, minCols);
+            return Mathf.Clamp(preferred, vpWidth, SystemInfo.maxTextureSize);
         }
 
         public void UpdateWaveform()
@@ -1315,7 +1314,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             float density = freq * step;
             int sampleWindow = Mathf.Max(1, Mathf.CeilToInt(density / channels) * channels);
 
-            // Finest mip whose bin size meets or exceeds the visible samples-per-pixel
+            // Finest mip whose bin size meets or exceeds the visible samples-per-pixel.
+            // When the finest mip bin is still coarser than what the viewport demands,
+            // fall through to raw samples so zoomed-in waveforms stay crisp.
             int mipIndex = -1;
             if (_waveMipChain != null)
             {
@@ -1324,6 +1325,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     mipIndex = m;
                     if ((64 << m) >= sampleWindowPerChannel) break;
                 }
+                if (mipIndex == 0 && sampleWindowPerChannel < 64)
+                    mipIndex = -1;
             }
 
             // Pass 1: compute raw stats per column per channel into _waveStatsBuffer
