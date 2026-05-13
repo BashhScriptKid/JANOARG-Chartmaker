@@ -126,7 +126,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         [HideInInspector] public List<LineGraph> Graphs;
     
         public TMP_Text StoryboardEntrySample;
-        public Material StoryboardEntryMaterial; 
+        public Material StoryboardEntryMaterial;
+        public Material WaveformMaterial;
         
         [HideInInspector] public List<TMP_Text> StoryboardEntries;
 
@@ -155,6 +156,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             UpdateTabs();
             UpdateScrollbar();
             Options.OnEnable();
+            UpdateTimeline(true);
         }
 
         public void UpdatePeekLimit()
@@ -1159,6 +1161,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             }
 
             DiscardWaveform();
+            UpdateTimeline(true);
         }
 
         // Read-ahead waveform buffer: dynamically sized to cover WaveTargetBufferSeconds.
@@ -1168,8 +1171,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         int   waveViewportWidth  = 0;
         int   waveViewportHeight = 0;
-        float waveTime, waveLastDensity = 0;
-        float _waveLiveTime = 0;
+        float waveTime, waveStep, waveLastDensity = 0;
         int   waveTexWidth  = 0;
 
         int ComputeWaveTexWidth(int vpWidth, float step)
@@ -1191,12 +1193,19 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 TimelineHeight <= 0
                 || Mathf.Approximately(PeekRange.y, PeekRange.x)
                 || Options.WaveformMode == 0
-                || Options.WaveformIdle < (Chartmaker.main.SongSource.isPlaying ? 1 : 0)
                 || waveCache == null
             )
             {
                 WaveformImage.enabled = false;
                 return;
+            }
+
+            // Optional: Hide when playing if WaveformIdle is configured that way
+            // But ALWAYS show if we are interacting (zooming/scrolling)
+            if (!isDragged && lastLimit == PeekRange && Options.WaveformIdle < (Chartmaker.main.SongSource.isPlaying ? 1 : 0))
+            {
+                 // But keep it visible if we already have a texture and aren't moving
+                 if (!WaveformImage.enabled) return;
             }
 
             if (!WaveformImage.enabled)
@@ -1214,6 +1223,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             float density = waveCacheFrequency * step;
             int   texWidth = ComputeWaveTexWidth(vpWidth, step);
 
+            // Shader optimization: Waveform mode needs 1px height per channel
+            int texHeight = Options.WaveformMode == 1 ? Mathf.Max(1, waveCacheChannels) : vpHeight;
+
             Texture2D texture = WaveformImage.texture as Texture2D;
 
             if (waveViewportWidth != vpWidth || waveViewportHeight != vpHeight)
@@ -1223,40 +1235,52 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 waveViewportHeight = vpHeight;
             }
 
+            // Naive refresh on zoom: invalidate texture if density changes significantly
             if (!(Math.Abs(waveLastDensity / density - 1) < 0.0001f))
                 texture = null;
 
-            if (!texture || texture.height != vpHeight)
+            if (!texture || texture.height != texHeight)
             {
                 // Don't destroy old texture yet — keep it live as stale hold during bake
-                texture = new Texture2D(texWidth, vpHeight)
+                texture = new Texture2D(texWidth, texHeight)
                 {
                     filterMode = FilterMode.Point,
                     wrapMode   = TextureWrapMode.Clamp,
                 };
                 WaveformImage.texture = texture;
                 waveLastDensity = density;
+                waveStep        = step;
                 waveTime        = PeekRange.x - step * vpWidth * WaveBufferHalfPad;
-                _waveLiveTime   = waveTime;
-                TriggerWaveBake(texture, texWidth, vpHeight, step, color);
-                return;
+                TriggerWaveBake(texture, texWidth, texHeight, step, color);
             }
-
-            // Use the live texture's actual width for margin check
-            int   viewportLeftCol   = Mathf.RoundToInt((PeekRange.x - _waveLiveTime) / step);
-            float reconstructMargin = WaveBufferHalfPad * vpWidth * WaveReconstructThreshold;
-
-            if (viewportLeftCol < reconstructMargin || viewportLeftCol + vpWidth > texWidth - reconstructMargin)
+            else
             {
-                // Recentre
-                waveTime = PeekRange.x - step * vpWidth * WaveBufferHalfPad;
-                _waveLiveTime = waveTime;
-                TriggerWaveBake(texture, texWidth, vpHeight, step, color);
+                // Simple margin check for re-centering
+                int   viewportLeftCol   = Mathf.RoundToInt((PeekRange.x - waveTime) / waveStep);
+                float reconstructMargin = WaveBufferHalfPad * vpWidth * WaveReconstructThreshold;
+
+                if (viewportLeftCol < reconstructMargin || viewportLeftCol + vpWidth > texWidth - reconstructMargin)
+                {
+                    // Recentre
+                    waveTime = PeekRange.x - step * vpWidth * WaveBufferHalfPad;
+                    waveStep = step;
+                    TriggerWaveBake(texture, texWidth, texHeight, step, color);
+                }
             }
 
-            float uvLeft = (float)viewportLeftCol / texWidth;
-            float uvSize = (float)vpWidth / texWidth;
+            // Duration-based UV mapping: scales perfectly even during rapid zooming
+            float texDuration = waveStep * texWidth;
+            float uvLeft = (PeekRange.x - waveTime) / texDuration;
+            float uvSize = (PeekRange.y - PeekRange.x) / texDuration;
             WaveformImage.uvRect = new Rect(uvLeft, 0f, uvSize, 1f);
+
+            // Dynamic Thickness scaling based on zoom
+            if (WaveformImage.material != null)
+            {
+                float zoomLog = Mathf.Log10(Mathf.Max(1f, density));
+                float t = Mathf.InverseLerp(4f, 1.8f, zoomLog); 
+                WaveformImage.material.SetFloat("_Thickness", t * 0.03f);
+            }
         }
         
         Color[] _wavePixelBuffer;
@@ -1269,15 +1293,21 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
             switch (Options.WaveformMode)
             {
-                case 1: waveBakeWaveform(_wavePixelBuffer, texWidth, texHeight, step, color, waveTime); break;
-                case 2: waveBakeSpectrogram(_wavePixelBuffer, texWidth, texHeight, step, color, waveTime); break;
+                case 1: 
+                    WaveformImage.material = WaveformMaterial;
+                    waveBakeWaveform(_wavePixelBuffer, texWidth, step, color, waveTime); 
+                    break;
+                case 2: 
+                    WaveformImage.material = null;
+                    waveBakeSpectrogram(_wavePixelBuffer, texWidth, texHeight, step, color, waveTime); 
+                    break;
             }
 
             texture.SetPixels(_wavePixelBuffer);
             texture.Apply(false, false);
         }
 
-        void waveBakeWaveform(Color[] pixels, int texWidth, int texHeight, float step, Color color, float bakeTime)
+        void waveBakeWaveform(Color[] pixels, int texWidth, float step, Color color, float bakeTime)
         {
             sbyte[] localWaveCache = waveCache;
             if (localWaveCache == null) return;
@@ -1285,13 +1315,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             int channels = waveCacheChannels;
             int freq = waveCacheFrequency;
             float density = freq * step;
-            float denY = 1f / texHeight * channels;
-            float darkAlpha = Mathf.Clamp(Mathf.Sqrt(5 / density), 0.5f, 0.8f);
             int sampleWindow = Mathf.Max(1, Mathf.CeilToInt(density / channels) * channels);
-
-            float[] mins = new float[texWidth * channels];
-            float[] maxs = new float[texWidth * channels];
-            float[] rmss = new float[texWidth * channels];
 
             // Use mipmap if possible
             int mipIndex = -1;
@@ -1307,12 +1331,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 }
             }
 
-            // 1. Calculate stats per column per channel
+            // Calculate stats per column per channel
             for (int ch = 0; ch < channels; ch++)
             {
-                float lastMin = -1f;
-                float lastMax = 1f;
-
                 for (int x = 0; x < texWidth; x++)
                 {
                     float min = 1f, max = -1f, rms = 0f;
@@ -1360,39 +1381,11 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         }
                     }
 
-                    // Post-processing
-                    float tempMin = min;
-                    min = Mathf.Min(lastMax, min) * 0.8f;
-                    max = Mathf.Max(lastMin, lastMax = max) * 0.8f;
-                    rms *= 0.8f;
-                    lastMin = tempMin;
-
-                    int pixIdx = x * channels + ch;
-                    mins[pixIdx] = min;
-                    maxs[pixIdx] = max;
-                    rmss[pixIdx] = rms;
+                    // Pack into pixel: R=(min+1)/2, G=(max+1)/2, B=RMS
+                    // Each channel gets its own row in the texture
+                    pixels[ch * texWidth + x] = new Color((min + 1) * 0.5f, (max + 1) * 0.5f, rms, 1f);
                 }
             }
-
-            // 2. Fill pixels
-            Parallel.For(0, texHeight, y =>
-            {
-                float samplePos = y * denY;
-                int channel = Mathf.FloorToInt(samplePos);
-                float window = 1f - (samplePos % 1f) * 2f;
-                int rowOffset = y * texWidth;
-
-                for (int x = 0; x < texWidth; x++)
-                {
-                    int idx = x * channels + channel;
-                    Color pixel = color;
-                    pixel.a = (window >= mins[idx] - denY && window <= maxs[idx] + denY)
-                        ? (Mathf.Abs(window) < rmss[idx] - denY ? 0.8f : darkAlpha)
-                        : 0f;
-
-                    pixels[rowOffset + x] = pixel;
-                }
-            });
         }
 
         void waveBakeSpectrogram(Color[] pixels, int texWidth, int texHeight, float step, Color color, float bakeTime)
@@ -1451,7 +1444,6 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             waveViewportWidth  = 0;
             waveViewportHeight = 0;
             waveTexWidth       = 0;
-            _waveLiveTime      = 0;
         }
 
         string FormatNumber(float number, int type) 
