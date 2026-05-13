@@ -228,6 +228,15 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 CurrentTimeConnector.anchorMax = new(Mathf.Max(timePos, timeCPos), 0);
             }
             
+            // Upload completed bake result to GPU on the main thread
+            if (_bakeReady && _bakeDstTexture != null)
+            {
+                _bakeReady = false;
+                _bakeDstTexture.SetPixels(_bakeResultBuffer);
+                _bakeDstTexture.Apply(false, false);
+                _bakeDstTexture = null;
+            }
+
             UpdateTimeline();
         }
 
@@ -1165,6 +1174,11 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         int   waveViewportHeight = 0;
         float waveTime, waveStep, waveViewStep, waveLastDensity = 0;
 
+        volatile bool _bakeInFlight  = false;
+        volatile bool _bakeReady     = false;
+        Texture2D     _bakeDstTexture;
+        Color[]       _bakeResultBuffer;
+
         int ComputeWaveTexWidth(int vpWidth, float step)
         {
             int targetCols = Mathf.RoundToInt(WaveTargetBufferSeconds / step);
@@ -1277,24 +1291,39 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         void TriggerWaveBake(Texture2D texture, int texWidth, int texHeight, float step, Color color)
         {
+            if (_bakeInFlight) return;
+
             int needed = texWidth * texHeight;
             if (_wavePixelBuffer == null || _wavePixelBuffer.Length != needed)
                 _wavePixelBuffer = new Color[needed];
 
-            switch (Options.WaveformMode)
+            // Capture locals for the background thread
+            Color[]           buffer   = _wavePixelBuffer;
+            int               mode     = Options.WaveformMode;
+            float             viewStep = waveViewStep;
+            float             bakeTime = waveTime;
+
+            _bakeInFlight     = true;
+            _bakeReady        = false;
+            _bakeDstTexture   = texture;
+            _bakeResultBuffer = buffer;
+
+            switch (mode)
             {
-                case 1: 
-                    WaveformImage.material = WaveformMaterial;
-                    waveBakeWaveform(_wavePixelBuffer, texWidth, step, waveViewStep, color, waveTime); 
-                    break;
-                case 2: 
-                    WaveformImage.material = null;
-                    waveBakeSpectrogram(_wavePixelBuffer, texWidth, texHeight, step, color, waveTime); 
-                    break;
+                case 1: WaveformImage.material = WaveformMaterial; break;
+                case 2: WaveformImage.material = null; break;
             }
 
-            texture.SetPixels(_wavePixelBuffer);
-            texture.Apply(false, false);
+            Task.Run(() =>
+            {
+                switch (mode)
+                {
+                    case 1: waveBakeWaveform(buffer, texWidth, step, viewStep, color, bakeTime); break;
+                    case 2: waveBakeSpectrogram(buffer, texWidth, texHeight, step, color, bakeTime); break;
+                }
+                _bakeReady    = true;
+                _bakeInFlight = false;
+            });
         }
 
         WaveformStats[] _waveStatsBuffer;
@@ -1469,6 +1498,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         public void DiscardWaveform()
         {
+            _bakeInFlight     = false;
+            _bakeReady        = false;
+            _bakeDstTexture   = null;
+            _bakeResultBuffer = null;
             Destroy(WaveformImage.texture);
             WaveformImage.texture = null;
             waveLastDensity    = 0;
