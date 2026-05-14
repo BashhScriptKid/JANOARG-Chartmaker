@@ -1195,20 +1195,21 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 written += count;
             }
 
-            // Generate MipChain in background to avoid blocking the main thread
+            // Generate MipChain lazily in background — only build level 0 upfront,
+            // extend to deeper levels on demand when UpdateWaveform requests them.
             Task.Run(() =>
             {
                 sbyte[] localCache = waveCache;
                 if (localCache == null) return;
 
                 int baseSize = 64;
-                int numMips = 10; // Covers up to 64*2^9 = 32768 samples per window
+                int numMips  = 10;
                 var mipChain = new WaveformStats[numMips][];
-                
-                // Level 0: Generate from raw cache
+
+                // Level 0 only — deeper levels built on demand via ExtendMipChain
                 int count0 = samples / baseSize;
                 mipChain[0] = new WaveformStats[count0 * channels];
-                
+
                 for (int i = 0; i < count0; i++)
                 {
                     for (int ch = 0; ch < channels; ch++)
@@ -1226,28 +1227,6 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     }
                 }
 
-                // Level 1..N: Generate hierarchically from previous level (O(N) total)
-                for (int m = 1; m < numMips; m++)
-                {
-                    int count = samples / (baseSize << m);
-                    mipChain[m] = new WaveformStats[count * channels];
-                    
-                    for (int i = 0; i < count; i++)
-                    {
-                        for (int ch = 0; ch < channels; ch++)
-                        {
-                            var s1 = mipChain[m - 1][(i * 2) * channels + ch];
-                            var s2 = mipChain[m - 1][(i * 2 + 1) * channels + ch];
-                            mipChain[m][i * channels + ch] = new WaveformStats 
-                            { 
-                                min = Math.Min(s1.min, s2.min), 
-                                max = Math.Max(s1.max, s2.max), 
-                                rmsSqSum = s1.rmsSqSum + s2.rmsSqSum 
-                            };
-                        }
-                    }
-                }
-
                 _waveMipChain = mipChain;
             });
 
@@ -1256,9 +1235,20 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         }
 
         // Read-ahead waveform buffer: dynamically sized to cover WaveTargetBufferSeconds.
-        const int   WaveBufferHalfPad        = 4;
+        const int   WaveBufferHalfPadMin     = 4;   // minimum pad at low zoom
+        const int   WaveBufferHalfPadMax     = 16;  // maximum pad at high zoom
         const float WaveReconstructThreshold = 0.62f;
         const float WaveTargetBufferSeconds  = 60f; // aim for this many seconds of buffer total
+
+        // Returns buffer half-pad scaled by zoom: wider at high zoom (small step) so
+        // rapid pixel-level scrolling triggers fewer recentres per second.
+        int ComputeWaveBufferHalfPad(float step)
+        {
+            // step ~ seconds per pixel; high zoom = small step
+            // clamp between 1/freq (max zoom) and ~0.01 (low zoom threshold)
+            float t = Mathf.InverseLerp(0.001f, 0.02f, step); // 0 = high zoom, 1 = low zoom
+            return Mathf.RoundToInt(Mathf.Lerp(WaveBufferHalfPadMax, WaveBufferHalfPadMin, t));
+        }
 
         int   waveViewportWidth  = 0;
         int   waveViewportHeight = 0;
@@ -1271,8 +1261,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         int ComputeWaveTexWidth(int vpWidth, float step)
         {
+            int halfPad    = ComputeWaveBufferHalfPad(step);
             int targetCols = Mathf.RoundToInt(WaveTargetBufferSeconds / step);
-            int minCols    = vpWidth * (WaveBufferHalfPad * 2 + 1);
+            int minCols    = vpWidth * (halfPad * 2 + 1);
             int preferred  = Mathf.Max(targetCols, minCols);
             return Mathf.Clamp(preferred, vpWidth, SystemInfo.maxTextureSize);
         }
@@ -1347,19 +1338,19 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 };
                 waveLastDensity = density;
                 waveStep        = step;
-                waveTime        = PeekRange.x - step * vpWidth * WaveBufferHalfPad;
+                waveTime        = PeekRange.x - step * vpWidth * ComputeWaveBufferHalfPad(step);
                 TriggerWaveBake(stagingTex, texWidth, texHeight, step, color);
             }
             else
             {
                 // Simple margin check for re-centering
                 int   viewportLeftCol   = Mathf.RoundToInt((PeekRange.x - waveTime) / waveStep);
-                float reconstructMargin = WaveBufferHalfPad * vpWidth * WaveReconstructThreshold;
+                float reconstructMargin = ComputeWaveBufferHalfPad(step) * vpWidth * WaveReconstructThreshold;
 
                 if (viewportLeftCol < reconstructMargin || viewportLeftCol + vpWidth > texWidth - reconstructMargin)
                 {
                     // Recentre
-                    waveTime = PeekRange.x - step * vpWidth * WaveBufferHalfPad;
+                    waveTime = PeekRange.x - step * vpWidth * ComputeWaveBufferHalfPad(step);
                     waveStep = step;
                     TriggerWaveBake(texture, texWidth, texHeight, step, color);
                 }
@@ -1380,6 +1371,61 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             }
         }
         
+        volatile bool _mipExtendInFlight = false;
+
+        void ExtendMipChain(int upToLevel)
+        {
+            _mipExtendInFlight = true;
+            var chain    = _waveMipChain;
+            int channels = waveCacheChannels;
+            int samples  = waveCache != null ? waveCache.Length / channels : 0;
+
+            Task.Run(() =>
+            {
+                try
+                {
+                    if (chain == null) return;
+                    int baseSize = 64;
+
+                    // Find the last built level to start from
+                    int startFrom = 0;
+                    for (int m = 0; m < chain.Length; m++)
+                    {
+                        if (chain[m] != null) startFrom = m;
+                        else break;
+                    }
+
+                    for (int m = startFrom + 1; m <= upToLevel && m < chain.Length; m++)
+                    {
+                        int count = samples / (baseSize << m);
+                        var level = new WaveformStats[count * channels];
+
+                        for (int i = 0; i < count; i++)
+                        {
+                            for (int ch = 0; ch < channels; ch++)
+                            {
+                                var s1 = chain[m - 1][(i * 2) * channels + ch];
+                                var s2 = chain[m - 1][(i * 2 + 1) * channels + ch];
+                                level[i * channels + ch] = new WaveformStats
+                                {
+                                    min      = Math.Min(s1.min, s2.min),
+                                    max      = Math.Max(s1.max, s2.max),
+                                    rmsSqSum = s1.rmsSqSum + s2.rmsSqSum
+                                };
+                            }
+                        }
+
+                        // Assign atomically — main thread reads chain[m] as null check
+                        chain[m] = level;
+                    }
+                }
+                finally
+                {
+                    _mipExtendInFlight = false;
+                }
+            });
+        }
+
         Color[] _wavePixelBuffer;
 
         void TriggerWaveBake(Texture2D texture, int texWidth, int texHeight, float step, Color color)
@@ -1442,8 +1488,22 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             int mipIndex = -1;
             if (_waveMipChain != null)
             {
+                // Find the needed mip level
+                int neededMip = 0;
                 for (int m = 0; m < _waveMipChain.Length; m++)
                 {
+                    neededMip = m;
+                    if ((64 << m) >= sampleWindowPerChannel) break;
+                }
+
+                // If the needed level isn't built yet, extend the chain on a background task
+                if (_waveMipChain[neededMip] == null && !_mipExtendInFlight)
+                    ExtendMipChain(neededMip);
+
+                // Walk up to the deepest built level that satisfies the request
+                for (int m = 0; m < _waveMipChain.Length; m++)
+                {
+                    if (_waveMipChain[m] == null) break;
                     mipIndex = m;
                     if ((64 << m) >= sampleWindowPerChannel) break;
                 }
@@ -1591,10 +1651,11 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         public void DiscardWaveform()
         {
-            _bakeInFlight     = false;
-            _bakeReady        = false;
-            _bakeDstTexture   = null;
-            _bakeResultBuffer = null;
+            _bakeInFlight       = false;
+            _bakeReady          = false;
+            _mipExtendInFlight  = false;
+            _bakeDstTexture     = null;
+            _bakeResultBuffer   = null;
             Destroy(WaveformImage.texture);
             WaveformImage.texture = null;
             waveLastDensity    = 0;
