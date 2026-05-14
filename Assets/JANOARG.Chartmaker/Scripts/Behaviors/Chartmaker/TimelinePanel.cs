@@ -928,6 +928,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             }
         }
 
+        #endregion
+
+        #region Beat Lines
+
         // tickTime describes the left edge of the buffer in seconds.
         // tickViewportWidth is the visible pixel width; texWidth = 9 * tickViewportWidth.
         // Reconstruction triggers when the viewport has consumed more than 62% of
@@ -1160,6 +1164,11 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             tickViewportWidth  = 0;
         }
 
+        #endregion
+
+        #region Waveform
+
+
         // Flat sbyte[] audio cache populated once on clip load.
         // Interleaved: index = sample * channels + channel, range [-127, 127].
         sbyte[] waveCache;
@@ -1284,10 +1293,6 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             int preferred  = Mathf.Max(targetCols, minCols);
             return Mathf.Clamp(preferred, vpWidth, SystemInfo.maxTextureSize);
         }
-
-        #endregion
-
-        #region Waveform
 
         public void UpdateWaveform()
         {
@@ -1536,11 +1541,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     {
                         float prevMax = _waveStatsBuffer[ch * texWidth + x - 1].max;
                         if (prevMax < min) min = prevMax;
-                    }
-                    if (x < texWidth - 1)
-                    {
-                        float nextMin = _waveStatsBuffer[ch * texWidth + x + 1].min;
-                        if (nextMin > max) max = nextMin;
+                        float prevMin = _waveStatsBuffer[ch * texWidth + x - 1].min;
+                        if (prevMin > max) max = prevMin;
                     }
 
                     // Pack into pixel: R=(min+1)/2, G=(max+1)/2, B=RMS
