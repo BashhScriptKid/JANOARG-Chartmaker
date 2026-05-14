@@ -1216,8 +1216,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 sbyte[] localCache = waveCache;
                 if (localCache == null) return;
 
-                int baseSize = 64;
-                int numMips  = 10; // Covers up to 64*2^9 = 32768 samples per window
+                int baseSize = 4;
+                int numMips  = 16;
                 var mipChain = new WaveformStats[numMips][];
 
                 // Level 0: Generate from raw cache
@@ -1609,7 +1609,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
                     if (mipIndex >= 0)
                     {
-                        int window = 64 << mipIndex;
+                        int window = 4 << mipIndex;
                         int posStart = Mathf.FloorToInt(secStart * freq / window);
                         int posEnd = Mathf.CeilToInt(secEnd * freq / window);
                         float rmsSqSumAccum = 0f;
