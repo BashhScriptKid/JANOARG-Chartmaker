@@ -1276,14 +1276,13 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             float uvLeft = (PeekRange.x - waveTime) / texDuration;
             float uvSize = (PeekRange.y - PeekRange.x) / texDuration;
             WaveformImage.uvRect = new Rect(uvLeft, 0f, uvSize, 1f);
-
-            // Dynamic Thickness scaling based on zoom
+            
+            // Update waveform properties based on timeline zoom
             if (WaveformImage.material != null)
             {
-                float zoomLog = Mathf.Log10(Mathf.Max(1f, density));
-                float t = Mathf.InverseLerp(4f, 1.8f, zoomLog); 
-                WaveformImage.material.SetFloat("_Thickness", t * 0.03f);
                 WaveformImage.material.SetFloat("_Channels", waveCacheChannels);
+                WaveformImage.material.SetFloat("_Thickness", 1f / waveViewportHeight * waveCacheChannels);
+                WaveformImage.material.SetFloat("_DarkAlpha", Mathf.Clamp(Mathf.Sqrt(5 / density), 0.5f, 0.8f));
             }
         }
         
