@@ -1195,20 +1195,22 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 written += count;
             }
 
-            // Generate MipChain in background to avoid blocking the main thread
+            // Generate MipChain in background to avoid blocking the main thread.
+            // Assigns _waveMipChain after level 0 so UpdateWaveform can start baking
+            // immediately; deeper levels are appended as they complete.
             Task.Run(() =>
             {
                 sbyte[] localCache = waveCache;
                 if (localCache == null) return;
 
                 int baseSize = 64;
-                int numMips = 10; // Covers up to 64*2^9 = 32768 samples per window
+                int numMips  = 10; // Covers up to 64*2^9 = 32768 samples per window
                 var mipChain = new WaveformStats[numMips][];
-                
+
                 // Level 0: Generate from raw cache
                 int count0 = samples / baseSize;
                 mipChain[0] = new WaveformStats[count0 * channels];
-                
+
                 for (int i = 0; i < count0; i++)
                 {
                     for (int ch = 0; ch < channels; ch++)
@@ -1226,29 +1228,35 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     }
                 }
 
-                // Level 1..N: Generate hierarchically from previous level (O(N) total)
+                // Make level 0 available immediately so baking can start
+                _waveMipChain = mipChain;
+
+                // Level 1..N: build lazily, assigning each level as it completes
                 for (int m = 1; m < numMips; m++)
                 {
+                    // Stop if chart was unloaded
+                    if (_waveMipChain == null) return;
+
                     int count = samples / (baseSize << m);
-                    mipChain[m] = new WaveformStats[count * channels];
-                    
+                    var level = new WaveformStats[count * channels];
+
                     for (int i = 0; i < count; i++)
                     {
                         for (int ch = 0; ch < channels; ch++)
                         {
                             var s1 = mipChain[m - 1][(i * 2) * channels + ch];
                             var s2 = mipChain[m - 1][(i * 2 + 1) * channels + ch];
-                            mipChain[m][i * channels + ch] = new WaveformStats 
-                            { 
-                                min = Math.Min(s1.min, s2.min), 
-                                max = Math.Max(s1.max, s2.max), 
-                                rmsSqSum = s1.rmsSqSum + s2.rmsSqSum 
+                            level[i * channels + ch] = new WaveformStats
+                            {
+                                min      = Math.Min(s1.min, s2.min),
+                                max      = Math.Max(s1.max, s2.max),
+                                rmsSqSum = s1.rmsSqSum + s2.rmsSqSum
                             };
                         }
                     }
-                }
 
-                _waveMipChain = mipChain;
+                    mipChain[m] = level; // visible to main thread via _waveMipChain reference
+                }
             });
 
             DiscardWaveform();
@@ -1444,6 +1452,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             {
                 for (int m = 0; m < _waveMipChain.Length; m++)
                 {
+                    if (_waveMipChain[m] == null) break; // level not built yet, stop here
                     mipIndex = m;
                     if ((64 << m) >= sampleWindowPerChannel) break;
                 }
