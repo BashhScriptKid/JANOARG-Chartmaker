@@ -944,7 +944,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         const int   TickBufferMultiplier    = 9;   // total buffer = this × viewport
         const int   TickBufferHalfPad       = 4;   // padding on each side in viewport widths
         const float TickReconstructThreshold = 0.62f;
-        const int   TickGradientHeight      = 128;  // texture rows; gradient fades bottom→top
+        const int   TickGradientHeight      = 8;    // [Optimization] 8px + Clamp + Bilinear = sharp bottom + smooth non-linear fade
 
         int    tickViewportWidth = 0;
         float  tickTime, tickLastDensity = 0;
@@ -993,7 +993,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 TicksImage.texture = texture = new Texture2D(texWidth, TickGradientHeight, TextureFormat.RGBA32, false)
                 {
                     filterMode = FilterMode.Bilinear,
-                    wrapMode   = TextureWrapMode.Repeat,
+                    wrapMode   = TextureWrapMode.Clamp,
                 };
                 tickLastDensity = density;
                 // Centre the buffer on the current viewport
@@ -1062,7 +1062,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     float alpha       = Mathf.Clamp01((Mathf.Pow(1.5f, beatDensity) - 1) / (Mathf.Pow(1.5f, 3) - 1)) * .5f;
                     Color baseColor   = GetBeatColor(beat) * new Color(1, 1, 1, alpha);
 
-                    // Gradient simulation in legacy tick renderer
+                    // Re-introduced non-linear fade (t*t) but with much lower resolution (8px)
+                    // combined with bilinear filtering for efficiency.
                     for (int y = 0; y < texHeight; y++)
                     {
                         float t = (float)y / (texHeight - 1);
