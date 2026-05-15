@@ -30,11 +30,9 @@ Material:
     m_Ints: []
     m_Floats:
     - _Channels: 2
-    - _DarkAlpha: 0.8
+    - _DarkAlpha: 0.5
     - _StereoSplit: 0
-    - _Thickness: 0.010050251
-    - _WaveUVLeft: 0.35791016
-    - _WaveUVSize: 0.08947754
+    - _Thickness: 0.010638298
     m_Colors:
     - _Color: {r: 1, g: 1, b: 1, a: 1}
   m_BuildTextureStacks: []
