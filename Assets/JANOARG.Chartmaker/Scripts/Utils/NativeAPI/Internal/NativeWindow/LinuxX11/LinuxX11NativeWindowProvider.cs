@@ -7,6 +7,7 @@ using UnityEngine;
 
 namespace JANOARG.Chartmaker.Utils.NativeAPI.Internal.NativeWindow.LinuxX11
 {
+    // TODO replace this placeholder code
     internal class LinuxX11NativeWindowProvider : INativeWindowProvider
     {
         readonly Dictionary<nint, Stack<CursorStyle>> cursorStacks = new();

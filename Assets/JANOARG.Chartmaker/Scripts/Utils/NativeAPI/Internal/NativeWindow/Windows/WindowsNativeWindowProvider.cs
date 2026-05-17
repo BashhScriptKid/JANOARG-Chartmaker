@@ -17,8 +17,14 @@ namespace JANOARG.Chartmaker.Utils.NativeAPI.Internal.NativeWindow.Windows
             return h;
         }
 
-        public void HookWindow(nint windowHandle) { /* no-op for provider */ }
-        public void UnhookWindow(nint windowHandle) { /* no-op for provider */ }
+        public void HookWindow(nint windowHandle)
+        {
+            // TODO implement
+        }
+        public void UnhookWindow(nint windowHandle) 
+        { 
+            // TODO implement
+        }
 
         public string GetWindowName(nint windowHandle)
         {
@@ -46,13 +52,13 @@ namespace JANOARG.Chartmaker.Utils.NativeAPI.Internal.NativeWindow.Windows
 
         public WindowStyle GetWindowStyle(nint windowHandle)
         {
-            // Best-effort: assume native on Windows
+            // TODO implement
             return WindowStyle.Native;
         }
 
         public void SetWindowStyle(nint windowHandle, WindowStyle style)
         {
-            // Interface has this signature; treat as a setter (no-op for now)
+            // TODO implement
         }
 
         public RectInt GetWindowRect(nint windowHandle)
