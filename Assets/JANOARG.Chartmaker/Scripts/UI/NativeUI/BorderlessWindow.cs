@@ -42,16 +42,15 @@ namespace JANOARG.Chartmaker.UI.NativeUI
         [DllImport("user32.dll")]
         static extern IntPtr GetActiveWindow();
         [DllImport("user32.dll")]
-        static extern IntPtr FindWindowA(string lpClassName, string lpWindowName)
-            ;
+        static extern IntPtr FindWindowA(string lpClassName, string lpWindowName);
+        
         [DllImport("user32.dll")]
         static extern IntPtr SetWindowLong(IntPtr hWnd, int nIndex, uint dwNewLong);
-    
         [DllImport("user32.dll", EntryPoint = "SetWindowLong", CharSet = CharSet.Auto)]
         static extern IntPtr SetWindowLong32(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
-    
         [DllImport("user32.dll", EntryPoint = "SetWindowLongPtr", CharSet = CharSet.Auto)]
         static extern IntPtr SetWindowLong64(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
         [DllImport("user32.dll")]
         static extern bool ShowWindow(IntPtr hwnd, int nCmdShow);
         [DllImport("user32.dll")]
