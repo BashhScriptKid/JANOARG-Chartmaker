@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using JANOARG.Chartmaker.Data.Chartmaker;
 using JANOARG.Chartmaker.Data.Chartmaker.Actions;
 using JANOARG.Chartmaker.UI.Cursor;
@@ -241,7 +242,14 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     LaneGroupPlayers.RemoveAt(LaneGroupPlayers.Count - 1);
                 }
                 while (LaneGroupPlayers.Count < chart.Groups.Count)
-                    LaneGroupPlayers.Add(Instantiate(LaneGroupPlayerSample, Holder));
+                {
+                    ChartmakerLaneGroupPlayer laneGroup = Instantiate(LaneGroupPlayerSample, Holder);
+                    int n = 0;
+                    
+                    while (laneGroup.name == null && LaneGroupPlayers.Any(x => x.CurrentGroup?.CurrentGroup.Name == laneGroup.CurrentGroup?.CurrentGroup.Name))
+                        laneGroup.name = laneGroup.CurrentGroup.CurrentGroup.Name = $"{laneGroup.name} ({n++})";
+                    LaneGroupPlayers.Add(laneGroup);
+                }
 
                 for (int a = 0; a < chart.Groups.Count; a++)
                 {
