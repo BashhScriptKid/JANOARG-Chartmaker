@@ -435,13 +435,20 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         /// </summary>
         public static void DeduplicateGroupNames(Chart chart)
         {
+            // Track how many times each original name has been seen so far.
+            Dictionary<string, int> seen = new();
             for (int a = 0; a < chart.Groups.Count; a++)
             {
-                int priorCount = 0;
-                for (int b = 0; b < a; b++)
-                    if (chart.Groups[b].Name == chart.Groups[a].Name) priorCount++;
-                if (priorCount > 0)
-                    chart.Groups[a].Name = $"{chart.Groups[a].Name} ({priorCount + 1})";
+                string name = chart.Groups[a].Name;
+                if (seen.TryGetValue(name, out int count))
+                {
+                    chart.Groups[a].Name = $"{name} ({count + 1})";
+                    seen[name] = count + 1;
+                }
+                else
+                {
+                    seen[name] = 1;
+                }
             }
         }
 
