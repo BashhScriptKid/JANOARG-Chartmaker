@@ -44,7 +44,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public Transform Holder;
         public ChartmakerLaneGroupPlayer LaneGroupPlayerSample;
         public ChartmakerLanePlayer LanePlayerSample;
-        public List<ChartmakerLaneGroupPlayer> LaneGroupPlayers { get; private set; } = new();
+        public Dictionary<string, ChartmakerLaneGroupPlayer> LaneGroupPlayers { get; private set; } = new();
         public List<ChartmakerLanePlayer> LanePlayers { get; private set; } = new();
         public ChartmakerHitPlayer HitPlayerSample;
         public MeshRenderer        HoldMeshSample;
@@ -233,58 +233,54 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 RenderSettings.fogColor = MainCamera.backgroundColor = Manager.PalleteManager.CurrentPallete.BackgroundColor;
                 BoundingBox.color = NotificationText.color = NotificationBox.color = Manager.PalleteManager.CurrentPallete.InterfaceColor;
 
-                // Pass 1: sync group player list to CurrentChart.Groups (parallel by index,
-                // matching client behaviour — duplicates get their own GOs).
-                var chart = Chartmaker.main.CurrentChart;
-                while (LaneGroupPlayers.Count > chart.Groups.Count)
+                // Pass 1: sync group player dict to Manager.Groups (post-ChartManager.Update,
+                // so duplicates in chart.Groups are already collapsed by the Dictionary).
+                foreach (var pair in LaneGroupPlayers)
+                    pair.Value.CurrentGroup = null;
+
+                foreach (var pair in Manager.Groups)
                 {
-                    Destroy(LaneGroupPlayers[^1].gameObject);
-                    LaneGroupPlayers.RemoveAt(LaneGroupPlayers.Count - 1);
-                }
-                while (LaneGroupPlayers.Count < chart.Groups.Count)
-                {
-                    int a = LaneGroupPlayers.Count;
-                    LaneGroupPlayers.Add(Instantiate(LaneGroupPlayerSample, Holder));
-                    #if UNITY_EDITOR
-                    // Names are already deduplicated by Chartmaker.DeduplicateGroupNames at load time.
-                    LaneGroupPlayers[a].gameObject.name = $"Lane Group ({chart.Groups[a].Name})";
-                    #endif
+                    string groupName = pair.Key;
+                    if (!LaneGroupPlayers.TryGetValue(groupName, out ChartmakerLaneGroupPlayer groupPlayer))
+                    {
+                        groupPlayer = Instantiate(LaneGroupPlayerSample, Holder);
+                        #if UNITY_EDITOR
+                        groupPlayer.gameObject.name = $"Lane Group ({groupName})";
+                        #endif
+                        LaneGroupPlayers[groupName] = groupPlayer;
+                    }
+                    groupPlayer.CurrentGroup = pair.Value;
                 }
 
-                for (int a = 0; a < chart.Groups.Count; a++)
-                {
-                    LaneGroup groupData = chart.Groups[a];
-                    // Look up the matching LaneGroupManager by name (first match, same as client).
-                    Manager.Groups.TryGetValue(groupData.Name, out LaneGroupManager groupManager);
-                    LaneGroupPlayers[a].CurrentGroup = groupManager;
-                }
+                // Destroy group players no longer in Manager.Groups.
+                var toRemove = new System.Collections.Generic.List<string>();
+                foreach (var pair in LaneGroupPlayers)
+                    if (pair.Value.CurrentGroup == null) { Destroy(pair.Value.gameObject); toRemove.Add(pair.Key); }
+                foreach (string key in toRemove) LaneGroupPlayers.Remove(key);
 
                 // Pass 2: resolve GO parent hierarchy BEFORE applying any local transforms.
-                // Use first-match by name for parent lookup, same as client.
-                for (int a = 0; a < chart.Groups.Count; a++)
+                foreach (var pair in LaneGroupPlayers)
                 {
-                    string parentGroupName = chart.Groups[a].Group;
-                    Transform desiredParent = !string.IsNullOrEmpty(parentGroupName)
-                        ? (LaneGroupPlayers.Find(x => x.CurrentGroup?.CurrentGroup.Name == parentGroupName)?.transform ?? Holder)
+                    string parentGroupName = pair.Value.CurrentGroup.CurrentGroup.Group;
+                    Transform desiredParent = !string.IsNullOrEmpty(parentGroupName) && LaneGroupPlayers.TryGetValue(parentGroupName, out ChartmakerLaneGroupPlayer parentPlayer)
+                        ? parentPlayer.transform
                         : Holder;
-                    if (LaneGroupPlayers[a].transform.parent != desiredParent)
-                        LaneGroupPlayers[a].transform.SetParent(desiredParent, worldPositionStays: false);
+                    if (pair.Value.transform.parent != desiredParent)
+                        pair.Value.transform.SetParent(desiredParent, worldPositionStays: false);
                 }
 
                 // Pass 3: apply local transforms — hierarchy is now correct.
-                for (int a = 0; a < chart.Groups.Count; a++)
-                    if (LaneGroupPlayers[a].CurrentGroup != null)
-                        LaneGroupPlayers[a].UpdateObjects(LaneGroupPlayers[a].CurrentGroup);
+                foreach (var pair in LaneGroupPlayers)
+                    pair.Value.UpdateObjects(pair.Value.CurrentGroup);
 
                 // Update lane players, parenting each under its group player (or Holder if ungrouped).
-                // First-match by name, same as client.
                 for (int a = 0; a < Manager.Lanes.Count; a++)
                 {
                     LaneManager laneManager = Manager.Lanes[a];
                     string laneGroupName = laneManager.Current.Group;
 
                     Transform desiredParent = !string.IsNullOrEmpty(laneGroupName)
-                        ? (LaneGroupPlayers.Find(x => x.CurrentGroup?.CurrentGroup.Name == laneGroupName)?.transform ?? Holder)
+                        ? (LaneGroupPlayers.TryGetValue(laneGroupName, out ChartmakerLaneGroupPlayer laneGroupPlayer) ? laneGroupPlayer.transform : Holder)
                         : Holder;
 
                     if (LanePlayers.Count <= a)
@@ -1098,8 +1094,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 Destroy(lane.gameObject);
             }
             LanePlayers.Clear();
-            foreach (var groupPlayer in LaneGroupPlayers)
-                Destroy(groupPlayer.gameObject);
+            foreach (var pair in LaneGroupPlayers)
+                Destroy(pair.Value.gameObject);
             LaneGroupPlayers.Clear();
         }
 
