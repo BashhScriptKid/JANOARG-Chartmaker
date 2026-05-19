@@ -698,16 +698,15 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             // and fold the dedup renames into the same undo entry as a composite.
             if (action is ChartmakerAddAction addAction)
             {
-                List<ChartmakerGroupRenameAction> dedupeRenames = BuildGroupDedupeRenames(addAction);
+                List<IChartmakerAction> dedupeRenames = BuildDedupeRenames(addAction);
                 if (dedupeRenames.Count > 0)
                 {
                     ChartmakerCompositeAction composite = new()
                     {
                         Name = addAction.GetName(),
-                        // Add action already ran via Redo() above; wrap it so composite Undo works.
                         Actions = { addAction },
                     };
-                    foreach (ChartmakerGroupRenameAction rename in dedupeRenames)
+                    foreach (IChartmakerAction rename in dedupeRenames)
                     {
                         rename.Redo();
                         composite.Actions.Add(rename);
@@ -724,9 +723,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             OnHistoryUpdate();
         }
 
-        private List<ChartmakerGroupRenameAction> BuildGroupDedupeRenames(ChartmakerAddAction addAction)
+        private List<IChartmakerAction> BuildDedupeRenames(ChartmakerAddAction addAction)
         {
-            List<ChartmakerGroupRenameAction> renames = new();
+            List<IChartmakerAction> renames = new();
 
             IEnumerable<object> added = addAction.Item is System.Collections.IList list
                 ? list.Cast<object>()
@@ -734,10 +733,30 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
             foreach (object item in added)
             {
-                if (item is not LaneGroup group) continue;
-                string newName = InspectorPanel.main.GetNewGroupName(group.Name, group);
-                if (newName == group.Name) continue;
-                renames.Add(new ChartmakerGroupRenameAction { From = group.Name, To = newName });
+                switch (item)
+                {
+                    case LaneGroup group:
+                    {
+                        string newName = InspectorPanel.main.GetNewGroupName(group.Name, group);
+                        if (newName != group.Name)
+                            renames.Add(new ChartmakerGroupRenameAction { From = group.Name, To = newName });
+                        break;
+                    }
+                    case LaneStyle laneStyle:
+                    {
+                        string newName = InspectorPanel.main.GetNewLaneStyleName(laneStyle.Name, laneStyle);
+                        if (newName != laneStyle.Name)
+                            renames.Add(new ChartmakerModifyAction { Item = laneStyle, Keyword = "Name", From = laneStyle.Name, To = newName });
+                        break;
+                    }
+                    case HitStyle hitStyle:
+                    {
+                        string newName = InspectorPanel.main.GetNewHitStyleName(hitStyle.Name, hitStyle);
+                        if (newName != hitStyle.Name)
+                            renames.Add(new ChartmakerModifyAction { Item = hitStyle, Keyword = "Name", From = hitStyle.Name, To = newName });
+                        break;
+                    }
+                }
             }
 
             return renames;
