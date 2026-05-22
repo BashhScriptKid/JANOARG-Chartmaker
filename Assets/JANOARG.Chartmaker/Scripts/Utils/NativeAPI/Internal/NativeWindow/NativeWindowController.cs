@@ -132,7 +132,7 @@ namespace JANOARG.Chartmaker.Utils.NativeAPI.Internal.NativeWindow
             else throw new System.Exception("API is not supported on this platform.");
         }
         
-        public void SetWindowMinSize(nint windowHandle, RectInt rect)
+        public void SetWindowMinSize(nint windowHandle, Vector2Int rect)
         {
             if (IsAvailable) Provider.SetWindowMinSize(windowHandle, rect);
             else throw new System.Exception("API is not supported on this platform.");
@@ -144,7 +144,7 @@ namespace JANOARG.Chartmaker.Utils.NativeAPI.Internal.NativeWindow
             else throw new System.Exception("API is not supported on this platform.");
         }
 
-        public void SetWindowMaxSize(nint windowHandle, RectInt rect)
+        public void SetWindowMaxSize(nint windowHandle, Vector2Int rect)
         {
             if (IsAvailable) Provider.SetWindowMaxSize(windowHandle, rect);
             else throw new System.Exception("API is not supported on this platform.");

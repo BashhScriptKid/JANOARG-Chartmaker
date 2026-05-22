@@ -77,11 +77,23 @@ namespace JANOARG.Chartmaker.Utils.NativeAPI
         {
             get
             {
-                return Controller.GetWindowMinSIze(WindowHandle);
+                return Controller.GetWindowMinSize(WindowHandle);
             }
             set
             {
-                Controller.ResizeWindow(WindowHandle, value);
+                Controller.SetWindowMinSize(WindowHandle, value);
+            }
+        }
+
+        public Vector2Int MaxSize
+        {
+            get
+            {
+                return Controller.GetWindowMaxSize(WindowHandle);
+            }
+            set
+            {
+                Controller.SetWindowMaxSize(WindowHandle, value);
             }
         }
 

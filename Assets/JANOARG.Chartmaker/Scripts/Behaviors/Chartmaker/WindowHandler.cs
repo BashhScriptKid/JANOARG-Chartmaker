@@ -165,7 +165,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         public void OnSizeChange() 
         {
-            maximized = targetWindow.M;
+            maximized = targetWindow.State == WindowState.Maximized;
             ResizeTooltip.Text = maximized ? "Restore" : "Maximize";
             ResizeIconMaximize.SetActive(!maximized);
             ResizeIconRestore.SetActive(maximized);
