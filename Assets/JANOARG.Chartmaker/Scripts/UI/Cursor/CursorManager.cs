@@ -26,6 +26,7 @@ namespace JANOARG.Chartmaker.UI.Cursor
 
         public void Start()
         {
+            PreferredCursorMode = Behaviors.Chartmaker.Chartmaker.Preferences.PreferredCursorMode;
             foreach (CursorDefinition cursor in CursorDefinitions)
             {
                 CursorDefinitionsDictionary[cursor.CursorStyle] = cursor;
@@ -35,7 +36,6 @@ namespace JANOARG.Chartmaker.UI.Cursor
 
         public void Update()
         {
-            UnityEngine.Debug.Log(activeCustomCursor);
             if (activeCustomCursor && activeCustomCursor.Frames.Count > 1) 
             {
                 currentCursorFrameTime += Time.unscaledDeltaTime;
@@ -71,7 +71,7 @@ namespace JANOARG.Chartmaker.UI.Cursor
         {
             CursorStyle currentCursor = cursorStack.Count > 0 ? cursorStack.Peek() : CursorStyle.Arrow;
 
-            if (PreferredCursorMode != PreferredCursorMode.PreferCustom)
+            if (PreferredCursorMode != PreferredCursorMode.PreferCustom && NativeWindow.IsApiAvailable)
             {
                 if (NativeWindow.MainWindow.SetCurrentCursor(currentCursor, PreferredCursorMode == PreferredCursorMode.PreferNativeBestEffort))
                 {
@@ -82,6 +82,12 @@ namespace JANOARG.Chartmaker.UI.Cursor
             
             activeCustomCursor = CursorDefinitionsDictionary.GetValueOrDefault(currentCursor, CursorDefinitionsDictionary[CursorStyle.Arrow]);
             UnityEngine.Cursor.SetCursor(activeCustomCursor.Frames[0].Texture, activeCustomCursor.Pivot, CursorMode.Auto);
+        }
+
+        public void SetPreferredCursorMode(PreferredCursorMode mode)
+        {
+            PreferredCursorMode = mode;
+            UpdateCursor();
         }
     }
 }

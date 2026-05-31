@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using JANOARG.Chartmaker.Behaviors.Runtime;
 using JANOARG.Chartmaker.UI.NativeUI;
 using TMPro;
 using UnityEngine;
@@ -26,7 +27,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
         public Sprite   ErrorIcon;
         public TMP_Text ErrorCountLabel; 
 
-        BorderlessWindow.LoggerEntry activeEntry;
+        RuntimeLogManager.LoggerEntry activeEntry;
         float                        activeEntryHeight;
 
         public void Awake()
@@ -62,7 +63,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
             float offsetMax = EntryViewport.rect.height + EntryHolder.anchoredPosition.y;
 
             int count = 0;
-            void AddItem(BorderlessWindow.LoggerEntry entry)
+            void AddItem(RuntimeLogManager.LoggerEntry entry)
             {
                 LoggerEntry item;
           
@@ -139,7 +140,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
             }
         }
     
-        public void LoadEntry(BorderlessWindow.LoggerEntry entry, LoggerEntry item)
+        public void LoadEntry(RuntimeLogManager.LoggerEntry entry, LoggerEntry item)
         {
             activeEntry = entry;
        

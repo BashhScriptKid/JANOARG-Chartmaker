@@ -48,6 +48,26 @@ namespace JANOARG.Chartmaker.Utils.NativeAPI
             }
         }
 
+        public string Title
+        {
+            get
+            {
+                return Controller.GetWindowName(WindowHandle);
+            }
+            set
+            {
+                Controller.SetWindowName(WindowHandle, value);
+            }
+        }
+
+        public bool IsActive
+        {
+            get
+            {
+                return Controller.GetWindowActive(WindowHandle);
+            }
+        }
+
         public Vector2Int Size
         {
             get
@@ -123,6 +143,21 @@ namespace JANOARG.Chartmaker.Utils.NativeAPI
         public bool SetCurrentCursor(CursorStyle style, bool bestEffort)
         {
             return Controller.SetWindowCursor(WindowHandle, style, bestEffort);
+        }
+
+        public bool SetHitTestZone(int zone)
+        {
+            return Controller.SetWindowHitTestZone(WindowHandle, zone);
+        }
+
+        public bool Hook()
+        {
+            return Controller.HookWindow(WindowHandle);
+        }
+
+        public bool Unhook()
+        {
+            return Controller.UnhookWindow(WindowHandle);
         }
     }
 

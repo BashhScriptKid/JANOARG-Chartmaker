@@ -70,17 +70,22 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 WindowControls.SetActive(!isFullScreen);
                 if (!isFullScreen) BorderlessWindow.InitializeWindow();
             }
-        
 
-            if (maximized != BorderlessWindow.IsMaximized) 
+            BorderlessWindow.RefreshState();
+
+            bool nativeMaximized = NativeWindow.IsApiAvailable ? targetWindow.State == WindowState.Maximized : BorderlessWindow.IsMaximized;
+            bool nativeActive = NativeWindow.IsApiAvailable ? targetWindow.IsActive : BorderlessWindow.IsActive;
+            bool nativeFramed = NativeWindow.IsApiAvailable ? targetWindow.Style == WindowStyle.Native : BorderlessWindow.IsFramed;
+
+            if (maximized != nativeMaximized)
                 OnSizeChange(); 
         
-            if (active != BorderlessWindow.IsActive) 
+            if (active != nativeActive)
                 OnActiveChange();
         
-            if (framed != BorderlessWindow.IsFramed) 
+            if (framed != nativeFramed)
             {
-                framed = BorderlessWindow.IsFramed;
+                framed = nativeFramed;
                 OnFrameChanged();
             }
         }
@@ -102,7 +107,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         public void ResetWindowSize()
         {
-            BorderlessWindow.ResizeWindow(defaultWindowSize.x, defaultWindowSize.y);
+            if (NativeWindow.IsApiAvailable) targetWindow.Size = defaultWindowSize;
         }
 
         public void CloseWindow()
@@ -114,7 +119,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public void MinimizeWindow()
         {
             EventSystem.current.SetSelectedGameObject(null);
-            BorderlessWindow.MinimizeWindow();
+            if (NativeWindow.IsApiAvailable) targetWindow.State = WindowState.Minimized;
         }
 
         public void ResizeWindow()
@@ -123,11 +128,13 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
             maximized = !maximized;
 
-            if (maximized) BorderlessWindow.MaximizeWindow();
-            else BorderlessWindow.RestoreWindow();
+            if (NativeWindow.IsApiAvailable) targetWindow.State = maximized ? WindowState.Maximized : WindowState.Floating;
         
-            var rect = BorderlessWindow.GetWindowRect();
-            if (!maximized && rect.yMin < 0) BorderlessWindow.MoveWindowDelta(Vector2.up * rect.yMin);
+            if (NativeWindow.IsApiAvailable)
+            {
+                var rect = targetWindow.Rect;
+                if (!maximized && rect.yMin < 0) targetWindow.Position += Vector2Int.up * rect.yMin;
+            }
 
             OnSizeChange();
         }
@@ -136,15 +143,16 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         {
             if (!maximized) 
             {
-                var rect = BorderlessWindow.GetWindowRect();
+                if (!NativeWindow.IsApiAvailable) return;
+                var rect = targetWindow.Rect;
                 if (rect.yMin - Input.mousePosition.y + Screen.height < 1 && !maximized) ResizeWindow();
-                else if (rect.yMin < 0) BorderlessWindow.MoveWindowDelta(Vector2.up * rect.yMin);
+                else if (rect.yMin < 0) targetWindow.Position += Vector2Int.up * rect.yMin;
             }
         }
 
         public void OnSizeChange() 
         {
-            maximized = targetWindow.State == WindowState.Maximized;
+            maximized = NativeWindow.IsApiAvailable ? targetWindow.State == WindowState.Maximized : BorderlessWindow.IsMaximized;
             ResizeTooltip.Text = maximized ? "Restore" : "Maximize";
             ResizeIconMaximize.SetActive(!maximized);
             ResizeIconRestore.SetActive(maximized);
@@ -153,19 +161,24 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         private void OnActiveChange() 
         {
-            active = BorderlessWindow.IsActive;
+            active = NativeWindow.IsApiAvailable ? targetWindow.IsActive : BorderlessWindow.IsActive;
             InactiveBackground.SetActive(!active);
             LeftGroup.alpha = CenterGroup.alpha = RightGroup.alpha = active ? 1 : 0.5f;
         }
 
         public void OnPointerEnter(PointerEventData data)
         {
-            if (!framed) BorderlessWindow.CurrentWindowZone = WindowZone.TitleBar;
+            if (!framed)
+            {
+                BorderlessWindow.CurrentWindowZone = WindowZone.TitleBar;
+                if (NativeWindow.IsApiAvailable) targetWindow.SetHitTestZone((int)WindowZone.TitleBar);
+            }
         }
 
         public void OnPointerExit(PointerEventData data)
         {
             BorderlessWindow.CurrentWindowZone = WindowZone.Client;
+            if (NativeWindow.IsApiAvailable) targetWindow.SetHitTestZone((int)WindowZone.Client);
         }
 
         public void SetCustomCursor(CursorDefinition cursor) 

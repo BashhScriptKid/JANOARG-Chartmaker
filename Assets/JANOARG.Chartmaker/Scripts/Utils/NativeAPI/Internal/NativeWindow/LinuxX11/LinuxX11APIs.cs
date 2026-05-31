@@ -17,6 +17,9 @@ namespace JANOARG.Chartmaker.Utils.NativeAPI.Internal.NativeWindow.LinuxX11
         public static extern nint XDefaultRootWindow(nint display);
 
         [DllImport(LIBX11_PATH)]
+        public static extern int XDefaultScreen(nint display);
+
+        [DllImport(LIBX11_PATH)]
         public static extern int XMapWindow(nint display, nint window);
 
         [DllImport(LIBX11_PATH)]
@@ -32,22 +35,49 @@ namespace JANOARG.Chartmaker.Utils.NativeAPI.Internal.NativeWindow.LinuxX11
         public static extern int XStoreName(nint display, nint window, string window_name);
 
         [DllImport(LIBX11_PATH)]
-        public static extern int XDestroyWindow(nint display, nint window);
+        public static extern int XIconifyWindow(nint display, nint window, int screenNumber);
 
         [DllImport(LIBX11_PATH)]
         public static extern int XCloseDisplay(nint display);
 
         [DllImport(LIBX11_PATH)]
-        public static extern nint XAllocSizeHints(nint display);
+        public static extern nint XAllocSizeHints();
 
         [DllImport(LIBX11_PATH)]
-        public static extern int XGetWMSizeHints(nint display, nint window, nint hints_return, ref long supplied_return);
+        public static extern int XGetWMNormalHints(nint display, nint window, nint hints_return, ref long supplied_return);
 
         [DllImport(LIBX11_PATH)]
-        public static extern int XSetWMSizeHints(nint display, nint window, nint hints);
+        public static extern void XSetWMNormalHints(nint display, nint window, nint hints);
 
         [DllImport(LIBX11_PATH)]
         public static extern int XDefineCursor(nint display, nint window, nint cursor);
+
+        [DllImport(LIBX11_PATH)]
+        public static extern int XUndefineCursor(nint display, nint window);
+
+        [DllImport(LIBX11_PATH)]
+        public static extern int XFree(nint data);
+
+        [DllImport(LIBX11_PATH)]
+        public static extern int XFlush(nint display);
+
+        [DllImport(LIBX11_PATH)]
+        public static extern nint XInternAtom(nint display, string atomName, bool onlyIfExists);
+
+        [DllImport(LIBX11_PATH)]
+        public static extern void XChangeProperty(nint display, nint window, nint property, nint type, int format, int mode, ref MotifWmHints data, int nelements);
+
+        [DllImport(LIBX11_PATH)]
+        public static extern int XSendEvent(nint display, nint window, bool propagate, nint eventMask, ref XEvent eventSend);
+
+        [DllImport(LIBX11_PATH)]
+        public static extern int XGetWindowAttributes(nint display, nint window, out XWindowAttributes windowAttributes);
+
+        [DllImport(LIBX11_PATH)]
+        public static extern int XTranslateCoordinates(nint display, nint srcWindow, nint destWindow, int srcX, int srcY, out int destX, out int destY, out nint child);
+
+        [DllImport(LIBX11_PATH)]
+        public static extern int XGetWindowProperty(nint display, nint window, nint property, nint longOffset, nint longLength, bool delete, nint reqType, out nint actualTypeReturn, out int actualFormatReturn, out nint nitemsReturn, out nint bytesAfterReturn, out nint propReturn);
     }
 
     internal static class LibXCursor
@@ -84,6 +114,66 @@ namespace JANOARG.Chartmaker.Utils.NativeAPI.Internal.NativeWindow.LinuxX11
         public int max_aspect_x, max_aspect_y;
         public int base_width, base_height;
         public int win_gravity;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct MotifWmHints
+    {
+        public nuint flags;
+        public nuint functions;
+        public nuint decorations;
+        public nint inputMode;
+        public nuint status;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct XWindowAttributes
+    {
+        public int x, y;
+        public int width, height;
+        public int border_width;
+        public int depth;
+        public nint visual;
+        public nint root;
+        public int c_class;
+        public int bit_gravity;
+        public int win_gravity;
+        public int backing_store;
+        public nint backing_planes;
+        public nint backing_pixel;
+        public bool save_under;
+        public nint colormap;
+        public bool map_installed;
+        public int map_state;
+        public nint all_event_masks;
+        public nint your_event_mask;
+        public nint do_not_propagate_mask;
+        public bool override_redirect;
+        public nint screen;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct XClientMessageEvent
+    {
+        public int type;
+        public nuint serial;
+        public bool send_event;
+        public nint display;
+        public nint window;
+        public nint message_type;
+        public int format;
+        public nint data0;
+        public nint data1;
+        public nint data2;
+        public nint data3;
+        public nint data4;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 192)]
+    internal struct XEvent
+    {
+        [FieldOffset(0)] public int type;
+        [FieldOffset(0)] public XClientMessageEvent clientMessage;
     }
 
     internal static class X11Convert
