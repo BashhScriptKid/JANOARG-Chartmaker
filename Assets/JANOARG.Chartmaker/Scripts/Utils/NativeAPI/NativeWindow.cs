@@ -155,9 +155,19 @@ namespace JANOARG.Chartmaker.Utils.NativeAPI
             return Controller.StartWindowDrag(WindowHandle, pointerPosition);
         }
 
+        public bool StartResize(Vector2Int pointerPosition, WindowResizeEdge edge)
+        {
+            return Controller.StartWindowResize(WindowHandle, pointerPosition, edge);
+        }
+
         public Vector2Int GetPointerPosition()
         {
             return Controller.GetPointerPosition();
+        }
+
+        public bool SetType(string typeName)
+        {
+            return Controller.SetWindowType(WindowHandle, typeName);
         }
 
         public bool Hook()
@@ -206,5 +216,17 @@ namespace JANOARG.Chartmaker.Utils.NativeAPI
         /// Window features are manually managed by the app.
         /// </summary>
         Custom,
+    }
+
+    public enum WindowResizeEdge
+    {
+        TopLeft,
+        Top,
+        TopRight,
+        Right,
+        BottomRight,
+        Bottom,
+        BottomLeft,
+        Left,
     }
 }

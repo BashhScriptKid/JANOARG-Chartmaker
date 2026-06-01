@@ -33,6 +33,8 @@ namespace JANOARG.Chartmaker.Utils.NativeAPI.Internal.NativeWindow
         public bool SetWindowCursor(nint windowHandle, CursorStyle cursor, bool bestEffort);
         public bool SetWindowHitTestZone(nint windowHandle, int zone);
         public bool StartWindowDrag(nint windowHandle, Vector2Int pointerPosition);
+        public bool StartWindowResize(nint windowHandle, Vector2Int pointerPosition, WindowResizeEdge edge);
         public Vector2Int GetPointerPosition();
+        public bool SetWindowType(nint windowHandle, string typeName);
     }    
 }

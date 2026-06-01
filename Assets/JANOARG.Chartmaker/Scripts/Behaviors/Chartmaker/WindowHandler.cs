@@ -41,6 +41,16 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         bool isFullScreen;
 
         bool framed;
+        const int ResizeBorderSize = 8;
+        const int ResizeBorderVisualSize = 1;
+        static readonly Color ResizeBorderColor = new(1f, 1f, 1f, 0.18f);
+        static Texture2D resizeBorderTexture;
+        bool resizeCursorActive;
+        CursorStyle activeResizeCursor;
+        bool isNativeResizing;
+        Vector2Int resizeStartPointer;
+        RectInt resizeStartRect;
+        WindowResizeEdge resizeEdge;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSplashScreen)]
         public static void InitializeWindow()
@@ -94,12 +104,13 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 OnFrameChanged();
             }
 
+            UpdateResizeEdges();
+
             if (isDragging && !framed && NativeWindow.IsApiAvailable)
             {
                 Vector2Int currentPointer = targetWindow.GetPointerPosition();
                 Vector2Int delta = currentPointer - dragStartPointer;
                 Vector2Int newPos = dragStartWindowPos + delta;
-                UnityEngine.Debug.Log($"[WindowHandler] Drag: isDragging={isDragging}, cur={currentPointer}, start={dragStartPointer}, winStart={dragStartWindowPos}, newPos={newPos}, curWin={targetWindow.Position}");
                 if (newPos != targetWindow.Position)
                     targetWindow.Position = newPos;
             }
@@ -142,7 +153,6 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             EventSystem.current.SetSelectedGameObject(null);
 
             maximized = !maximized;
-            UnityEngine.Debug.Log($"[WindowHandler] ResizeWindow: maximized={maximized}, IsApiAvailable={NativeWindow.IsApiAvailable}");
 
             if (NativeWindow.IsApiAvailable) targetWindow.State = maximized ? WindowState.Maximized : WindowState.Floating;
 
@@ -175,6 +185,176 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             TopBorder.gameObject.SetActive(!maximized);
         }
 
+        void OnGUI()
+        {
+            if (!NativeWindow.IsApiAvailable || framed || maximized || isFullScreen)
+                return;
+
+            resizeBorderTexture ??= Texture2D.whiteTexture;
+            Color prevColor = GUI.color;
+            GUI.color = ResizeBorderColor;
+            GUI.DrawTexture(new Rect(0, 0, Screen.width, ResizeBorderVisualSize), resizeBorderTexture);
+            GUI.DrawTexture(new Rect(0, Screen.height - ResizeBorderVisualSize, Screen.width, ResizeBorderVisualSize), resizeBorderTexture);
+            GUI.DrawTexture(new Rect(0, 0, ResizeBorderVisualSize, Screen.height), resizeBorderTexture);
+            GUI.DrawTexture(new Rect(Screen.width - ResizeBorderVisualSize, 0, ResizeBorderVisualSize, Screen.height), resizeBorderTexture);
+            GUI.color = prevColor;
+        }
+
+        void UpdateResizeEdges()
+        {
+            if (isNativeResizing)
+            {
+                if (Input.GetMouseButton(0)) UpdateManualResize();
+                else isNativeResizing = false;
+            }
+
+            if (!NativeWindow.IsApiAvailable || framed || maximized || isFullScreen || isDragging)
+            {
+                ClearResizeCursor();
+                return;
+            }
+
+            Vector2 mouse = Input.mousePosition;
+            if (!TryGetResizeEdge(mouse, out WindowResizeEdge edge))
+            {
+                ClearResizeCursor();
+                return;
+            }
+
+            SetResizeCursor(GetResizeCursor(edge));
+
+            if (Input.GetMouseButtonDown(0))
+            {
+                resizeStartPointer = targetWindow.GetPointerPosition();
+                resizeStartRect = targetWindow.Rect;
+                resizeEdge = edge;
+                isNativeResizing = true;
+                EventSystem.current.SetSelectedGameObject(null);
+            }
+        }
+
+        void UpdateManualResize()
+        {
+            Vector2Int delta = targetWindow.GetPointerPosition() - resizeStartPointer;
+            RectInt rect = resizeStartRect;
+            Vector2Int minSize = targetWindow.MinSize;
+
+            switch (resizeEdge)
+            {
+                case WindowResizeEdge.TopLeft:
+                    rect.xMin += delta.x;
+                    rect.yMin += delta.y;
+                    break;
+                case WindowResizeEdge.Top:
+                    rect.yMin += delta.y;
+                    break;
+                case WindowResizeEdge.TopRight:
+                    rect.xMax += delta.x;
+                    rect.yMin += delta.y;
+                    break;
+                case WindowResizeEdge.Right:
+                    rect.xMax += delta.x;
+                    break;
+                case WindowResizeEdge.BottomRight:
+                    rect.xMax += delta.x;
+                    rect.yMax += delta.y;
+                    break;
+                case WindowResizeEdge.Bottom:
+                    rect.yMax += delta.y;
+                    break;
+                case WindowResizeEdge.BottomLeft:
+                    rect.xMin += delta.x;
+                    rect.yMax += delta.y;
+                    break;
+                case WindowResizeEdge.Left:
+                    rect.xMin += delta.x;
+                    break;
+            }
+
+            rect = ApplyResizeMinSize(rect, minSize, resizeEdge);
+            RectInt currentRect = targetWindow.Rect;
+            if (rect.x != currentRect.x || rect.y != currentRect.y || rect.width != currentRect.width || rect.height != currentRect.height)
+                targetWindow.Rect = rect;
+        }
+
+        RectInt ApplyResizeMinSize(RectInt rect, Vector2Int minSize, WindowResizeEdge edge)
+        {
+            minSize.x = Mathf.Max(minSize.x, 1);
+            minSize.y = Mathf.Max(minSize.y, 1);
+
+            if (rect.width < minSize.x)
+            {
+                if (edge == WindowResizeEdge.Left || edge == WindowResizeEdge.TopLeft || edge == WindowResizeEdge.BottomLeft)
+                    rect.xMin = rect.xMax - minSize.x;
+                else
+                    rect.xMax = rect.xMin + minSize.x;
+            }
+
+            if (rect.height < minSize.y)
+            {
+                if (edge == WindowResizeEdge.Top || edge == WindowResizeEdge.TopLeft || edge == WindowResizeEdge.TopRight)
+                    rect.yMin = rect.yMax - minSize.y;
+                else
+                    rect.yMax = rect.yMin + minSize.y;
+            }
+
+            return rect;
+        }
+
+        bool TryGetResizeEdge(Vector2 mousePosition, out WindowResizeEdge edge)
+        {
+            edge = WindowResizeEdge.Right;
+            bool left = mousePosition.x <= ResizeBorderSize;
+            bool right = mousePosition.x >= Screen.width - ResizeBorderSize;
+            bool bottom = mousePosition.y <= ResizeBorderSize;
+            bool top = mousePosition.y >= Screen.height - ResizeBorderSize;
+
+            if (top && left) edge = WindowResizeEdge.TopLeft;
+            else if (top && right) edge = WindowResizeEdge.TopRight;
+            else if (bottom && right) edge = WindowResizeEdge.BottomRight;
+            else if (bottom && left) edge = WindowResizeEdge.BottomLeft;
+            else if (top) edge = WindowResizeEdge.Top;
+            else if (right) edge = WindowResizeEdge.Right;
+            else if (bottom) edge = WindowResizeEdge.Bottom;
+            else if (left) edge = WindowResizeEdge.Left;
+            else return false;
+
+            return true;
+        }
+
+        CursorStyle GetResizeCursor(WindowResizeEdge edge)
+        {
+            return edge switch
+            {
+                WindowResizeEdge.Top => CursorStyle.ResizeTop,
+                WindowResizeEdge.Right => CursorStyle.ResizeRight,
+                WindowResizeEdge.Bottom => CursorStyle.ResizeBottom,
+                WindowResizeEdge.Left => CursorStyle.ResizeLeft,
+                WindowResizeEdge.TopLeft => CursorStyle.ResizeTopLeft,
+                WindowResizeEdge.TopRight => CursorStyle.ResizeTopRight,
+                WindowResizeEdge.BottomRight => CursorStyle.ResizeBottomRight,
+                WindowResizeEdge.BottomLeft => CursorStyle.ResizeBottomLeft,
+                _ => CursorStyle.Arrow,
+            };
+        }
+
+        void SetResizeCursor(CursorStyle cursor)
+        {
+            if (resizeCursorActive && activeResizeCursor == cursor) return;
+            ClearResizeCursor();
+            if (!CursorManager.main) return;
+            CursorManager.main.PushCursor(cursor);
+            activeResizeCursor = cursor;
+            resizeCursorActive = true;
+        }
+
+        void ClearResizeCursor()
+        {
+            if (!resizeCursorActive) return;
+            if (CursorManager.main) CursorManager.main.PopCursor();
+            resizeCursorActive = false;
+        }
+
         private void OnActiveChange() 
         {
             active = NativeWindow.IsApiAvailable ? targetWindow.IsActive : Application.isFocused;
@@ -201,19 +381,20 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         public void OnBeginDrag(PointerEventData data)
         {
-            UnityEngine.Debug.Log($"[WindowHandler] OnBeginDrag: framed={framed}, IsApiAvailable={NativeWindow.IsApiAvailable}");
-            if (framed || !NativeWindow.IsApiAvailable) return;
+            if (framed || maximized || isNativeResizing || TryGetResizeEdge(Input.mousePosition, out _) || !NativeWindow.IsApiAvailable) return;
+
+            if (targetWindow.StartDrag(targetWindow.GetPointerPosition()))
+                return;
+
             dragStartPointer = targetWindow.GetPointerPosition();
             dragStartWindowPos = targetWindow.Position;
             isDragging = true;
-            UnityEngine.Debug.Log($"[WindowHandler] OnBeginDrag: start={dragStartPointer}, winStart={dragStartWindowPos}");
         }
 
         public void OnDrag(PointerEventData data) { }
 
         public void OnEndDrag(PointerEventData data)
         {
-            UnityEngine.Debug.Log($"[WindowHandler] OnEndDrag: isDragging was {isDragging}");
             isDragging = false;
             if (!NativeWindow.IsApiAvailable) return;
             FinalizeDrag();

@@ -20,7 +20,16 @@ namespace JANOARG.Chartmaker.Utils.NativeAPI.Internal.NativeWindow.LinuxX11
         public static extern int XQueryTree(nint display, nint window, out nint root_return, out nint parent_return, out nint children_return, out nint nchildren_return);
 
         [DllImport(LIBX11_PATH)]
+        public static extern int XConfigureWindow(nint display, nint window, nuint value_mask, ref XWindowChanges changes);
+
+        [DllImport(LIBX11_PATH)]
         public static extern int XDefaultScreen(nint display);
+
+        [DllImport(LIBX11_PATH)]
+        public static extern int XDisplayWidth(nint display, int screenNumber);
+
+        [DllImport(LIBX11_PATH)]
+        public static extern int XDisplayHeight(nint display, int screenNumber);
 
         [DllImport(LIBX11_PATH)]
         public static extern int XMapWindow(nint display, nint window);
@@ -74,6 +83,12 @@ namespace JANOARG.Chartmaker.Utils.NativeAPI.Internal.NativeWindow.LinuxX11
         public static extern void XChangeProperty(nint display, nint window, nint property, nint type, int format, int mode, ref MotifWmHints data, int nelements);
 
         [DllImport(LIBX11_PATH)]
+        public static extern void XChangeProperty(nint display, nint window, nint property, nint type, int format, int mode, nint[] data, int nelements);
+
+        [DllImport(LIBX11_PATH)]
+        public static extern int XDeleteProperty(nint display, nint window, nint property);
+
+        [DllImport(LIBX11_PATH)]
         public static extern int XSendEvent(nint display, nint window, bool propagate, nint eventMask, ref XEvent eventSend);
 
         [DllImport(LIBX11_PATH)]
@@ -93,6 +108,9 @@ namespace JANOARG.Chartmaker.Utils.NativeAPI.Internal.NativeWindow.LinuxX11
 
         [DllImport(LIBX11_PATH)]
         public static extern int XChangeWindowAttributes(nint display, nint window, nuint valuemask, ref XSetWindowAttributes attributes);
+
+        [DllImport(LIBX11_PATH)]
+        public static extern int XUngrabPointer(nint display, nint time);
     }
 
     internal static class LibXCursor
@@ -168,6 +186,16 @@ namespace JANOARG.Chartmaker.Utils.NativeAPI.Internal.NativeWindow.LinuxX11
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    internal struct XWindowChanges
+    {
+        public int x, y;
+        public int width, height;
+        public int border_width;
+        public nint sibling;
+        public int stack_mode;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
     internal struct XSetWindowAttributes
     {
         public nint background_pixmap;
@@ -189,6 +217,11 @@ namespace JANOARG.Chartmaker.Utils.NativeAPI.Internal.NativeWindow.LinuxX11
 
     internal static class XConstants
     {
+        public const nuint CWX = 1 << 0;
+        public const nuint CWY = 1 << 1;
+        public const nuint CWWidth = 1 << 2;
+        public const nuint CWHeight = 1 << 3;
+        public const nuint CWBorderWidth = 1 << 4;
         public const nuint CWOverrideRedirect = 1 << 9;
     }
 
@@ -197,7 +230,7 @@ namespace JANOARG.Chartmaker.Utils.NativeAPI.Internal.NativeWindow.LinuxX11
     {
         public int type;
         public nuint serial;
-        public bool send_event;
+        public int send_event;
         public nint display;
         public nint window;
         public nint message_type;
