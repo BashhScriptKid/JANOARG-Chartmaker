@@ -231,7 +231,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 return;
             }
 
-            SetResizeCursor(GetResizeCursor(edge));
+            CursorStyle resizeCursor = GetResizeCursor(edge);
+            SetResizeCursor(resizeCursor);
 
             if (Input.GetMouseButtonDown(0))
             {
@@ -354,14 +355,14 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         {
             return edge switch
             {
-                WindowResizeEdge.Top => CursorStyle.ResizeTop,
-                WindowResizeEdge.Right => CursorStyle.ResizeRight,
-                WindowResizeEdge.Bottom => CursorStyle.ResizeBottom,
-                WindowResizeEdge.Left => CursorStyle.ResizeLeft,
-                WindowResizeEdge.TopLeft => CursorStyle.ResizeTopLeft,
-                WindowResizeEdge.TopRight => CursorStyle.ResizeTopRight,
-                WindowResizeEdge.BottomRight => CursorStyle.ResizeBottomRight,
-                WindowResizeEdge.BottomLeft => CursorStyle.ResizeBottomLeft,
+                WindowResizeEdge.Top => CursorStyle.ResizeVertical,
+                WindowResizeEdge.Bottom => CursorStyle.ResizeVertical,
+                WindowResizeEdge.Left => CursorStyle.ResizeHorizontal,
+                WindowResizeEdge.Right => CursorStyle.ResizeHorizontal,
+                //WindowResizeEdge.TopLeft => CursorStyle.ResizeDiagonalTopLeftBottomRight,
+                //WindowResizeEdge.TopRight => CursorStyle.ResizeDiagonalBottomLeftTopRight,
+                //WindowResizeEdge.BottomLeft => CursorStyle.ResizeDiagonalBottomLeftTopRight,
+                //WindowResizeEdge.BottomRight => CursorStyle.ResizeDiagonalTopLeftBottomRight,
                 _ => CursorStyle.Arrow,
             };
         }
