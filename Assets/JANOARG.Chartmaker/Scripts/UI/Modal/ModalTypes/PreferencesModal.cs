@@ -119,6 +119,13 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                     var prefs = Behaviors.Chartmaker.Chartmaker.Preferences;
                     var storage = Behaviors.Chartmaker.Chartmaker.PreferencesStorage;
 
+                    #if UNITY_STANDALONE_LINUX
+                    SpawnForm<FormEntryNotice>(
+                        "Native features in Linux is currently experimental, your mileage will vary greatly based on what distro and window manager you're using."
+                        + "\n\nIf you encounter bugs or surprises, please do take the time and report them to us by going to 'Help' > 'Report an Issue / Suggestion' on the navigation bar."
+                    );
+                    #endif
+
                     SpawnForm<FormEntryHeader>("Appearance");
                     var themeDropdown = SpawnForm<FormEntryDropdown, object>("Theme", () => prefs.Theme, x => {
                         if (prefs.Theme != x.ToString()) 
