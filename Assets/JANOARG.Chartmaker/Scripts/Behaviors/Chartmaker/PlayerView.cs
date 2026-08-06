@@ -111,6 +111,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             }
         }
     
+        readonly List<string> _GroupRemovalScratch = new();
+
         int[] HitObjectsRemaining = new [] { 0, 0 };
         int   FlicksRemaining     = 0;
 
@@ -253,7 +255,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 }
 
                 // Destroy group players no longer in Manager.Groups.
-                var toRemove = new System.Collections.Generic.List<string>();
+                _GroupRemovalScratch.Clear();
+                var toRemove = _GroupRemovalScratch;
                 foreach (var pair in LaneGroupPlayers)
                     if (pair.Value.CurrentGroup == null) { Destroy(pair.Value.gameObject); toRemove.Add(pair.Key); }
                 foreach (string key in toRemove) LaneGroupPlayers.Remove(key);
@@ -314,7 +317,11 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     if (Manager.FlicksRemaining < FlicksRemaining && !Chartmaker.Preferences.PerfectHitsounds)
                         SoundPlayer.PlayOneShot(FlickSound, PlayOptions.HitsoundsVolume);
                 }
-                HitObjectsRemaining = Manager.HitObjectsRemaining;
+                // Copy values, not the reference: ChartManager reuses its array across frames,
+                // so aliasing it here would make the comparisons above always read equal and
+                // no hitsound would ever fire.
+                HitObjectsRemaining[0] = Manager.HitObjectsRemaining[0];
+                HitObjectsRemaining[1] = Manager.HitObjectsRemaining[1];
                 FlicksRemaining = Manager.FlicksRemaining;
             }
 
