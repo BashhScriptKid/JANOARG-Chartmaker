@@ -79,19 +79,22 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 }
             }
 
-            if (hit.HoldMesh && visible) 
-            { 
+            if (hit.HoldMesh && visible)
+            {
                 if (!HoldTail)
                     HoldTail = Instantiate(PlayerView.main.HoldMeshSample, transform.parent);
-            
+
+                if (!HoldTail.gameObject.activeSelf)
+                    HoldTail.gameObject.SetActive(true);
+
                 HoldTail.sharedMaterial = styles[index].HoldTailMaterial;
                 HoldTail.GetComponent<MeshFilter>().sharedMesh = hit.HoldMesh;
             }
-            else 
+            else if (HoldTail && HoldTail.gameObject.activeSelf)
             {
-                if (HoldTail) {
-                    Destroy(HoldTail.gameObject);
-                } 
+                // Hidden, not destroyed — notes cross in and out of range constantly while
+                // scrubbing, and the flick emblem below already works this way.
+                HoldTail.gameObject.SetActive(false);
             }
 
             if (hit.Current.Flickable) 
