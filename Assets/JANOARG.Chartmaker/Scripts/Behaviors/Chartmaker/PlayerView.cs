@@ -113,6 +113,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
     
         readonly List<string> _GroupRemovalScratch = new();
 
+        readonly LaneWindowIndex LaneWindows = new();
+        bool[] LaneActiveMask = System.Array.Empty<bool>();
+
         int[] HitObjectsRemaining = new [] { 0, 0 };
         int   FlicksRemaining     = 0;
 
@@ -204,12 +207,27 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             float camRatio = safeZone.height / bound.height;
             MainCamera.fieldOfView = Mathf.Atan2(Mathf.Tan(30 * Mathf.Deg2Rad), camRatio) * 2 * Mathf.Rad2Deg;
 
-            if (!Mathf.Approximately(CurrentTime, InformationBar.main.sec) || !Mathf.Approximately(targetAspect, lastTargetAspect)) 
-                UpdateObjects();
+            if (!Mathf.Approximately(CurrentTime, InformationBar.main.sec) || !Mathf.Approximately(targetAspect, lastTargetAspect))
+                UpdateObjectsForFrame();
             lastTargetAspect = targetAspect;
         }
 
-        public void UpdateObjects() => UpdateObjects(InformationBar.main.sec, InformationBar.main.beat);
+        /// <summary>
+        /// The edit path. Every external caller of this is a chart mutation site, so it is
+        /// also where the lane window index gets invalidated — a rebuild costs well under a
+        /// millisecond and happens lazily on the next query, so an edit burst collapses into
+        /// one. Marking dirty here rather than watching individual fields is deliberate:
+        /// lane steps stay offset-sorted, so editing a middle step can produce a new first
+        /// step, and a field watcher that missed it would silently stop rendering that lane.
+        /// </summary>
+        public void UpdateObjects()
+        {
+            LaneWindows.Invalidate();
+            UpdateObjectsForFrame();
+        }
+
+        /// <summary>The per-frame path — same work, but the windows are already current.</summary>
+        void UpdateObjectsForFrame() => UpdateObjects(InformationBar.main.sec, InformationBar.main.beat);
 
         public void UpdateObjects(float sec, float beat)
         {
@@ -217,16 +235,41 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
             if (Chartmaker.main.CurrentChart != null)
             {
-                if (Chartmaker.main.CurrentChart != Manager?.CurrentChart) 
+                if (Chartmaker.main.CurrentChart != Manager?.CurrentChart)
+                {
                     Manager = new ChartManager(
                         Chartmaker.main.CurrentSong,
                         Chartmaker.main.CurrentChart,
-                        speed: 121, 
-                        time:  sec, 
+                        speed: 121,
+                        time:  sec,
                         pos:   beat
                     );
-                else 
-                    Manager!.Update(sec, beat);
+
+                    // Windows belong to the old chart; the first frame runs unculled.
+                    LaneWindows.Invalidate();
+                }
+                else
+                {
+                    LaneWindows.GetActive(
+                        Chartmaker.main.CurrentChart,
+                        Chartmaker.main.CurrentSong,
+                        Manager.CurrentSpeed,
+                        sec,
+                        ref LaneActiveMask
+                    );
+
+                    // The selected lane keeps updating even when culled: UpdateHandles reads
+                    // its mesh and endpoints directly, and a culled LaneManager has none.
+                    if (InspectorPanel.main.CurrentHierarchyObject is Lane selectedLane)
+                    {
+                        int selectedIndex = Chartmaker.main.CurrentChart.Lanes.IndexOf(selectedLane);
+
+                        if (selectedIndex >= 0 && selectedIndex < LaneActiveMask.Length)
+                            LaneActiveMask[selectedIndex] = true;
+                    }
+
+                    Manager!.Update(sec, beat, LaneActiveMask);
+                }
             
                 MainCamera.transform.position = Manager.Camera.CameraPivot;
                 MainCamera.transform.eulerAngles = Manager.Camera.CameraRotation; 
@@ -280,6 +323,19 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 for (int a = 0; a < Manager.Lanes.Count; a++)
                 {
                     LaneManager laneManager = Manager.Lanes[a];
+
+                    // Culled: Current/Steps/mesh are absent or stale, so nothing below may
+                    // touch them. The slot is kept rather than compacted because LanePlayers
+                    // is index-aligned with Manager.Lanes and the handle code resolves lanes
+                    // by IndexOf against the chart.
+                    if (!laneManager.IsActive)
+                    {
+                        if (LanePlayers.Count > a && LanePlayers[a].gameObject.activeSelf)
+                            LanePlayers[a].gameObject.SetActive(false);
+
+                        continue;
+                    }
+
                     string laneGroupName = laneManager.Current.Group;
 
                     Transform desiredParent = !string.IsNullOrEmpty(laneGroupName)
@@ -296,6 +352,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     }
                     else if (LanePlayers[a].transform.parent != desiredParent)
                         LanePlayers[a].transform.SetParent(desiredParent, worldPositionStays: false);
+
+                    if (!LanePlayers[a].gameObject.activeSelf)
+                        LanePlayers[a].gameObject.SetActive(true);
 
                     LanePlayers[a].UpdateObjects(laneManager);
                 }
@@ -1186,6 +1245,140 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             CoverBackground.rectTransform.anchoredPosition3D = Vector3.zero;
             CoverBackground.GetComponent<RectMask2D>().enabled = true;
             UpdateObjects();
+        }
+
+        /// <summary>
+        /// Time windows telling the view which lanes are worth updating on a given frame.
+        ///
+        /// The Client solves this with a forward-only cursor over lanes sorted by cue time,
+        /// destroying each lane once passed. The Chartmaker cannot: time scrubs backwards, so
+        /// a passed lane has to be able to come back. This keeps every lane's window in a
+        /// sorted list instead and answers "which lanes overlap this instant" by binary
+        /// search. Windows are in seconds, matching LaneStepManager.Offset and the cue
+        /// formula below.
+        /// </summary>
+        class LaneWindowIndex
+        {
+            // Ported from PlayerScreen.cs in the Client, which arrived at these by playtesting.
+            // The lead-time cap is what makes storyboarded Speed a non-issue: an exact
+            // distance/speed lead would be wrong the moment Speed animates, but a capped one
+            // only has to be generous.
+            const float VisibilityDistance = 200f;
+            const float MaxLeadTime        = 5f;
+            const float GraceTime          = 5f;
+
+            struct Window
+            {
+                public float Cue;
+                public float End;
+                public int   LaneIndex;
+            }
+
+            readonly List<Window> _Windows = new();
+
+            // _MaxEnd[i] is the largest End across _Windows[0..i]. Windows overlap, so sorting
+            // by Cue alone gives no bound when walking backwards — without this the query
+            // degrades to scanning every window whose Cue has passed, which late in a chart is
+            // nearly all of them.
+            readonly List<float> _MaxEnd = new();
+
+            bool _Dirty = true;
+
+            /// <summary>Marks the index stale; the rebuild happens on the next query.</summary>
+            public void Invalidate() => _Dirty = true;
+
+            /// <summary>
+            /// Fills <paramref name="mask"/> with one flag per lane, rebuilding first if
+            /// needed so callers never have to sequence Invalidate against Rebuild.
+            /// </summary>
+            public void GetActive(Chart chart, PlayableSong song, float speed, float time, ref bool[] mask)
+            {
+                if (_Dirty) Rebuild(chart, song, speed);
+
+                int laneCount = chart.Lanes.Count;
+
+                if (mask == null || mask.Length < laneCount)
+                    mask = new bool[laneCount];
+
+                for (var i = 0; i < laneCount; i++)
+                    mask[i] = false;
+
+                if (_Windows.Count == 0) return;
+
+                // Everything at or beyond this index starts in the future.
+                int hi = UpperBound(time);
+
+                for (int i = hi - 1; i >= 0; i--)
+                {
+                    // No window in [0..i] reaches this far forward, so nothing earlier can be
+                    // active either.
+                    if (_MaxEnd[i] < time) break;
+
+                    if (_Windows[i].End >= time)
+                        mask[_Windows[i].LaneIndex] = true;
+                }
+            }
+
+            void Rebuild(Chart chart, PlayableSong song, float speed)
+            {
+                _Windows.Clear();
+                _MaxEnd.Clear();
+
+                for (var a = 0; a < chart.Lanes.Count; a++)
+                {
+                    Lane lane = chart.Lanes[a];
+
+                    // No steps means no geometry and no window; it stays culled.
+                    if (lane.LaneSteps.Count == 0) continue;
+
+                    // LaneSteps are offset-sorted — ChartManager.FindStepIndex binary-searches
+                    // them — so [0] and [^1] are the true extremes without scanning.
+                    float start = song.Timing.ToSeconds(lane.LaneSteps[0].Offset);
+                    float end   = song.Timing.ToSeconds(lane.LaneSteps[^1].Offset);
+
+                    float laneSpeed = Mathf.Abs(lane.LaneSteps[0].Speed) * speed;
+
+                    float cue = laneSpeed > 0.0001f
+                        ? start - Mathf.Min(VisibilityDistance / laneSpeed, MaxLeadTime) - GraceTime
+                        : float.NegativeInfinity;
+
+                    // A lane's own storyboard (typically a Group-driven flight) can start well
+                    // before its steps do; without this the lane pops in mid-animation.
+                    // Storyboard.Timestamps is kept offset-sorted on insert.
+                    if (lane.Storyboard.Timestamps.Count > 0)
+                        cue = Mathf.Min(cue, song.Timing.ToSeconds(lane.Storyboard.Timestamps[0].Offset) - GraceTime);
+
+                    _Windows.Add(new Window { Cue = cue, End = end + GraceTime, LaneIndex = a });
+                }
+
+                _Windows.Sort((x, y) => x.Cue.CompareTo(y.Cue));
+
+                float running = float.NegativeInfinity;
+
+                foreach (Window window in _Windows)
+                {
+                    running = Mathf.Max(running, window.End);
+                    _MaxEnd.Add(running);
+                }
+
+                _Dirty = false;
+            }
+
+            /// <summary>First index whose Cue is strictly greater than <paramref name="time"/>.</summary>
+            int UpperBound(float time)
+            {
+                int lo = 0, hi = _Windows.Count;
+
+                while (lo < hi)
+                {
+                    int mid = (lo + hi) / 2;
+
+                    if (_Windows[mid].Cue <= time) lo = mid + 1;
+                    else hi = mid;
+                }
+
+                return lo;
+            }
         }
     }
 
