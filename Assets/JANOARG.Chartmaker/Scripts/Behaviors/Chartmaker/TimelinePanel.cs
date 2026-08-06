@@ -377,6 +377,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
             if (lastLimit != PeekRange || lastPlayed != Chartmaker.main.SongSource.isPlaying || forced)
             {
+                _RangeMoved = lastLimit != PeekRange;
                 lastLimit = PeekRange;
                 lastPlayed = Chartmaker.main.SongSource.isPlaying;
                 Metronome metronome = Chartmaker.main.CurrentSong.Timing;
@@ -1535,10 +1536,17 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 return;
             }
 
-            // Hide when playing if WaveformIdle is set below the playing threshold,
-            // but keep visible if already shown and the user isn't scrolling/zooming.
-            if (!isDragged && lastLimit == PeekRange && Options.WaveformIdle < (Chartmaker.main.SongSource.isPlaying ? 1 : 0))
+            if (!isDragged && Options.WaveformIdle < (Chartmaker.main.SongSource.isPlaying ? 1 : 0))
             {
+                // Scrolling range needs a re-bake every frame to stay aligned; hide instead.
+                if (_RangeMoved)
+                {
+                    if (WaveformImage.enabled) WaveformImage.enabled = false;
+
+                    return;
+                }
+
+                // Static range costs nothing to leave on screen.
                 if (!WaveformImage.enabled) return;
             }
 
@@ -2174,6 +2182,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         }
 
         Vector2 lastLimit;
+
+        // Set when PeekRange moved, distinguishing a scroll from a play/pause rebuild.
+        // UpdateWaveform runs after lastLimit is reassigned, so it can't tell on its own.
+        bool _RangeMoved;
     
         TimelineDragMode dragMode;
         Vector2          dragStart, dragEnd;
