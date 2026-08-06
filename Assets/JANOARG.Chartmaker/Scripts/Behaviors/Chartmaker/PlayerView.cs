@@ -223,6 +223,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public void UpdateObjects()
         {
             LaneWindows.Invalidate();
+            Manager?.MarkSourcesChanged();
             UpdateObjectsForFrame();
         }
 
