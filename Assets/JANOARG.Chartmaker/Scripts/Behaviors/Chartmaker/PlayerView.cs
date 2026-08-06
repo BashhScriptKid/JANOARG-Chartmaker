@@ -1274,55 +1274,112 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 public int   LaneIndex;
             }
 
+            // Sorted by Cue.
             readonly List<Window> _Windows = new();
 
-            // _MaxEnd[i] is the largest End across _Windows[0..i]. Windows overlap, so sorting
-            // by Cue alone gives no bound when walking backwards — without this the query
-            // degrades to scanning every window whose Cue has passed, which late in a chart is
-            // nearly all of them.
-            readonly List<float> _MaxEnd = new();
+            // Indices into _Windows, sorted by End.
+            readonly List<int> _ByEnd = new();
 
-            bool _Dirty = true;
+            // _EnterCursor counts windows whose Cue has passed; _ExitCursor counts windows
+            // whose End has passed. A lane is active when it has entered and not exited, so
+            // moving time only has to walk the boundaries actually crossed.
+            int _EnterCursor;
+            int _ExitCursor;
+
+            float _LastTime;
+            bool  _Dirty = true;
 
             /// <summary>Marks the index stale; the rebuild happens on the next query.</summary>
             public void Invalidate() => _Dirty = true;
 
             /// <summary>
-            /// Fills <paramref name="mask"/> with one flag per lane, rebuilding first if
+            /// Updates <paramref name="mask"/> to one flag per lane, rebuilding first if
             /// needed so callers never have to sequence Invalidate against Rebuild.
+            /// The mask carries across calls — it is stepped, not recomputed.
             /// </summary>
             public void GetActive(Chart chart, PlayableSong song, float speed, float time, ref bool[] mask)
             {
-                if (_Dirty) Rebuild(chart, song, speed);
-
                 int laneCount = chart.Lanes.Count;
+                bool resized = mask == null || mask.Length < laneCount;
 
-                if (mask == null || mask.Length < laneCount)
-                    mask = new bool[laneCount];
+                if (resized) mask = new bool[laneCount];
 
+                if (_Dirty)
+                {
+                    Rebuild(chart, song, speed);
+                    Reset(time, mask, laneCount);
+
+                    return;
+                }
+
+                // A fresh array has none of the previous state to step from.
+                if (resized)
+                {
+                    Reset(time, mask, laneCount);
+
+                    return;
+                }
+
+                if (time >= _LastTime) StepForward(time, mask);
+                else                   StepBackward(time, mask);
+
+                _LastTime = time;
+            }
+
+            /// <summary>Rebuilds the mask and both cursors from scratch.</summary>
+            void Reset(float time, bool[] mask, int laneCount)
+            {
                 for (var i = 0; i < laneCount; i++)
                     mask[i] = false;
 
-                if (_Windows.Count == 0) return;
+                _EnterCursor = CountCueAtOrBefore(time);
+                _ExitCursor  = CountEndBefore(time);
 
-                // Everything at or beyond this index starts in the future.
-                int hi = UpperBound(time);
-
-                for (int i = hi - 1; i >= 0; i--)
-                {
-                    // No window in [0..i] reaches this far forward, so nothing earlier can be
-                    // active either.
-                    if (_MaxEnd[i] < time) break;
-
+                for (var i = 0; i < _EnterCursor; i++)
                     if (_Windows[i].End >= time)
                         mask[_Windows[i].LaneIndex] = true;
+
+                _LastTime = time;
+            }
+
+            // Enters before exits: a window crossed in both directions this step must end up
+            // inactive, and Cue <= End guarantees the exit loop has the last word.
+            void StepForward(float time, bool[] mask)
+            {
+                while (_EnterCursor < _Windows.Count && _Windows[_EnterCursor].Cue <= time)
+                {
+                    mask[_Windows[_EnterCursor].LaneIndex] = true;
+                    _EnterCursor++;
+                }
+
+                while (_ExitCursor < _ByEnd.Count && _Windows[_ByEnd[_ExitCursor]].End < time)
+                {
+                    mask[_Windows[_ByEnd[_ExitCursor]].LaneIndex] = false;
+                    _ExitCursor++;
+                }
+            }
+
+            // Mirror of StepForward: un-exits before un-enters, since a window retreating past
+            // its Cue has necessarily retreated past its End too.
+            void StepBackward(float time, bool[] mask)
+            {
+                while (_ExitCursor > 0 && _Windows[_ByEnd[_ExitCursor - 1]].End >= time)
+                {
+                    _ExitCursor--;
+                    mask[_Windows[_ByEnd[_ExitCursor]].LaneIndex] = true;
+                }
+
+                while (_EnterCursor > 0 && _Windows[_EnterCursor - 1].Cue > time)
+                {
+                    _EnterCursor--;
+                    mask[_Windows[_EnterCursor].LaneIndex] = false;
                 }
             }
 
             void Rebuild(Chart chart, PlayableSong song, float speed)
             {
                 _Windows.Clear();
-                _MaxEnd.Clear();
+                _ByEnd.Clear();
 
                 for (var a = 0; a < chart.Lanes.Count; a++)
                 {
@@ -1353,19 +1410,16 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
                 _Windows.Sort((x, y) => x.Cue.CompareTo(y.Cue));
 
-                float running = float.NegativeInfinity;
+                for (var a = 0; a < _Windows.Count; a++)
+                    _ByEnd.Add(a);
 
-                foreach (Window window in _Windows)
-                {
-                    running = Mathf.Max(running, window.End);
-                    _MaxEnd.Add(running);
-                }
+                _ByEnd.Sort((x, y) => _Windows[x].End.CompareTo(_Windows[y].End));
 
                 _Dirty = false;
             }
 
-            /// <summary>First index whose Cue is strictly greater than <paramref name="time"/>.</summary>
-            int UpperBound(float time)
+            /// <summary>How many windows have a Cue at or before <paramref name="time"/>.</summary>
+            int CountCueAtOrBefore(float time)
             {
                 int lo = 0, hi = _Windows.Count;
 
@@ -1374,6 +1428,22 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     int mid = (lo + hi) / 2;
 
                     if (_Windows[mid].Cue <= time) lo = mid + 1;
+                    else hi = mid;
+                }
+
+                return lo;
+            }
+
+            /// <summary>How many windows have an End strictly before <paramref name="time"/>.</summary>
+            int CountEndBefore(float time)
+            {
+                int lo = 0, hi = _ByEnd.Count;
+
+                while (lo < hi)
+                {
+                    int mid = (lo + hi) / 2;
+
+                    if (_Windows[_ByEnd[mid]].End < time) lo = mid + 1;
                     else hi = mid;
                 }
 
