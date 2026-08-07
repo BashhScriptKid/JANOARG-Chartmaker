@@ -799,6 +799,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         IChartmakerAction GetDragAction(HierarchyItemHolder item)
         {
+            // Cleared when a drag starts and only set once the pointer is over a valid drop
+            // target, so releasing anywhere else leaves it null. Every branch below reads it.
+            if (item1 == null) return null;
+
             if (isDragInto)
             {
                 if (item.Target.Target is Lane lane)
@@ -990,19 +994,28 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         public void OnItemEndDrag(HierarchyItemHolder item, PointerEventData eventData)
         {
-            IChartmakerAction action = GetDragAction(item);
-            if (action != null) 
-                Chartmaker.main.DoAction(action);
+            // The cleanup restores blocksRaycasts, so anything thrown above it leaves the panel
+            // unable to receive input at all — with isDragging stuck true, no drag can start to
+            // clear it either.
+            try
+            {
+                IChartmakerAction action = GetDragAction(item);
 
-            UpdateHolders();
-            UpdateCursor(0);
-        
-            isDragging = false;
-        
-            DragIntoIndicator.gameObject.SetActive(false);
-            DragBetweenIndicator.gameObject.SetActive(false);
-        
-            HolderGroup.blocksRaycasts = true;
+                if (action != null)
+                    Chartmaker.main.DoAction(action);
+            }
+            finally
+            {
+                UpdateHolders();
+                UpdateCursor(0);
+
+                isDragging = false;
+
+                DragIntoIndicator.gameObject.SetActive(false);
+                DragBetweenIndicator.gameObject.SetActive(false);
+
+                HolderGroup.blocksRaycasts = true;
+            }
         }
 
         CursorType CurrentCursor = 0;
