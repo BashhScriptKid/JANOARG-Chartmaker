@@ -213,6 +213,15 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
                         // Add lane groups — parallel list matching chart.Groups indices.
                         // Duplicates get their own HierarchyItems with (n) suffix, same as PlayerView.
+                        // Expanded state belongs to the group, not to its position in the list.
+                        // Carrying it over by index meant deleting a group shifted every later
+                        // group's state onto its neighbour, so unrelated trees sprang open.
+                        Dictionary<LaneGroup, bool> wasExpanded = new();
+
+                        foreach (HierarchyItem old in GroupItems)
+                            if (old.Target is LaneGroup oldGroup)
+                                wasExpanded[oldGroup] = old.Expanded;
+
                         List<HierarchyItem> newGroupItems = new();
                         for (int gi = 0; gi < chart.Groups.Count; gi++)
                         {
@@ -220,14 +229,12 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
                             // Names are already deduplicated in-place by PlayerView on load,
                             // so group.Name is safe to use directly as the display name.
-                            bool expanded = gi < GroupItems.Count ? GroupItems[gi].Expanded : false;
-
                             newGroupItems.Add(new HierarchyItem
                             {
                                 Name = group.Name,
                                 Type = HierarchyItemType.LaneGroup,
                                 Target = group,
-                                Expanded = expanded,
+                                Expanded = wasExpanded.TryGetValue(group, out bool e) && e,
                             });
                         }
 
