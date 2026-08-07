@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using JANOARG.Shared.Data.ChartInfo;
 using JANOARG.Chartmaker.Utils;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace JANOARG.Chartmaker.Behaviors.Chartmaker
@@ -17,8 +18,13 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         public List<ChartmakerHitPlayer> HitPlayers { get; private set; } = new();
 
-        public void UpdateObjects(LaneManager lane) 
+        static readonly ProfilerMarker sr_LaneState  = new("LanePlayer: Lane State");
+        static readonly ProfilerMarker sr_HitPlayers = new("LanePlayer: Hit Players");
+
+        public void UpdateObjects(LaneManager lane)
         {
+            sr_LaneState.Begin();
+
             CurrentLane = lane;
         
             // Use the lane's own Position/Rotation, not FinalPosition/FinalRotation.
@@ -70,8 +76,11 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 JudgeEnds[1].gameObject.SetActive(false);
             }
         
+            sr_LaneState.End();
+            sr_HitPlayers.Begin();
+
             int count = 0;
-        
+
             foreach (HitObjectManager hitobject in lane.Objects)
             {
                 if (hitobject.TimeEnd < PlayerView.main.CurrentTime) 
@@ -93,6 +102,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 HitPlayers.RemoveAt(count);
             }
 
+            sr_HitPlayers.End();
         }
     }
 }

@@ -9,6 +9,7 @@ using JANOARG.Chartmaker.UI.Cursor;
 using JANOARG.Chartmaker.UI.NativeUI;
 using JANOARG.Shared.Data.ChartInfo;
 using JANOARG.Shared.Utils.Animation;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -112,6 +113,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         }
     
         readonly List<string> _GroupRemovalScratch = new();
+
+        static readonly ProfilerMarker sr_GroupPlayers = new("PlayerView: Group Players");
+        static readonly ProfilerMarker sr_LanePlayers  = new("PlayerView: Lane Players");
 
         readonly LaneWindowIndex LaneWindows = new();
         bool[] LaneActiveMask = System.Array.Empty<bool>();
@@ -279,6 +283,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 RenderSettings.fogColor = MainCamera.backgroundColor = Manager.PalleteManager.CurrentPallete.BackgroundColor;
                 BoundingBox.color = NotificationText.color = NotificationBox.color = Manager.PalleteManager.CurrentPallete.InterfaceColor;
 
+                sr_GroupPlayers.Begin();
+
                 // Pass 1: sync group player dict to Manager.Groups (post-ChartManager.Update,
                 // so duplicates in chart.Groups are already collapsed by the Dictionary).
                 foreach (var pair in LaneGroupPlayers)
@@ -319,6 +325,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 // Pass 3: apply local transforms — hierarchy is now correct.
                 foreach (var pair in LaneGroupPlayers)
                     pair.Value.UpdateObjects(pair.Value.CurrentGroup);
+
+                sr_GroupPlayers.End();
+                sr_LanePlayers.Begin();
 
                 // Update lane players, parenting each under its group player (or Holder if ungrouped).
                 for (int a = 0; a < Manager.Lanes.Count; a++)
@@ -365,6 +374,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     Destroy(LanePlayers[Manager.Lanes.Count].gameObject);
                     LanePlayers.RemoveAt(Manager.Lanes.Count);
                 }
+
+                sr_LanePlayers.End();
             
                 if (Chartmaker.main.SongSource.isPlaying && !TimelinePanel.main.isDragged && PlayOptions.HitsoundsVolume > 0)
                 {
