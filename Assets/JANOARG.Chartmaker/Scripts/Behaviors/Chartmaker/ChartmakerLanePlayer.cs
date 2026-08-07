@@ -18,6 +18,15 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         public List<ChartmakerHitPlayer> HitPlayers { get; private set; } = new();
 
+        // Last values written to a transform. A lane without a Position/Rotation storyboard
+        // holds the same pose for its whole life, and the judge line only moves when the
+        // geometry does — so most of these writes repeat the previous frame's value.
+        Vector3    _LastPosition    = Vector3.positiveInfinity;
+        Vector3    _LastRotation    = Vector3.positiveInfinity;
+        float      _LastDistance    = float.NaN;
+        Vector3    _LastJudgeStart  = Vector3.positiveInfinity;
+        Vector3    _LastJudgeEnd    = Vector3.positiveInfinity;
+
         static void SetActiveIfChanged(GameObject go, bool value)
         {
             if (go.activeSelf != value) go.SetActive(value);
@@ -34,12 +43,23 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         
             // Use the lane's own Position/Rotation, not FinalPosition/FinalRotation.
             // The group's transform is now applied by the parent ChartmakerLaneGroupPlayer GO.
-            transform.SetLocalPositionAndRotation(
-                lane.Current.Position,
-                Quaternion.Euler(lane.Current.Rotation)
-            );
-        
-            Holder.localPosition = Vector3.back * lane.CurrentDistance;
+            if (lane.Current.Position != _LastPosition || lane.Current.Rotation != _LastRotation)
+            {
+                _LastPosition = lane.Current.Position;
+                _LastRotation = lane.Current.Rotation;
+
+                transform.SetLocalPositionAndRotation(
+                    _LastPosition,
+                    Quaternion.Euler(_LastRotation)
+                );
+            }
+
+            if (lane.CurrentDistance != _LastDistance)
+            {
+                _LastDistance = lane.CurrentDistance;
+
+                Holder.localPosition = Vector3.back * _LastDistance;
+            }
         
             List<LaneStyleManager> styles = PlayerView.main.Manager.PalleteManager.LaneStyles;
         
@@ -86,12 +106,19 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     JudgeLine.sharedMaterial = JudgeEnds[0].sharedMaterial =
                         JudgeEnds[1].sharedMaterial = judgeMaterial;
 
-                JudgeEnds[0].transform.localPosition = lane.StartPosLocal;
-                JudgeEnds[1].transform.localPosition = lane.EndPosLocal;
+                // All five writes derive from these two, so one comparison covers them.
+                if (lane.StartPosLocal != _LastJudgeStart || lane.EndPosLocal != _LastJudgeEnd)
+                {
+                    _LastJudgeStart = lane.StartPosLocal;
+                    _LastJudgeEnd   = lane.EndPosLocal;
 
-                JudgeLine.transform.localPosition    = (lane.StartPosLocal + lane.EndPosLocal) / 2;
-                JudgeLine.transform.localScale       = new (Vector3.Distance(lane.StartPosLocal, lane.EndPosLocal), .05f, .05f);
-                JudgeLine.transform.localEulerAngles = Vector3.back * Vector2.SignedAngle(lane.EndPosLocal - lane.StartPosLocal, Vector2.left);
+                    JudgeEnds[0].transform.localPosition = _LastJudgeStart;
+                    JudgeEnds[1].transform.localPosition = _LastJudgeEnd;
+
+                    JudgeLine.transform.localPosition    = (_LastJudgeStart + _LastJudgeEnd) / 2;
+                    JudgeLine.transform.localScale       = new (Vector3.Distance(_LastJudgeStart, _LastJudgeEnd), .05f, .05f);
+                    JudgeLine.transform.localEulerAngles = Vector3.back * Vector2.SignedAngle(_LastJudgeEnd - _LastJudgeStart, Vector2.left);
+                }
             }
         
             sr_LaneState.End();
