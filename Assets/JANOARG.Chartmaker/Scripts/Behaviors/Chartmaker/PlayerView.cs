@@ -114,6 +114,20 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
     
         readonly List<string> _GroupRemovalScratch = new();
 
+        // Which players exist and what they parent to only changes when the chart is edited,
+        // so it is derived on the same signal as the lane windows and the storyboard clones.
+        bool _HierarchyDirty = true;
+
+        Transform ResolveLaneParent(LaneManager lane)
+        {
+            string groupName = lane.Current.Group;
+
+            return !string.IsNullOrEmpty(groupName)
+                   && LaneGroupPlayers.TryGetValue(groupName, out ChartmakerLaneGroupPlayer player)
+                ? player.transform
+                : Holder;
+        }
+
         static readonly ProfilerMarker sr_GroupPlayers = new("PlayerView: Group Players");
         static readonly ProfilerMarker sr_LanePlayers  = new("PlayerView: Lane Players");
 
@@ -228,6 +242,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         {
             LaneWindows.Invalidate();
             Manager?.MarkSourcesChanged();
+            _HierarchyDirty = true;
             UpdateObjectsForFrame();
         }
 
@@ -250,8 +265,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         pos:   beat
                     );
 
-                    // Windows belong to the old chart; the first frame runs unculled.
+                    // Windows and hierarchy belong to the old chart; the first frame rebuilds both.
                     LaneWindows.Invalidate();
+                    _HierarchyDirty = true;
                 }
                 else
                 {
@@ -285,41 +301,48 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
                 sr_GroupPlayers.Begin();
 
-                // Pass 1: sync group player dict to Manager.Groups (post-ChartManager.Update,
-                // so duplicates in chart.Groups are already collapsed by the Dictionary).
-                foreach (var pair in LaneGroupPlayers)
-                    pair.Value.CurrentGroup = null;
-
-                foreach (var pair in Manager.Groups)
+                // Passes 1 and 2 derive structure — which players exist and what they parent to
+                // — and structure only changes when the chart is edited. The manager instances
+                // they cache persist across frames, so on an unedited frame there is nothing to
+                // re-derive and only pass 3 needs to run.
+                if (_HierarchyDirty)
                 {
-                    string groupName = pair.Key;
-                    if (!LaneGroupPlayers.TryGetValue(groupName, out ChartmakerLaneGroupPlayer groupPlayer))
+                    // Pass 1: sync group player dict to Manager.Groups (post-ChartManager.Update,
+                    // so duplicates in chart.Groups are already collapsed by the Dictionary).
+                    foreach (var pair in LaneGroupPlayers)
+                        pair.Value.CurrentGroup = null;
+
+                    foreach (var pair in Manager.Groups)
                     {
-                        groupPlayer = Instantiate(LaneGroupPlayerSample, Holder);
-                        #if UNITY_EDITOR
-                        groupPlayer.gameObject.name = $"Lane Group ({groupName})";
-                        #endif
-                        LaneGroupPlayers[groupName] = groupPlayer;
+                        string groupName = pair.Key;
+                        if (!LaneGroupPlayers.TryGetValue(groupName, out ChartmakerLaneGroupPlayer groupPlayer))
+                        {
+                            groupPlayer = Instantiate(LaneGroupPlayerSample, Holder);
+                            #if UNITY_EDITOR
+                            groupPlayer.gameObject.name = $"Lane Group ({groupName})";
+                            #endif
+                            LaneGroupPlayers[groupName] = groupPlayer;
+                        }
+                        groupPlayer.CurrentGroup = pair.Value;
                     }
-                    groupPlayer.CurrentGroup = pair.Value;
-                }
 
-                // Destroy group players no longer in Manager.Groups.
-                _GroupRemovalScratch.Clear();
-                var toRemove = _GroupRemovalScratch;
-                foreach (var pair in LaneGroupPlayers)
-                    if (pair.Value.CurrentGroup == null) { Destroy(pair.Value.gameObject); toRemove.Add(pair.Key); }
-                foreach (string key in toRemove) LaneGroupPlayers.Remove(key);
+                    // Destroy group players no longer in Manager.Groups.
+                    _GroupRemovalScratch.Clear();
+                    var toRemove = _GroupRemovalScratch;
+                    foreach (var pair in LaneGroupPlayers)
+                        if (pair.Value.CurrentGroup == null) { Destroy(pair.Value.gameObject); toRemove.Add(pair.Key); }
+                    foreach (string key in toRemove) LaneGroupPlayers.Remove(key);
 
-                // Pass 2: resolve GO parent hierarchy BEFORE applying any local transforms.
-                foreach (var pair in LaneGroupPlayers)
-                {
-                    string parentGroupName = pair.Value.CurrentGroup.CurrentGroup.Group;
-                    Transform desiredParent = !string.IsNullOrEmpty(parentGroupName) && LaneGroupPlayers.TryGetValue(parentGroupName, out ChartmakerLaneGroupPlayer parentPlayer)
-                        ? parentPlayer.transform
-                        : Holder;
-                    if (pair.Value.transform.parent != desiredParent)
-                        pair.Value.transform.SetParent(desiredParent, worldPositionStays: false);
+                    // Pass 2: resolve GO parent hierarchy BEFORE applying any local transforms.
+                    foreach (var pair in LaneGroupPlayers)
+                    {
+                        string parentGroupName = pair.Value.CurrentGroup.CurrentGroup.Group;
+                        Transform desiredParent = !string.IsNullOrEmpty(parentGroupName) && LaneGroupPlayers.TryGetValue(parentGroupName, out ChartmakerLaneGroupPlayer parentPlayer)
+                            ? parentPlayer.transform
+                            : Holder;
+                        if (pair.Value.transform.parent != desiredParent)
+                            pair.Value.transform.SetParent(desiredParent, worldPositionStays: false);
+                    }
                 }
 
                 // Pass 3: apply local transforms — hierarchy is now correct.
@@ -346,22 +369,25 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         continue;
                     }
 
-                    string laneGroupName = laneManager.Current.Group;
-
-                    Transform desiredParent = !string.IsNullOrEmpty(laneGroupName)
-                        ? (LaneGroupPlayers.TryGetValue(laneGroupName, out ChartmakerLaneGroupPlayer laneGroupPlayer) ? laneGroupPlayer.transform : Holder)
-                        : Holder;
-
                     if (LanePlayers.Count <= a)
                     {
-                        LanePlayers.Add(Instantiate(LanePlayerSample, desiredParent));
+                        LanePlayers.Add(Instantiate(LanePlayerSample, ResolveLaneParent(laneManager)));
                         #if UNITY_EDITOR
                         string beatRange = $"Lane ({(BeatPosition)laneManager.Steps[0].Offset} > {(BeatPosition)laneManager.Steps[^1].Offset})";
                         LanePlayers[a].gameObject.name = string.IsNullOrEmpty(laneManager.Current.Name) ? beatRange : laneManager.Current.Name;
                         #endif
                     }
-                    else if (LanePlayers[a].transform.parent != desiredParent)
-                        LanePlayers[a].transform.SetParent(desiredParent, worldPositionStays: false);
+
+                    // Lane.Group is a plain string, so a lane's parent can only change on an
+                    // edit. The reactivation case is here because a lane culled while the
+                    // hierarchy changed never reached this loop to be re-parented.
+                    else if (_HierarchyDirty || !LanePlayers[a].gameObject.activeSelf)
+                    {
+                        Transform desiredParent = ResolveLaneParent(laneManager);
+
+                        if (LanePlayers[a].transform.parent != desiredParent)
+                            LanePlayers[a].transform.SetParent(desiredParent, worldPositionStays: false);
+                    }
 
                     if (!LanePlayers[a].gameObject.activeSelf)
                         LanePlayers[a].gameObject.SetActive(true);
@@ -376,6 +402,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 }
 
                 sr_LanePlayers.End();
+
+                // Cleared only after both the group and lane passes have consumed it.
+                _HierarchyDirty = false;
             
                 if (Chartmaker.main.SongSource.isPlaying && !TimelinePanel.main.isDragged && PlayOptions.HitsoundsVolume > 0)
                 {
