@@ -1072,6 +1072,15 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 var frameRate = Prefs.FrameRate;
                 var timeRange = TimeRange;
 
+                // Most video encoders (including libx264) require even width/height
+                // since yuv420p subsamples chroma by half in each dimension -- an odd
+                // value makes libx264 fail to open the encoder at all, which otherwise
+                // just surfaces as the generic "process ended prematurely" error.
+                if (resolution.x % 2 != 0 || resolution.y % 2 != 0)
+                {
+                    throw new Exception($"Resolution {resolution.x}x{resolution.y} has an odd width or height. Most video encoders require both to be even numbers -- adjust the Resolution field and try again.");
+                }
+
                 float delta = 1f / frameRate;
                 int totalFrames = Mathf.CeilToInt((timeRange.y - timeRange.x) * frameRate);
                 float camHeight = Mathf.Min(1f, 7f / 4f * resolution.x / resolution.y) * 0.9f;
