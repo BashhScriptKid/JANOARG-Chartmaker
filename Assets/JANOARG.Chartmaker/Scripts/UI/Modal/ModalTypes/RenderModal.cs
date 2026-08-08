@@ -1064,6 +1064,8 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
             int previousVSyncCount = QualitySettings.vSyncCount;
             QualitySettings.vSyncCount = 0;
 
+            bool previousCameraEnabled = _Camera.enabled;
+
             try
             {
                 InitializeETATracking();
@@ -1110,6 +1112,14 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                     originalAntiAliasing = QualitySettings.antiAliasing;
                     QualitySettings.antiAliasing = Prefs.AntiAliasing;
                     _Camera.targetTexture = rtex;
+                    // Every frame of the video comes from an explicit _Camera.Render()
+                    // below, which works regardless of this flag. Leaving the camera
+                    // enabled only adds Unity's automatic pass, which draws the scene
+                    // into rtex once per player loop -- content nothing reads, since
+                    // the target texture is never displayed and the next explicit
+                    // render overwrites it. It also keeps an uncontrolled writer on the
+                    // texture while an async readback against it is outstanding.
+                    _Camera.enabled = false;
                     _Camera.rect = new Rect(0, 0, resolution.x, resolution.y);
                     _Camera.fieldOfView = fov;
                     rtex.Create();
@@ -1649,6 +1659,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 chartmaker.Loader.SetActive(false);
 
                 _Camera.targetTexture = null;
+                _Camera.enabled = previousCameraEnabled;
                 RenderTexture.active = null;
 
                 if (rtex != null)
