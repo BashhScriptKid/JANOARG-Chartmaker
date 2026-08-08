@@ -1054,6 +1054,15 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
             bool cancelFlag = false;
 
+            // Every progress update in the capture loop costs a full Unity frame, since
+            // an awaited continuation resumes on the next player loop pass -- and with
+            // vsync that frame blocks on vblank for ~16.7ms of idle time. The loader
+            // covers the editor for the duration, so there is nothing on screen worth
+            // tearing protection; dropping vsync makes those yields cheap enough to
+            // afford. Captured on the way in rather than read from prefs so whatever the
+            // user actually had set is what gets restored.
+            int previousVSyncCount = QualitySettings.vSyncCount;
+            QualitySettings.vSyncCount = 0;
 
             try
             {
@@ -1626,6 +1635,8 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
             }
             finally
             {
+                QualitySettings.vSyncCount = previousVSyncCount;
+
                 KillFFmpegProcess();
 
                 loaderPanel.SetNoCancelButton();
