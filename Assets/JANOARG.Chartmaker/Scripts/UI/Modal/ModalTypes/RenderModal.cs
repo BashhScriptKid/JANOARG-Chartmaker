@@ -1310,11 +1310,28 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 bool rendering = true;
                 bool brokenPipe = false;
                 Exception pipeError = null;
+                // Frame buffers are recycled through a fixed pool rather than allocated
+                // per frame. A buffer belongs to exactly one stage at a time: the free
+                // list, the main thread filling it, the queue, or the piping thread
+                // writing it out. The piping thread only hands a buffer back once its
+                // bytes have reached the pipe, so the pool size doubles as the queue
+                // depth -- the producer stalls on an empty free list, and a buffer can
+                // never be refilled while a queued frame still points at it.
+                int frameSize = resolution.x * resolution.y * 3; // RGB24 = 3 bytes per pixel
+
+                // Enough slack to ride out encoder hiccups without pinning gigabytes:
+                // 16 buffers is about 100 MB at 1080p. Larger resolutions shrink the
+                // pool to stay inside the memory budget, down to a floor of two so the
+                // readback and the pipe can still overlap.
                 long framebufferLimit = 2_000_000_000;
                 if (SystemInfo.systemMemorySize > 0) framebufferLimit = Math.Min(
                     framebufferLimit,
-                    SystemInfo.systemMemorySize * 1_048_576L // 20% of system's memory
+                    SystemInfo.systemMemorySize * 1_048_576L / 5 // 20% of system's memory
                 );
+                int poolSize = (int)Math.Clamp(framebufferLimit / frameSize, 2, 16);
+
+                ConcurrentQueue<byte[]> freeBuffers = new();
+                for (int i = 0; i < poolSize; i++) freeBuffers.Enqueue(new byte[frameSize]);
 
                 var pipingThread = new Thread(() =>
                 {
@@ -1327,6 +1344,8 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                                 ffmpegInputStream.Write(frame, 0, frame.Length);
                                 ffmpegInputStream.Flush();
                                 framePipedIndex++;
+                                // Only safe to recycle once the bytes are in the pipe.
+                                freeBuffers.Enqueue(frame);
                             }
                             catch (Exception e)
                             {
@@ -1350,15 +1369,6 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
                 pipingThread.Start();
 
-                // Pre-allocate ping-pong frame buffers — avoids a Clone() allocation
-                // every frame; the piping thread always drains one before we cycle back.
-                int frameSize = resolution.x * resolution.y * 3; // RGB24 = 3 bytes per pixel
-                byte[][] bufferPool = { new byte[frameSize], new byte[frameSize] };
-                int bufferIndex = 0;
-
-                // Pre-calculate thresholds
-                int maxFrameCount = (int)(framebufferLimit / frameSize);
-                int resumeFrameCount = maxFrameCount * 3 / 4;
 
                 // Async GPU readback hides PCI transfer latency by overlapping
                 // readback of frame N with scene update + render of frame N+1.
@@ -1405,16 +1415,28 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                     }
                 }
 
+                // Backpressure: the pool is the only source of frame buffers, so waiting
+                // for one to come free is what keeps the producer in step with ffmpeg.
+                // Exactly one buffer is rented per loop iteration, and the main thread is
+                // the only renter, so a free buffer observed here is still free below.
                 async Task WaitForQueueAsync()
                 {
-                    while (frameQueue.Count >= maxFrameCount)
+                    while (freeBuffers.IsEmpty)
                     {
-                        while (frameQueue.Count >= resumeFrameCount)
-                        {
-                            await Task.Yield();
-                            UpdateProgress();
-                        }
+                        await Task.Yield();
+                        UpdateProgress();
+                        // A stalled encoder returns no buffers, so this is where a
+                        // cancel or an ffmpeg crash has to be noticed -- otherwise the
+                        // wait never ends.
+                        CheckErrors();
                     }
+                }
+
+                byte[] RentBuffer()
+                {
+                    if (!freeBuffers.TryDequeue(out var buffer))
+                        throw new Exception("Frame buffer pool exhausted — WaitForQueueAsync should have blocked before this point.");
+                    return buffer;
                 }
 
                 int stride = resolution.x * 3;
@@ -1427,7 +1449,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
                 void ScheduleFlip(NativeArray<byte> data)
                 {
-                    byte[] frameBuffer = bufferPool[bufferIndex ^= 1];
+                    byte[] frameBuffer = RentBuffer();
                     data.CopyTo(staging);
                     pendingFlipTask = Task.Run(() =>
                     {
@@ -1442,7 +1464,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
                 void FlipAndEnqueueManaged(byte[] src)
                 {
-                    byte[] frameBuffer = bufferPool[bufferIndex ^= 1];
+                    byte[] frameBuffer = RentBuffer();
                     for (int y = 0; y < resolution.y; y++)
                         Buffer.BlockCopy(src, (resolution.y - 1 - y) * stride,
                                          frameBuffer, y * stride, stride);
