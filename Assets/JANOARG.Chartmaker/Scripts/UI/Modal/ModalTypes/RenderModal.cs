@@ -242,43 +242,43 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 Format = MediaFormat.av1,
                 FfmpegArg = "libaom-av1",
                 Description = "AOMedia",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv, MediaFormat.mp4 }
             },
             new() {
                 Format = MediaFormat.av1,
                 FfmpegArg = "librav1e",
                 Description = "rav1e",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv, MediaFormat.mp4 }
             },
             new() {
                 Format = MediaFormat.av1,
                 FfmpegArg = "libsvtav1",
                 Description = "SVT",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv , MediaFormat.mp4}
             },
             new() {
                 Format = MediaFormat.av1,
                 FfmpegArg = "av1_nvenc",
                 Description = "NVIDIA",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv , MediaFormat.mp4}
             },
             new() {
                 Format = MediaFormat.av1,
                 FfmpegArg = "av1_qsv",
                 Description = "Intel QSV",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv , MediaFormat.mp4}
             },
             new() {
                 Format = MediaFormat.av1,
                 FfmpegArg = "av1_amf",
                 Description = "AMD",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv , MediaFormat.mp4}
             },
             new() {
                 Format = MediaFormat.av1,
                 FfmpegArg = "av1_vaapi",
                 Description = "VA-API",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv , MediaFormat.mp4}
             }
         };
 
@@ -672,6 +672,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                     new ContextMenuListAction("Standard", () => { }, _enabled: false),
                     getItem("5:4", 5 / 4f),
                     getItem("4:3", 4 / 3f),
+                    getItem("3:2", 3 / 2f),
 
                     new ContextMenuListSeparator(),
 
