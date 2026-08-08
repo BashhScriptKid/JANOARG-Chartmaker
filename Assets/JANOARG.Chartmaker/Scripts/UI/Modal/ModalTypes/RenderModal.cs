@@ -1323,6 +1323,17 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 int framePipedIndex = 0;
                 int frameYieldIndex = 0;
 
+                // Yield pacing. Handing the main thread back to Unity costs a whole
+                // player loop, so progress updates are bought with render time. Rather
+                // than guess that price it gets measured: the cost of one yield and the
+                // cost of one captured frame, both smoothed, feed YieldInterval() below.
+                // This is the only knob -- the share of render time spent on yields.
+                const double yieldOverheadBudget = 0.05;
+                var captureTimer = System.Diagnostics.Stopwatch.StartNew();
+                var yieldTimer = new System.Diagnostics.Stopwatch();
+                double avgCaptureMs = 0;
+                double avgYieldMs = 0;
+
                 loaderPanel.ProgressLabel.text = $"Streaming frames... (0/{totalFrames})";
 
                 ConcurrentQueue<byte[]> frameQueue = new();
@@ -1404,15 +1415,42 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                     loaderPanel.ProgressBar.value = (float)framePipedIndex / totalFrames;
                 }
 
-                // Captured frames to run between progress updates. A yield costs a whole
-                // Unity player loop -- and that loop still updates every Chartmaker panel
-                // behind the loader, which makes it far more expensive than the progress
-                // bar alone would suggest. Tightening these bounds to buy smoother
-                // progress measurably cut render throughput, so they stay wide until the
-                // idle panels stop running. The scaling keeps the interval proportional to
-                // the measured rate, since a faster render means less work per frame.
-                int YieldInterval() => Mathf.Clamp(Mathf.RoundToInt(
-                    _RecentFrameTimes.Count > 0 ? 1f / (_RecentFrameTimes.Sum() / _RecentFrameTimes.Count) : 30f) / 5, 10, 120);
+                static double Smooth(double average, double sample)
+                    => average <= 0 ? sample : average + 0.2 * (sample - average);
+
+                // Captured frames to run between progress updates, from the measured
+                // cost of a yield (C) and of a captured frame (W). Holding yields to a
+                // share p of total time means p = C / (N*W + C), so N = (C/W)(1-p)/p.
+                //
+                // Substituting back, the interval between updates comes out at C/p with
+                // W cancelling: how responsive the UI can be depends on what a player
+                // loop costs, not on how fast the render is. Tightening N alone only
+                // trades throughput away at an exchange rate C sets.
+                //
+                // The fallback applies until both costs have a sample.
+                int YieldInterval()
+                {
+                    if (avgCaptureMs <= 0 || avgYieldMs <= 0) return 10;
+                    return (int)Math.Clamp(Math.Round(
+                        avgYieldMs / avgCaptureMs * (1 - yieldOverheadBudget) / yieldOverheadBudget), 1, 240);
+                }
+
+                // Folds the work done since the last yield into the frame-cost estimate,
+                // gives Unity its player loop, and times what that loop cost.
+                async Task YieldToPlayerLoop()
+                {
+                    if (frameYieldIndex > 0)
+                        avgCaptureMs = Smooth(avgCaptureMs, captureTimer.Elapsed.TotalMilliseconds / frameYieldIndex);
+                    frameYieldIndex = 0;
+
+                    UpdateProgress();
+
+                    yieldTimer.Restart();
+                    await Task.Yield();
+                    avgYieldMs = Smooth(avgYieldMs, yieldTimer.Elapsed.TotalMilliseconds);
+
+                    captureTimer.Restart();
+                }
 
                 void UpdateScene(int idx)
                 {
@@ -1553,11 +1591,9 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
                         CheckErrors();
 
-                        if (frameYieldIndex > YieldInterval() || frameIndex == totalFrames)
+                        if (frameYieldIndex >= YieldInterval() || frameIndex == totalFrames)
                         {
-                            frameYieldIndex = 0;
-                            UpdateProgress();
-                            await Task.Yield();
+                            await YieldToPlayerLoop();
                         }
                     }
                 }
@@ -1580,11 +1616,9 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                         frameIndex++;
                         frameYieldIndex++;
 
-                        if (frameYieldIndex > YieldInterval() || frameIndex == totalFrames)
+                        if (frameYieldIndex >= YieldInterval() || frameIndex == totalFrames)
                         {
-                            frameYieldIndex = 0;
-                            UpdateProgress();
-                            await Task.Yield();
+                            await YieldToPlayerLoop();
                         }
                     }
                 }
@@ -1597,6 +1631,10 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 pipingThread.Join();
 
                 loaderPanel.ProgressLabel.text = "Finalizing video...";
+
+                UnityEngine.Debug.Log(
+                    $"Render yield pacing: player loop {avgYieldMs:F1}ms, captured frame {avgCaptureMs:F1}ms, " +
+                    $"interval {YieldInterval()} frames, progress every {(avgYieldMs / yieldOverheadBudget):F0}ms");
 
                 // Wait for FFmpeg to finish processing
                 if (FFmpegProcess != null && !FFmpegProcess.HasExited)
