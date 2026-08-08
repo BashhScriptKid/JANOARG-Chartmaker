@@ -1331,8 +1331,10 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 const double yieldOverheadBudget = 0.05;
                 var captureTimer = System.Diagnostics.Stopwatch.StartNew();
                 var yieldTimer = new System.Diagnostics.Stopwatch();
+                var encoderWaitTimer = new System.Diagnostics.Stopwatch();
                 double avgCaptureMs = 0;
                 double avgYieldMs = 0;
+                double avgWaitMs = 0;
                 double lastPacingLogSec = 0;
 
                 loaderPanel.ProgressLabel.text = $"Streaming frames... (0/{totalFrames})";
@@ -1441,8 +1443,9 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 void LogPacing()
                 {
                     UnityEngine.Debug.Log(
-                        $"Render yield pacing: player loop {avgYieldMs:F1}ms, captured frame {avgCaptureMs:F1}ms, " +
-                        $"interval {YieldInterval()} frames, progress every {(avgYieldMs / yieldOverheadBudget):F0}ms");
+                        $"Render yield pacing: player loop {avgYieldMs:F1}ms, capture {avgCaptureMs:F1}ms, " +
+                        $"encoder wait {avgWaitMs:F1}ms, interval {YieldInterval()} frames, " +
+                        $"progress every {(avgYieldMs / yieldOverheadBudget):F0}ms");
                 }
 
                 // Folds the work done since the last yield into the frame-cost estimate,
@@ -1450,7 +1453,11 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 async Task YieldToPlayerLoop()
                 {
                     if (frameYieldIndex > 0)
+                    {
                         avgCaptureMs = Smooth(avgCaptureMs, captureTimer.Elapsed.TotalMilliseconds / frameYieldIndex);
+                        avgWaitMs = Smooth(avgWaitMs, encoderWaitTimer.Elapsed.TotalMilliseconds / frameYieldIndex);
+                    }
+                    encoderWaitTimer.Reset();
                     frameYieldIndex = 0;
 
                     UpdateProgress();
@@ -1504,6 +1511,15 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 // the only renter, so a free buffer observed here is still free below.
                 async Task WaitForQueueAsync()
                 {
+                    if (!freeBuffers.IsEmpty) return;
+
+                    // Blocking on the encoder is not capture work. Counting it as such
+                    // overstates the cost of a frame, which drags the derived yield
+                    // interval down, and hides whether the render is limited by the GPU
+                    // or by ffmpeg.
+                    captureTimer.Stop();
+                    encoderWaitTimer.Start();
+
                     while (freeBuffers.IsEmpty)
                     {
                         await Task.Yield();
@@ -1513,6 +1529,9 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                         // wait never ends.
                         CheckErrors();
                     }
+
+                    encoderWaitTimer.Stop();
+                    captureTimer.Start();
                 }
 
                 byte[] RentBuffer()
