@@ -1394,6 +1394,16 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                     loaderPanel.ProgressBar.value = (float)framePipedIndex / totalFrames;
                 }
 
+                // Captured frames to run between progress updates. A yield costs a whole
+                // Unity player loop -- and that loop still updates every Chartmaker panel
+                // behind the loader, which makes it far more expensive than the progress
+                // bar alone would suggest. Tightening these bounds to buy smoother
+                // progress measurably cut render throughput, so they stay wide until the
+                // idle panels stop running. The scaling keeps the interval proportional to
+                // the measured rate, since a faster render means less work per frame.
+                int YieldInterval() => Mathf.Clamp(Mathf.RoundToInt(
+                    _RecentFrameTimes.Count > 0 ? 1f / (_RecentFrameTimes.Sum() / _RecentFrameTimes.Count) : 30f) / 5, 10, 120);
+
                 void UpdateScene(int idx)
                 {
                     float time = (float)(frameOrigin + idx / (double)frameRate);
@@ -1533,9 +1543,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
                         CheckErrors();
 
-                        if (frameYieldIndex > Mathf.Clamp(Mathf.RoundToInt(
-                                (_RecentFrameTimes.Count > 0 ? 1f / (_RecentFrameTimes.Sum() / _RecentFrameTimes.Count) : 30f)) / 5, 10, 120)
-                            || frameIndex == totalFrames)
+                        if (frameYieldIndex > YieldInterval() || frameIndex == totalFrames)
                         {
                             frameYieldIndex = 0;
                             UpdateProgress();
@@ -1562,9 +1570,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                         frameIndex++;
                         frameYieldIndex++;
 
-                        if (frameYieldIndex > Mathf.Clamp(Mathf.RoundToInt(
-                                (_RecentFrameTimes.Count > 0 ? 1f / (_RecentFrameTimes.Sum() / _RecentFrameTimes.Count) : 30f)) / 5, 10, 120)
-                            || frameIndex == totalFrames)
+                        if (frameYieldIndex > YieldInterval() || frameIndex == totalFrames)
                         {
                             frameYieldIndex = 0;
                             UpdateProgress();
