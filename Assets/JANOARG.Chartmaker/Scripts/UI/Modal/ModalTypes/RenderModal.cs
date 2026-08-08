@@ -1333,6 +1333,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 var yieldTimer = new System.Diagnostics.Stopwatch();
                 double avgCaptureMs = 0;
                 double avgYieldMs = 0;
+                double lastPacingLogSec = 0;
 
                 loaderPanel.ProgressLabel.text = $"Streaming frames... (0/{totalFrames})";
 
@@ -1435,6 +1436,15 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                         avgYieldMs / avgCaptureMs * (1 - yieldOverheadBudget) / yieldOverheadBudget), 1, 240);
                 }
 
+                // Reported every few seconds rather than only at the end, so the pacing
+                // can be read off a render that gets cancelled part way through.
+                void LogPacing()
+                {
+                    UnityEngine.Debug.Log(
+                        $"Render yield pacing: player loop {avgYieldMs:F1}ms, captured frame {avgCaptureMs:F1}ms, " +
+                        $"interval {YieldInterval()} frames, progress every {(avgYieldMs / yieldOverheadBudget):F0}ms");
+                }
+
                 // Folds the work done since the last yield into the frame-cost estimate,
                 // gives Unity its player loop, and times what that loop cost.
                 async Task YieldToPlayerLoop()
@@ -1448,6 +1458,12 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                     yieldTimer.Restart();
                     await Task.Yield();
                     avgYieldMs = Smooth(avgYieldMs, yieldTimer.Elapsed.TotalMilliseconds);
+
+                    if (renderStopwatch.Elapsed.TotalSeconds - lastPacingLogSec >= 5)
+                    {
+                        lastPacingLogSec = renderStopwatch.Elapsed.TotalSeconds;
+                        LogPacing();
+                    }
 
                     captureTimer.Restart();
                 }
@@ -1632,9 +1648,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
                 loaderPanel.ProgressLabel.text = "Finalizing video...";
 
-                UnityEngine.Debug.Log(
-                    $"Render yield pacing: player loop {avgYieldMs:F1}ms, captured frame {avgCaptureMs:F1}ms, " +
-                    $"interval {YieldInterval()} frames, progress every {(avgYieldMs / yieldOverheadBudget):F0}ms");
+                LogPacing();
 
                 // Wait for FFmpeg to finish processing
                 if (FFmpegProcess != null && !FFmpegProcess.HasExited)
