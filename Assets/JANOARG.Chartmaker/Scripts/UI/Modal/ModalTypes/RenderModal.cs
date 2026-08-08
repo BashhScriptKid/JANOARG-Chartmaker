@@ -796,11 +796,24 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                     vbitrateField.gameObject.SetActive(true);
                     break;
             }
-
+            
             SpawnForm<FormEntryInt, int>("Audio Bitrate (kbps)", () => Prefs.AudioBitRate, x =>
             {
                 Prefs.AudioBitRate = x; PrefsDirty = true;
             });
+            
+            SpawnForm<FormEntryHeader>("SFX");
+            SpawnForm<FormEntryBool, bool>("Include Hit SFX", () => Prefs.AddHitSfx, x =>
+            {
+                Prefs.AddHitSfx = x; PrefsDirty = true;
+            });
+
+            var hitSfxVolField = SpawnForm<FormEntryRange, float>("Hit SFX Volume", () => Prefs.HitSfxVolume, x =>
+            {
+                Prefs.HitSfxVolume = x; PrefsDirty = true;
+            });
+            hitSfxVolField.Range.maxValue = 200; hitSfxVolField.Range.wholeNumbers = true;
+
 
             SpawnForm<FormEntryHeader>("Other");
             SpawnForm<FormEntryBool, bool>("Open File on Complete", () => Prefs.OpenOnComplete, x =>
@@ -854,6 +867,172 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
             _ = RenderRoutine();
         }
 
+        // Hit SFX overlay
+        //
+        // The hit sound clips (Normal/Catch/Flick) live under a Resources folder, so in
+        // a player build they are packed into the engine's asset archive and no longer
+        // exist as files on disk. Loading them as AudioClips and pulling the samples out
+        // resolves them the same way chart playback does, in-editor and in a build alike.
+        // Must be called from the main thread -- Resources.Load is not thread-safe.
+        private static PcmAudio LoadHitSfx(string clipName)
+        {
+            var clip = Resources.Load<AudioClip>("Sounds/" + clipName);
+            if (clip == null) throw new Exception($"Hit SFX clip not found in Resources: Sounds/{clipName}");
+
+            // Clips imported without Preload Audio Data start unloaded, and GetData would
+            // hand back silence for them. These assets have Load In Background off, so the
+            // load is synchronous and the data is ready when LoadAudioData returns.
+            if (clip.loadState != AudioDataLoadState.Loaded && !clip.LoadAudioData())
+                throw new Exception($"Failed to load audio data for hit SFX clip: Sounds/{clipName}");
+
+            float[] floatSamples = new float[clip.samples * clip.channels];
+            if (!clip.GetData(floatSamples, 0))
+                throw new Exception($"Failed to read samples from hit SFX clip: Sounds/{clipName}");
+
+            short[] samples = new short[floatSamples.Length];
+            for (int i = 0; i < samples.Length; i++)
+                samples[i] = (short)Math.Clamp((int)Math.Round(floatSamples[i] * short.MaxValue), short.MinValue, short.MaxValue);
+
+            return new PcmAudio { Samples = samples, Channels = clip.channels, SampleRate = clip.frequency };
+        }
+
+        private struct HitSfxEvent
+        {
+            public float Time; // seconds, relative to the render's output timeline (timeRange.x)
+            public HitObject.HitType Type;
+            public bool Flickable;
+        }
+
+        // Minimal 16-bit PCM WAV reader/writer for the hit-sfx mixing pass below.
+        // Both files involved are ffmpeg's own -c:a pcm_s16le output, so a full RIFF
+        // parser isn't needed -- just enough chunk-walking to find "fmt " and "data".
+        private struct PcmAudio
+        {
+            public short[] Samples; // interleaved
+            public int Channels;
+            public int SampleRate;
+        }
+
+        private static PcmAudio ReadWavPcm16(string path)
+        {
+            using var stream = File.OpenRead(path);
+            using var reader = new BinaryReader(stream);
+
+            reader.ReadBytes(4); // "RIFF"
+            reader.ReadInt32();  // file size
+            reader.ReadBytes(4); // "WAVE"
+
+            int channels = 0, sampleRate = 0, bitsPerSample = 0;
+            short[] samples = null;
+
+            while (stream.Position + 8 <= stream.Length)
+            {
+                string chunkId = Encoding.ASCII.GetString(reader.ReadBytes(4));
+                int chunkSize = reader.ReadInt32();
+                long chunkEnd = stream.Position + chunkSize;
+
+                if (chunkId == "fmt ")
+                {
+                    reader.ReadInt16(); // audio format
+                    channels = reader.ReadInt16();
+                    sampleRate = reader.ReadInt32();
+                    reader.ReadInt32(); // byte rate
+                    reader.ReadInt16(); // block align
+                    bitsPerSample = reader.ReadInt16();
+                }
+                else if (chunkId == "data")
+                {
+                    if (bitsPerSample != 16) throw new Exception($"Expected 16-bit PCM WAV, got {bitsPerSample}-bit: {path}");
+                    samples = new short[chunkSize / 2];
+                    for (int i = 0; i < samples.Length; i++) samples[i] = reader.ReadInt16();
+                }
+
+                stream.Position = chunkEnd + (chunkEnd % 2); // chunks are word-aligned
+            }
+
+            if (samples == null) throw new Exception("WAV file has no data chunk: " + path);
+            return new PcmAudio { Samples = samples, Channels = channels, SampleRate = sampleRate };
+        }
+
+        private static void WriteWavPcm16(string path, PcmAudio audio)
+        {
+            using var stream = File.Create(path);
+            using var writer = new BinaryWriter(stream);
+
+            int byteRate = audio.SampleRate * audio.Channels * 2;
+            int blockAlign = audio.Channels * 2;
+            int dataSize = audio.Samples.Length * 2;
+
+            writer.Write(Encoding.ASCII.GetBytes("RIFF"));
+            writer.Write(36 + dataSize);
+            writer.Write(Encoding.ASCII.GetBytes("WAVE"));
+            writer.Write(Encoding.ASCII.GetBytes("fmt "));
+            writer.Write(16);
+            writer.Write((short)1); // PCM
+            writer.Write((short)audio.Channels);
+            writer.Write(audio.SampleRate);
+            writer.Write(byteRate);
+            writer.Write((short)blockAlign);
+            writer.Write((short)16);
+            writer.Write(Encoding.ASCII.GetBytes("data"));
+            writer.Write(dataSize);
+            foreach (short s in audio.Samples) writer.Write(s);
+        }
+
+        // Linear-interpolation resample, used only for sfx clips whose native sample
+        // rate doesn't match the mix's target rate (Flick.wav is 48kHz, the others are
+        // 44.1kHz). Cheap, and only ever run once per distinct clip -- not per hit.
+        private static PcmAudio ResampleIfNeeded(PcmAudio audio, int targetRate)
+        {
+            if (audio.SampleRate == targetRate) return audio;
+
+            int channels = audio.Channels;
+            int srcFrames = audio.Samples.Length / channels;
+            int dstFrames = (int)Math.Round(srcFrames * (double)targetRate / audio.SampleRate);
+            short[] outSamples = new short[dstFrames * channels];
+
+            for (int i = 0; i < dstFrames; i++)
+            {
+                double srcPos = i * (double)audio.SampleRate / targetRate;
+                int i0 = Math.Min((int)srcPos, srcFrames - 1);
+                int i1 = Math.Min(i0 + 1, srcFrames - 1);
+                double frac = srcPos - i0;
+                for (int c = 0; c < channels; c++)
+                {
+                    short s0 = audio.Samples[i0 * channels + c];
+                    short s1 = audio.Samples[i1 * channels + c];
+                    outSamples[i * channels + c] = (short)(s0 + (s1 - s0) * frac);
+                }
+            }
+
+            return new PcmAudio { Samples = outSamples, Channels = channels, SampleRate = targetRate };
+        }
+
+        // Additively mixes sfxAudio into destination at timeSeconds, scaled by volume,
+        // clamping to avoid int16 overflow. destination must already match sfxAudio's
+        // sample rate/channel count (resample beforehand via ResampleIfNeeded).
+        private static void MixInPlace(PcmAudio destination, PcmAudio sfxAudio, float timeSeconds, float volume)
+        {
+            int channels = destination.Channels;
+            int destStartFrame = (int)Math.Round(timeSeconds * destination.SampleRate);
+            int sfxFrames = sfxAudio.Samples.Length / channels;
+            int destFrames = destination.Samples.Length / channels;
+
+            for (int frame = 0; frame < sfxFrames; frame++)
+            {
+                int destFrame = destStartFrame + frame;
+                if (destFrame < 0) continue;
+                if (destFrame >= destFrames) break;
+
+                for (int c = 0; c < channels; c++)
+                {
+                    int destIdx = destFrame * channels + c;
+                    int mixed = destination.Samples[destIdx] + (int)Math.Round(sfxAudio.Samples[frame * channels + c] * volume);
+                    destination.Samples[destIdx] = (short)Math.Clamp(mixed, short.MinValue, short.MaxValue);
+                }
+            }
+        }
+
         private string _EtaString;
 
         private Queue<float> _RecentFrameTimes;
@@ -864,6 +1043,8 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
             // FFmpeg process setup
             Stream ffmpegInputStream = null;
             Task ffmpegTask = null;
+            string songPcmPath = null;
+            string mixedAudioPath = null;
 
             Texture2D tex = null;
             RenderTexture rtex = null;
@@ -944,9 +1125,133 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
                 float leadIn = timeRange.x < 0 ? -timeRange.x : 0f;
                 float audioStart = leadIn > 0 ? 0f : timeRange.x;
+                float renderDuration = timeRange.y - timeRange.x;
+                var invariant = System.Globalization.CultureInfo.InvariantCulture;
+
+                // If hit SFX are enabled, pre-mix the song + hit sounds into a single
+                // plain WAV *before* video capture starts, so the video-encode pass
+                // below ends up with one already-correct audio file and no per-hit
+                // work of its own. Mixing the hit overlay inside the same ffmpeg
+                // process that's encoding the live video pipe both desyncs the sfx
+                // timing and competes with Unity's render/readback loop for CPU on
+                // dense charts, stuttering the captured video.
+                //
+                // The hits themselves are summed straight into the decoded PCM here in
+                // C# rather than via ffmpeg's asplit/adelay/amix filters: that filter
+                // graph needs one node per hit occurrence and its cost scales with the
+                // chart's hit count, whereas direct summing only costs
+                // O(hits * clip length) regardless of how long the render is.
+                if (Prefs.AddHitSfx && chartmaker.CurrentChart != null)
+                {
+                    var timing = chartmaker.CurrentSong.Timing;
+                    List<HitSfxEvent> hitSfxEvents = new();
+                    foreach (var lane in chartmaker.CurrentChart.Lanes)
+                    {
+                        foreach (var hit in lane.Objects)
+                        {
+                            float outputTime = timing.ToSeconds(hit.Offset) - timeRange.x;
+                            if (outputTime < 0 || outputTime > renderDuration) continue;
+                            hitSfxEvents.Add(new HitSfxEvent { Time = outputTime, Type = hit.Type, Flickable = hit.Flickable });
+                        }
+                    }
+
+                    if (hitSfxEvents.Count > 0)
+                    {
+                        const int mixSampleRate = 44100;
+                        const int mixChannels = 2;
+
+                        loaderPanel.ProgressLabel.text = "Decoding song audio...";
+
+                        int leadInMs = (int)Math.Round(leadIn * 1000);
+                        string leadInFilter = leadIn > 0 ? $"-af \"adelay={leadInMs}|{leadInMs}\" " : "";
+                        songPcmPath = Path.Combine(folder, "songpcm_" + Guid.NewGuid().ToString("N") + ".wav");
+                        string decodeArgs = $"-ss {audioStart.ToString(invariant)} -t {(timeRange.y - audioStart).ToString(invariant)} -i \"{audioPath}\" " +
+                                            leadInFilter +
+                                            $"-ar {mixSampleRate} -ac {mixChannels} -c:a pcm_s16le -t {renderDuration.ToString(invariant)} " +
+                                            $"-y \"{songPcmPath}\"";
+
+                        // Track progress by parsing ffmpeg's own "time=HH:MM:SS.ss"
+                        // progress lines. The callback fires on ffmpeg's stderr-reading
+                        // background thread so it only ever writes a plain float; the
+                        // polling loop below runs on the main thread, like the rest of
+                        // this routine, and is what's allowed to touch loaderPanel.
+                        float decodeElapsed = 0f;
+                        var timeRegex = new Regex(@"time=(\d+):(\d+):(\d+(?:\.\d+)?)");
+                        Task<ProcessOutput> decodeTask = ffmpeg(decodeArgs, line =>
+                        {
+                            Match m = timeRegex.Match(line);
+                            if (m.Success)
+                            {
+                                decodeElapsed = float.Parse(m.Groups[1].Value, invariant) * 3600
+                                              + float.Parse(m.Groups[2].Value, invariant) * 60
+                                              + float.Parse(m.Groups[3].Value, invariant);
+                            }
+                        });
+
+                        while (!decodeTask.IsCompleted)
+                        {
+                            loaderPanel.ProgressBar.value = renderDuration > 0 ? Mathf.Clamp01(decodeElapsed / renderDuration) : 0f;
+                            loaderPanel.ProgressLabel.text = $"Decoding song audio... ({decodeElapsed:0.0}s / {renderDuration:0.0}s)";
+                            await Task.Yield();
+                        }
+                        var decodeResult = await decodeTask;
+
+                        if (decodeResult.ExitCode != 0 || !File.Exists(songPcmPath))
+                            throw new Exception("Failed to decode song audio for hit SFX mixing:\n" + decodeResult.Output);
+
+                        loaderPanel.ProgressBar.value = 0;
+                        loaderPanel.ProgressLabel.text = $"Applying hit SFX... ({hitSfxEvents.Count} hits)";
+                        await Task.Yield();
+
+                        PcmAudio mixBuffer = ReadWavPcm16(songPcmPath);
+                        if (mixBuffer.Channels != mixChannels)
+                            throw new Exception($"Expected {mixChannels}-channel decoded song audio, got {mixBuffer.Channels}");
+
+                        var sfxCache = new Dictionary<string, PcmAudio>();
+                        PcmAudio GetSfx(string clipName)
+                        {
+                            if (!sfxCache.TryGetValue(clipName, out var audio))
+                            {
+                                audio = ResampleIfNeeded(LoadHitSfx(clipName), mixSampleRate);
+                                // MixInPlace walks the sfx with the destination's channel
+                                // count, so a layout mismatch would read past the clip.
+                                if (audio.Channels != mixChannels)
+                                    throw new Exception($"Expected a {mixChannels}-channel hit SFX clip, got {audio.Channels}: Sounds/{clipName}");
+                                sfxCache[clipName] = audio;
+                            }
+                            return audio;
+                        }
+
+                        float hitVolume = Math.Max(0f, Prefs.HitSfxVolume) / 100f;
+
+                        foreach (var hit in hitSfxEvents)
+                        {
+                            MixInPlace(mixBuffer, GetSfx(hit.Type == HitObject.HitType.Catch ? "Catch Hit" : "Normal Hit"), hit.Time, hitVolume);
+                            // Flickable is a modifier on top of the hit type, not a
+                            // replacement, so its sfx layers over the base hit sound.
+                            if (hit.Flickable) MixInPlace(mixBuffer, GetSfx("Flick"), hit.Time, hitVolume);
+                        }
+
+                        mixedAudioPath = Path.Combine(folder, "hitsfxmix_" + Guid.NewGuid().ToString("N") + ".wav");
+                        WriteWavPcm16(mixedAudioPath, mixBuffer);
+
+                        File.Delete(songPcmPath);
+                        songPcmPath = null;
+
+                        loaderPanel.ProgressLabel.text = "Initializing...";
+                    }
+                }
+
+                // The pre-mixed file is already trimmed and lead-in padded, so it needs
+                // no -ss/-t/-itsoffset of its own -- just map it straight in.
+                string audioInputArgs = mixedAudioPath != null
+                    ? $"-i \"{mixedAudioPath}\" "
+                    : (leadIn > 0 ? $"-itsoffset {leadIn.ToString(invariant)} " : "") +
+                      $"-ss {audioStart.ToString(invariant)} -t {renderDuration.ToString(invariant)} -i \"{audioPath}\" ";
+
                 string ffmpegArgs = $"-f rawvideo -pix_fmt rgb24 -s {resolution.x}x{resolution.y} -r {frameRate} -i pipe:0 " +
-                                    (leadIn > 0 ? $"-itsoffset {leadIn.ToString(System.Globalization.CultureInfo.InvariantCulture)} " : "") +
-                                    $"-ss {audioStart.ToString(System.Globalization.CultureInfo.InvariantCulture)} -t {(timeRange.y - timeRange.x).ToString(System.Globalization.CultureInfo.InvariantCulture)} -i \"{audioPath}\" " +
+                                    audioInputArgs +
+                                    $"-map 0:v -map 1:a " +
                                     $"-vcodec {videoFormatArg} -vf format=rgb24 -pix_fmt yuv420p -acodec {audioFormatArg} " +
                                     $"{qualityOptions} -b:a {Prefs.AudioBitRate}k " +
                                     $"-y \"{outputPath}\"";
@@ -1308,6 +1613,15 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                     Destroy(tex);
                 }
 
+                if (songPcmPath != null && File.Exists(songPcmPath))
+                {
+                    File.Delete(songPcmPath);
+                }
+                if (mixedAudioPath != null && File.Exists(mixedAudioPath))
+                {
+                    File.Delete(mixedAudioPath);
+                }
+
                 chartmaker.Loader.SetActive(false);
             }
 
@@ -1510,6 +1824,9 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
         
         public int AntiAliasing;
 
+        public bool  AddHitSfx    = true;
+        public float HitSfxVolume = 60;
+
         public void Load(Storage storage)
         {
             FFmpegPath = storage.Get("RD:FFmpegPath", FFmpegPath);
@@ -1533,6 +1850,9 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
             AdaptiveBitrate = storage.Get("RD:AdaptiveBitrate", AdaptiveBitrate);
            
             AntiAliasing = storage.Get("RD:AntiAliasing", AntiAliasing);
+
+            AddHitSfx    = storage.Get("RD:AddHitSfx", AddHitSfx);
+            HitSfxVolume = storage.Get("RD:HitSfxVolume", HitSfxVolume);
         }
 
         public void Save(Storage storage)
@@ -1558,6 +1878,9 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
             storage.Set("RD:AdaptiveBitrate", AdaptiveBitrate);
            
             storage.Set("RD:AntiAliasing", AntiAliasing);
+
+            storage.Set("RD:AddHitSfx", AddHitSfx);
+            storage.Set("RD:HitSfxVolume", HitSfxVolume);
         }
     }
 
