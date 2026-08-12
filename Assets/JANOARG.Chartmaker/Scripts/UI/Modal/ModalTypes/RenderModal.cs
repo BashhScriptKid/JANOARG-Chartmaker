@@ -394,11 +394,12 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
         Vector2 GetCRFRange(MediaFormat format) => format switch
         {
             // x/h.264 typical range
-            MediaFormat.h264  => new Vector2(51, 18), 
-            MediaFormat.h265  => new Vector2(51, 18), 
-            MediaFormat.vp8   => new Vector2(63, 4), 
-            MediaFormat.vp9   => new Vector2(63, 4), 
-            _ => new Vector2(63, 0), 
+            MediaFormat.h264  => new Vector2(51, 18),
+            MediaFormat.h265  => new Vector2(51, 18),
+            MediaFormat.vp8   => new Vector2(63, 4),
+            MediaFormat.vp9   => new Vector2(63, 4),
+            MediaFormat.av1   => new Vector2(63, 0),
+            _ => new Vector2(63, 0),
         };
         
 
