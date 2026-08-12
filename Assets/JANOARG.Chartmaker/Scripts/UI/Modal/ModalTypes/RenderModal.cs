@@ -606,6 +606,11 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
 
             SpawnForm<FormEntryHeader>("Format");
+
+            FormEntryRange vqualField = null;
+            FormEntryFloat vbitrateField = null;
+            FormEntryRange crfField = null;
+
             // Create format field
             var formatField = SpawnForm<FormEntryDropdown, object>("File Format", () => Prefs.OutputType, x =>
             {
@@ -628,6 +633,11 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 if (Prefs.VideoEncoder == (string)v) return;
                 PrefsDirty = true;
                 Prefs.VideoEncoder = (string)v;
+
+                Vector2 encoderCrfRange = GetCRFRange(Array.Find(_VideoEncoders, x => x.FfmpegArg == Prefs.VideoEncoder).Format);
+                crfField!.Range.minValue = Mathf.Min(encoderCrfRange.x, encoderCrfRange.y);
+                crfField!.Range.maxValue = Mathf.Max(encoderCrfRange.x, encoderCrfRange.y);
+                crfField!.SetValue(Mathf.Clamp(crfField.CurrentValue, crfField.Range.minValue, crfField.Range.maxValue));
             });
             videoEncoderField.CurrentValue = Prefs.VideoEncoder; // Initialize valud for encoder update method;
             MakeCompoundField(videoFormatField, videoEncoderField);
@@ -753,26 +763,47 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
             SpawnForm<FormEntrySpace>();
 
-            FormEntryRange vqualField = null;
-            FormEntryFloat vbitrateField = null;
-
             var vOptions = SpawnForm<FormEntryBool, bool>("Adaptive Bitrate", () => Prefs.AdaptiveBitrate, o =>
             {
                 Prefs.AdaptiveBitrate = o;
 
-                switch (o)
-                {
-                    case true:
-                        vqualField.gameObject.SetActive(true);
-                        vbitrateField.gameObject.SetActive(false);
-                        break;
-                    case false:
-                        vqualField.gameObject.SetActive(false);
-                        vbitrateField.gameObject.SetActive(true);
-
-                        break;
-                }
+                crfField!.gameObject.SetActive(o && Prefs.UseCrf);
+                vqualField!.gameObject.SetActive(o && !Prefs.UseCrf);
+                vbitrateField!.gameObject.SetActive(!o);
             });
+
+            Vector2 crfRange;
+
+            SpawnForm<FormEntryBool, bool>("Use CRF values", () => Prefs.UseCrf, b =>
+            {
+                Prefs.UseCrf = b;
+                
+                crfRange = GetCRFRange(Array.Find(_VideoEncoders, x => x.FfmpegArg == Prefs.VideoEncoder).Format);
+
+                // Somehow values didn't autoconvert to int in runtime
+                if (b)
+                {
+                    crfField!.SetValue(Mathf.RoundToInt(Mathf.Round(Mathf.LerpUnclamped(crfRange.x, crfRange.y, Prefs.VideoQuality))));
+                    crfField.Reset();
+                }
+                else
+                {
+                    vqualField!.SetValue(Mathf.RoundToInt(Mathf.InverseLerp(crfRange.x, crfRange.y, Prefs.CrfVal) * 100));
+                    vqualField.Reset();
+                }
+
+                crfField!.gameObject.SetActive(Prefs.AdaptiveBitrate && b);
+                vqualField!.gameObject.SetActive(Prefs.AdaptiveBitrate && !b);
+            });
+
+            crfField = SpawnForm<FormEntryRange, float>("CRF Value", () => Prefs.CrfVal, v =>
+            {
+                Prefs.CrfVal = Mathf.RoundToInt(v); PrefsDirty = true;
+            });
+            Vector2 initialCrfRange = GetCRFRange(Array.Find(_VideoEncoders, x => x.FfmpegArg == Prefs.VideoEncoder).Format);
+            crfField.Range.minValue = Mathf.Min(initialCrfRange.x, initialCrfRange.y);
+            crfField.Range.maxValue = Mathf.Max(initialCrfRange.x, initialCrfRange.y);
+            crfField.Range.wholeNumbers = true;
 
             vqualField = SpawnForm<FormEntryRange, float>("Video Quality", () => Prefs.VideoQuality * 100, x =>
             {
@@ -785,17 +816,9 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 Prefs.VideoBitRate = v;
             });
 
-            switch (Prefs.AdaptiveBitrate)
-            {
-                case true:
-                    vqualField.gameObject.SetActive(true);
-                    vbitrateField.gameObject.SetActive(false);
-                    break;
-                case false:
-                    vqualField.gameObject.SetActive(false);
-                    vbitrateField.gameObject.SetActive(true);
-                    break;
-            }
+            crfField.gameObject.SetActive(Prefs.AdaptiveBitrate && Prefs.UseCrf);
+            vqualField.gameObject.SetActive(Prefs.AdaptiveBitrate && !Prefs.UseCrf);
+            vbitrateField.gameObject.SetActive(!Prefs.AdaptiveBitrate);
             
             SpawnForm<FormEntryInt, int>("Audio Bitrate (kbps)", () => Prefs.AudioBitRate, x =>
             {
@@ -1096,7 +1119,10 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 float fov = Mathf.Atan2(Mathf.Tan(30f * Mathf.Deg2Rad), camHeight) * 2f * Mathf.Rad2Deg;
 
                 Vector2 crfRange = GetCRFRange(Array.Find(_VideoEncoders, x => x.FfmpegArg == Prefs.VideoEncoder).Format);
-                int crf = Mathf.RoundToInt(Mathf.LerpUnclamped(crfRange.x, crfRange.y, Prefs.VideoQuality));
+                int crf = 
+                    Prefs.UseCrf
+                        ? Prefs.CrfVal
+                        : Mathf.RoundToInt(Mathf.LerpUnclamped(crfRange.x, crfRange.y, Prefs.VideoQuality));
 
                 string videoFormatArg = Prefs.VideoEncoder;
                 string audioFormatArg = Prefs.AudioEncoder;
@@ -1945,6 +1971,8 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
         public bool  AddHitSfx    = true;
         public float HitSfxVolume = 60;
+        public bool  UseCrf;
+        public int CrfVal;
 
         public void Load(Storage storage)
         {
@@ -1967,7 +1995,9 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
             OpenOnComplete  = storage.Get("RD:OpenOnComplete", OpenOnComplete);
          
             AdaptiveBitrate = storage.Get("RD:AdaptiveBitrate", AdaptiveBitrate);
-           
+            UseCrf          = storage.Get("RD:UseCrf", UseCrf);
+            CrfVal          = storage.Get("RD:CrfVal", CrfVal);
+
             AntiAliasing = storage.Get("RD:AntiAliasing", AntiAliasing);
 
             AddHitSfx    = storage.Get("RD:AddHitSfx", AddHitSfx);
@@ -1995,7 +2025,9 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
             storage.Set("RD:OpenOnComplete", OpenOnComplete);
          
             storage.Set("RD:AdaptiveBitrate", AdaptiveBitrate);
-           
+            storage.Set("RD:UseCrf", UseCrf);
+            storage.Set("RD:CrfVal", CrfVal);
+
             storage.Set("RD:AntiAliasing", AntiAliasing);
 
             storage.Set("RD:AddHitSfx", AddHitSfx);
