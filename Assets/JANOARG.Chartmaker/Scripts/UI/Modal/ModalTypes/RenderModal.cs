@@ -306,13 +306,13 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 Format = MediaFormat.opus,
                 FfmpegArg = "libopus",
                 Description = "Software",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv, MediaFormat.mp4 }
             },
             new() {
                 Format = MediaFormat.opus,
                 FfmpegArg = "opus",
                 Description = "Legacy",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv, MediaFormat.mp4 }
             },
             
             // Vorbis
