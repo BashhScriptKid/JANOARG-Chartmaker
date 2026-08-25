@@ -895,6 +895,12 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     MakeLerpableEditor(v3Handler);
 
                     break;
+                case ChartmakerMultiHandlerColor colorHandler:
+                    SpawnForm<FormEntryDropdown, object>("Axis", () => colorHandler.Axis, x => { colorHandler.Axis = (int)x; }).TargetList("R", "G", "B", "A");
+                    SpawnForm<FormEntrySpace>("");
+                    MakeLerpableEditor(colorHandler);
+
+                    break;
                 case ChartmakerMultiHandler<int> intHandler:
                     MultiHandler.To ??= 0;
                     SpawnForm<FormEntryInt, int>("To", () => (int)intHandler.To, x => { intHandler.To = x; });
@@ -965,7 +971,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         private ChartmakerMultiHandler MakeNewHandler(Type type)
         {
         
-            if (type ==  typeof(bool))
+            if (type == typeof(bool))
                 return new ChartmakerMultiHandlerBoolean();
         
             if (type == typeof(BeatPosition))
@@ -979,6 +985,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         
             if (type == typeof(Vector3))
                 return new ChartmakerMultiHandlerVector3();
+        
+            if (type == typeof(Color))
+                return new ChartmakerMultiHandlerColor();
         
             return Activator.CreateInstance(typeof(ChartmakerMultiHandler<>).MakeGenericType(type)) as ChartmakerMultiHandler;
         }

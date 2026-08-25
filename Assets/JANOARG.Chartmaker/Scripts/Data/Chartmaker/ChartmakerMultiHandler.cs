@@ -95,6 +95,15 @@ namespace JANOARG.Chartmaker.Data.Chartmaker
                     handler.SetLerp(current);
                     Handler = handler;
                 }
+                else if (currentField.FieldType == typeof(Color)) 
+                {
+                    ChartmakerMultiHandlerColor handler = Handlers.ContainsKey(currentField.FieldType)
+                        ? Handlers[currentField.FieldType] as ChartmakerMultiHandlerColor 
+                        : new ChartmakerMultiHandlerColor();
+                
+                    handler.SetLerp(current);
+                    Handler = handler;
+                }
                 else 
                 {
                     Handler = Handlers.ContainsKey(currentField.FieldType) 
@@ -295,7 +304,6 @@ namespace JANOARG.Chartmaker.Data.Chartmaker
             to = float.IsFinite(From)
                 ? Mathf.Lerp(From, To, LerpEasing.Get(to)) : To;
         
-            from = new Vector2(from.x, from.y);
             from[Axis] = LerpableOperations.Get[Operation](from[Axis], to);
         
             return from;
@@ -314,7 +322,24 @@ namespace JANOARG.Chartmaker.Data.Chartmaker
             to = float.IsFinite(From) 
                 ? Mathf.Lerp(From, To, LerpEasing.Get(to)) : To;
        
-            from = new Vector3(from.x, from.y, from.z);
+            from[Axis] = LerpableOperations.Get[Operation](from[Axis], to);
+        
+            return from;
+        }
+    }
+
+    public class ChartmakerMultiHandlerColor: LerpableMultiHandler<Color>
+    {
+        public int Axis = 0;
+
+        public override Color Get(Color from, object source) {
+            float to = LerpField == null 
+                ? LerpTo : Mathf.InverseLerp(LerpFrom, LerpTo, 
+                    LerpField.FieldType == typeof(BeatPosition) ? (BeatPosition)LerpField.GetValue(source) : (float)LerpField.GetValue(source));
+        
+            to = float.IsFinite(From) 
+                ? Mathf.Lerp(From, To, LerpEasing.Get(to)) : To;
+       
             from[Axis] = LerpableOperations.Get[Operation](from[Axis], to);
         
             return from;
