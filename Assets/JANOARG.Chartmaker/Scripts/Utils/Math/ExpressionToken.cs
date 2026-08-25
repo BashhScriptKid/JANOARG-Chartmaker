@@ -19,6 +19,15 @@ namespace JANOARG.Chartmaker.Utils.Math
         }
     }
 
+    internal class NamedConstantExpressionToken : ExpressionToken
+    {
+        public string Constant;
+        public override string ToString()
+        {
+            return $"constant '{Constant}'";
+        }
+    }
+
     internal class OperatorExpressionToken : ExpressionToken
     {
         public string Operator;

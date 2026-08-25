@@ -64,18 +64,27 @@ namespace JANOARG.Chartmaker.Utils.Math
 
             ExpressionToken ToToken()
             {
+                string text = currentText.ToString();
+
                 if (currentMode == TokenMode.Number)
                 {
                     return new ConstantExpressionToken
                     {
-                        Value = double.Parse(currentText.ToString(), CultureInfo.InvariantCulture)
+                        Value = double.Parse(text, CultureInfo.InvariantCulture)
+                    };
+                }
+                else if (Constant.Constants.ContainsKey(text))
+                {
+                    return new NamedConstantExpressionToken
+                    {
+                        Constant = text
                     };
                 }
                 else
                 {
                     return new OperatorExpressionToken
                     {
-                        Operator = currentText.ToString()
+                        Operator = text
                     };
                 }
             }
@@ -197,6 +206,15 @@ namespace JANOARG.Chartmaker.Utils.Math
                         return exp;
                     }
 
+                case NamedConstantExpressionToken namedConstant:
+                    {
+                        Constant c = GetConstantFromToken(namedConstant);
+                        return new ConstantExpression
+                        {
+                            Value = c.Value
+                        };
+                    }
+
                 case ConstantExpressionToken leftConstant:
                     return new ConstantExpression
                     {
@@ -264,6 +282,18 @@ namespace JANOARG.Chartmaker.Utils.Math
             else
             {
                 throw new ExpressionException($"Unknown operator '{token.Operator}'");
+            }
+        }
+
+        static Constant GetConstantFromToken(NamedConstantExpressionToken token)
+        {
+            if (Constant.Constants.TryGetValue(token.Constant, out Constant c))
+            {
+                return c;
+            }
+            else
+            {
+                throw new ExpressionException($"Unknown constant '{token.Constant}'");
             }
         }
         
