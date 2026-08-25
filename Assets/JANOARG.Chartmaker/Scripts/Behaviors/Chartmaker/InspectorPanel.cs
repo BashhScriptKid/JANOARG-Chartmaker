@@ -467,9 +467,14 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                                         FormTitle.text = "Lane Style";
 
                                         SpawnForm<FormEntryHeader>("Lane");
+                                        var laneMaterialField = SpawnForm<FormEntryDropdown, object>("Material", () => laneStyle.LaneMaterial, x => Chartmaker.main.SetItem(laneStyle, "LaneMaterial", x));
+                                        laneMaterialField.ValidValues.Add("Default", "Default");
+                                        laneMaterialField.ValidValues.Add("Solid", "Solid");
                                         SpawnForm<FormEntryColor, Color>("Color", () => laneStyle.LaneColor, x => Chartmaker.main.SetItem(laneStyle, "LaneColor", x));
 
                                         SpawnForm<FormEntryHeader>("Judge");
+                                        var judgeMaterialField = SpawnForm<FormEntryDropdown, object>("Material", () => laneStyle.JudgeMaterial, x => Chartmaker.main.SetItem(laneStyle, "JudgeMaterial", x));
+                                        judgeMaterialField.ValidValues.Add("Default", "Default");
                                         SpawnForm<FormEntryColor, Color>("Color", () => laneStyle.JudgeColor, x => Chartmaker.main.SetItem(laneStyle, "JudgeColor", x));
                                         break;
 
@@ -481,10 +486,14 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                                         FormTitle.text = "Hit Style";
 
                                         SpawnForm<FormEntryHeader>("Hit Body");
+                                        var mainMaterialField = SpawnForm<FormEntryDropdown, object>("Material", () => hitStyle.MainMaterial, x => Chartmaker.main.SetItem(hitStyle, "MainMaterial", x));
+                                        mainMaterialField.ValidValues.Add("Default", "Default");
                                         SpawnForm<FormEntryColor, Color>("Normal Color", () => hitStyle.NormalColor, x => Chartmaker.main.SetItem(hitStyle, "NormalColor", x));
                                         SpawnForm<FormEntryColor, Color>("Catch Color", () => hitStyle.CatchColor, x => Chartmaker.main.SetItem(hitStyle, "CatchColor", x));
 
                                         SpawnForm<FormEntryHeader>("Hold Tail");
+                                        var holdTailMaterialField = SpawnForm<FormEntryDropdown, object>("Material", () => hitStyle.HoldTailMaterial, x => Chartmaker.main.SetItem(hitStyle, "HoldTailMaterial", x));
+                                        holdTailMaterialField.ValidValues.Add("Default", "Default");
                                         SpawnForm<FormEntryColor, Color>("Color", () => hitStyle.HoldTailColor, x => Chartmaker.main.SetItem(hitStyle, "HoldTailColor", x));
                                         break;
                                         
