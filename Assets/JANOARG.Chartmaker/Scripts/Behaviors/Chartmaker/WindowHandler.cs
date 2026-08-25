@@ -1,13 +1,14 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using JANOARG.Chartmaker.UI.Cursor;
 using JANOARG.Chartmaker.UI.NativeUI;
 using JANOARG.Chartmaker.UI.Tooltip;
+using JANOARG.Chartmaker.Utils.NativeAPI;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
 namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 {
-    public class WindowHandler : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+    public class WindowHandler : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IBeginDragHandler, IDragHandler, IEndDragHandler
     {
         public static WindowHandler main;
 
@@ -32,88 +33,154 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public CanvasGroup RightGroup;
         [Header("Window")]
         public Vector2Int defaultWindowSize;
-        public Vector2Int borderSize;
-        public Vector2Int windowMargin;
-        [Header("Window")]
-        public List<CursorDefinition> CursorDefinitions;
-        public Dictionary<CursorType, CursorDefinition> CursorMap;
 
-        CursorDefinition activeCustomCursor;
-        int              currentCursorFrame;
-        float            currentCursorFrameTime;
+        NativeWindow targetWindow;
 
-        Vector2 mousePos = Vector2.zero;
         public bool maximized { get; private set; }
         public bool active { get; private set; }
         bool isFullScreen;
 
         bool framed;
+        const int ResizeBorderSize = 8;
+        const int ResizeBorderVisualSize = 1;
+        static readonly Color ResizeBorderColor = new(1f, 1f, 1f, 0.18f);
+        static Texture2D resizeBorderTexture;
+        bool resizeCursorActive;
+        CursorStyle activeResizeCursor;
 
-        // TODO: Do something with this variable or remove it
-        float clickTime = float.NegativeInfinity;
+        // Last known floating (non-maximized) geometry, tracked each frame so it can be
+        // persisted on quit and restored next launch — Unity/engine init otherwise wipes it.
+        Vector2Int lastFloatingPos;
+        Vector2Int lastFloatingSize;
+        bool hasFloatingRect;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSplashScreen)]
+        public static void InitializeWindow()
+        {
+            Chartmaker.PreferencesStorage = new("cm_prefs");
+            Chartmaker.Preferences.Load(Chartmaker.PreferencesStorage);
+
+            if (!NativeWindow.IsApiAvailable) return;
+
+            NativeWindow window = NativeWindow.MainWindow;
+            window.Hook();
+            window.Title = "JANOARG Chartmaker";
+            window.MinSize = new Vector2Int(974, 607);
+            window.Style = Chartmaker.Preferences.UseDefaultWindow ? WindowStyle.Native : WindowStyle.Custom;
+        }
 
         public void Awake()
         {
             main = this;
-            CursorMap = new();
-            for (int a = 0; a < CursorDefinitions.Count; a++)
+            targetWindow = NativeWindow.MainWindow;
+        }
+
+        public void Start()
+        {
+            RestoreWindowGeometry();
+        }
+
+        // Re-applies the window size/position saved last session. Runs in Start (not the
+        // BeforeSplashScreen init) so engine/Unity window setup has settled and won't wipe it.
+        void RestoreWindowGeometry()
+        {
+            if (!NativeWindow.IsApiAvailable) return;
+
+            var prefs = Chartmaker.Preferences;
+            if (prefs.WindowWidth <= 0 || prefs.WindowHeight <= 0) return; // nothing saved yet
+
+            Screen.SetResolution(prefs.WindowWidth, prefs.WindowHeight, FullScreenMode.Windowed);
+
+            // Position is compositor-owned under XWayland; only meaningful on native X11.
+            if (targetWindow.SupportsClientPositioning)
+                targetWindow.Position = new Vector2Int(prefs.WindowX, prefs.WindowY);
+
+            lastFloatingPos = new Vector2Int(prefs.WindowX, prefs.WindowY);
+            lastFloatingSize = new Vector2Int(prefs.WindowWidth, prefs.WindowHeight);
+            hasFloatingRect = true;
+
+            if (prefs.WindowMaximized)
+                targetWindow.State = WindowState.Maximized;
+        }
+
+        public void OnApplicationQuit()
+        {
+            if (!NativeWindow.IsApiAvailable || Chartmaker.PreferencesStorage == null) return;
+
+            var storage = Chartmaker.PreferencesStorage;
+            if (hasFloatingRect)
             {
-                CursorMap.Add(CursorDefinitions[a].CursorType, CursorDefinitions[a]);
+                storage.Set("LA:WindowX", lastFloatingPos.x);
+                storage.Set("LA:WindowY", lastFloatingPos.y);
+                storage.Set("LA:WindowWidth", lastFloatingSize.x);
+                storage.Set("LA:WindowHeight", lastFloatingSize.y);
             }
+            storage.Set("LA:WindowMaximized", maximized);
+            storage.Save();
         }
 
         public void Quit()
         {
-#if !UNITY_EDITOR && UNITY_STANDALONE_WIN 
-            BorderlessWindow.UnhookWindowProc();
-#endif
         }
 
-        public void Update() 
+        public void Update()
         {
-            if (Screen.fullScreen != isFullScreen) 
+            targetWindow.PumpEvents();
+
+            if (Screen.fullScreen != isFullScreen)
             {
                 isFullScreen = Screen.fullScreen;
                 WindowControls.SetActive(!isFullScreen);
-                if (!isFullScreen) BorderlessWindow.InitializeWindow();
+                if (!isFullScreen) InitializeWindow();
             }
-        
 
-            if (maximized != BorderlessWindow.IsMaximized) 
-                OnSizeChange(); 
-        
-            if (active != BorderlessWindow.IsActive) 
+            bool nativeMaximized = NativeWindow.IsApiAvailable && targetWindow.State == WindowState.Maximized;
+            bool nativeActive = NativeWindow.IsApiAvailable ? targetWindow.IsActive : Application.isFocused;
+            bool nativeFramed = NativeWindow.IsApiAvailable
+                ? targetWindow.Style == WindowStyle.Native
+                : Chartmaker.Preferences.UseDefaultWindow;
+
+            if (maximized != nativeMaximized)
+                OnSizeChange();
+
+            if (active != nativeActive)
                 OnActiveChange();
-        
-            if (framed != BorderlessWindow.IsFramed) 
+
+            if (framed != nativeFramed)
             {
-                framed = BorderlessWindow.IsFramed;
+                framed = nativeFramed;
                 OnFrameChanged();
             }
 
-            if (activeCustomCursor && activeCustomCursor.Frames.Count > 1) 
+            UpdateResizeEdges();
+
+            // Remember the latest floating geometry so a maximized-at-close still saves a
+            // sane restore size, and so position survives across launches (native X11).
+            if (NativeWindow.IsApiAvailable && !maximized && !isFullScreen
+                && Screen.width > 0 && Screen.height > 0)
             {
-                currentCursorFrameTime += Time.unscaledDeltaTime;
-                int lastFrame = currentCursorFrame;
-                int a = 1000;
-            
-                while (currentCursorFrameTime >= activeCustomCursor.Frames[currentCursorFrame].Duration && a > 0)
-                {
-                    currentCursorFrameTime -= activeCustomCursor.Frames[currentCursorFrame].Duration;
-                    currentCursorFrame = (currentCursorFrame + 1) % activeCustomCursor.Frames.Count;
-                    a--;
-                }
-            
-                if (lastFrame != currentCursorFrame)
-                    Cursor.SetCursor(activeCustomCursor.Frames[currentCursorFrame].Texture, activeCustomCursor.Pivot, CursorMode.Auto);
+                lastFloatingPos = targetWindow.Position;
+                lastFloatingSize = new Vector2Int(Screen.width, Screen.height);
+                hasFloatingRect = true;
             }
+        }
+
+        // Convert Unity's window-local cursor position (bottom-left origin) to the
+        // root-relative coordinates EWMH _NET_WM_MOVERESIZE expects (top-left origin).
+        Vector2Int GetRootPointer()
+        {
+            RectInt rect = targetWindow.Rect;
+            Vector2 mouse = Input.mousePosition;
+            return new Vector2Int(
+                rect.x + Mathf.RoundToInt(mouse.x),
+                rect.y + Mathf.RoundToInt(Screen.height - mouse.y));
         }
 
         public void OnFrameChanged()
         {
             bool isNavbar = !framed || Chartmaker.Preferences.ForceNavigationBar;
-            ContentHolder.sizeDelta = ContextMenuHolder.sizeDelta = ModalHolder.sizeDelta 
-                = LoaderHolder.sizeDelta = NavBar.anchoredPosition 
+            ContentHolder.sizeDelta = ContextMenuHolder.sizeDelta = ModalHolder.sizeDelta
+                = LoaderHolder.sizeDelta = NavBar.anchoredPosition
                     = Vector2.up * (isNavbar ? -28 : 0);
             MenuButton.SetActive(!isNavbar);
 
@@ -126,7 +193,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         public void ResetWindowSize()
         {
-            BorderlessWindow.ResizeWindow(defaultWindowSize.x, defaultWindowSize.y);
+            if (NativeWindow.IsApiAvailable) targetWindow.Size = defaultWindowSize;
         }
 
         public void CloseWindow()
@@ -138,7 +205,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public void MinimizeWindow()
         {
             EventSystem.current.SetSelectedGameObject(null);
-            BorderlessWindow.MinimizeWindow();
+            if (NativeWindow.IsApiAvailable) targetWindow.State = WindowState.Minimized;
         }
 
         public void ResizeWindow()
@@ -147,56 +214,175 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
             maximized = !maximized;
 
-            if (maximized) BorderlessWindow.MaximizeWindow();
-            else BorderlessWindow.RestoreWindow();
-        
-            var rect = BorderlessWindow.GetWindowRect();
-            if (!maximized && rect.yMin < 0) BorderlessWindow.MoveWindowDelta(Vector2.up * rect.yMin);
+            if (NativeWindow.IsApiAvailable) targetWindow.State = maximized ? WindowState.Maximized : WindowState.Floating;
+
+            // Nudge the window back on-screen after restoring. No-op (and unnecessary)
+            // under XWayland, where the compositor owns placement.
+            if (NativeWindow.IsApiAvailable && targetWindow.SupportsClientPositioning)
+            {
+                var rect = targetWindow.Rect;
+                if (!maximized && rect.yMin < 0) targetWindow.Position += Vector2Int.up * rect.yMin;
+            }
 
             OnSizeChange();
         }
 
-        public void FinalizeDrag() 
+        public void FinalizeDrag()
         {
-            if (!maximized) 
+            // The custom "drag to top edge = maximize" gesture and the on-screen nudge
+            // both rely on client-controlled positioning, so they only run on native X11.
+            // Under XWayland the compositor handles its own drag, top-edge snap, and
+            // placement during the compositor-mediated move.
+            if (!maximized)
             {
-                var rect = BorderlessWindow.GetWindowRect();
+                if (!NativeWindow.IsApiAvailable || !targetWindow.SupportsClientPositioning) return;
+                var rect = targetWindow.Rect;
                 if (rect.yMin - Input.mousePosition.y + Screen.height < 1 && !maximized) ResizeWindow();
-                else if (rect.yMin < 0) BorderlessWindow.MoveWindowDelta(Vector2.up * rect.yMin);
+                else if (rect.yMin < 0) targetWindow.Position += Vector2Int.up * rect.yMin;
             }
         }
 
         public void OnSizeChange() 
         {
-            maximized = BorderlessWindow.IsMaximized;
+            maximized = NativeWindow.IsApiAvailable && targetWindow.State == WindowState.Maximized;
             ResizeTooltip.Text = maximized ? "Restore" : "Maximize";
             ResizeIconMaximize.SetActive(!maximized);
             ResizeIconRestore.SetActive(maximized);
             TopBorder.gameObject.SetActive(!maximized);
         }
 
+        void OnGUI()
+        {
+            if (!NativeWindow.IsApiAvailable || framed || maximized || isFullScreen)
+                return;
+
+            resizeBorderTexture ??= Texture2D.whiteTexture;
+            Color prevColor = GUI.color;
+            GUI.color = ResizeBorderColor;
+            GUI.DrawTexture(new Rect(0, 0, Screen.width, ResizeBorderVisualSize), resizeBorderTexture);
+            GUI.DrawTexture(new Rect(0, Screen.height - ResizeBorderVisualSize, Screen.width, ResizeBorderVisualSize), resizeBorderTexture);
+            GUI.DrawTexture(new Rect(0, 0, ResizeBorderVisualSize, Screen.height), resizeBorderTexture);
+            GUI.DrawTexture(new Rect(Screen.width - ResizeBorderVisualSize, 0, ResizeBorderVisualSize, Screen.height), resizeBorderTexture);
+            GUI.color = prevColor;
+        }
+
+        void UpdateResizeEdges()
+        {
+            if (!NativeWindow.IsApiAvailable || framed || maximized || isFullScreen)
+            {
+                ClearResizeCursor();
+                return;
+            }
+
+            Vector2 mouse = Input.mousePosition;
+            if (!TryGetResizeEdge(mouse, out WindowResizeEdge edge))
+            {
+                ClearResizeCursor();
+                return;
+            }
+
+            CursorStyle resizeCursor = GetResizeCursor(edge);
+            SetResizeCursor(resizeCursor);
+
+            if (Input.GetMouseButtonDown(0))
+            {
+                // Delegate the resize to the WM / compositor via EWMH _NET_WM_MOVERESIZE.
+                // Works on native X11 and XWayland on all compositors; min-size is enforced
+                // by the WM from the window's size hints (set via NativeWindow.MinSize).
+                targetWindow.StartResize(GetRootPointer(), edge);
+                EventSystem.current.SetSelectedGameObject(null);
+            }
+        }
+
+        bool TryGetResizeEdge(Vector2 mousePosition, out WindowResizeEdge edge)
+        {
+            edge = WindowResizeEdge.Right;
+            bool left = mousePosition.x <= ResizeBorderSize;
+            bool right = mousePosition.x >= Screen.width - ResizeBorderSize;
+            bool bottom = mousePosition.y <= ResizeBorderSize;
+            bool top = mousePosition.y >= Screen.height - ResizeBorderSize;
+
+            if (top && left) edge = WindowResizeEdge.TopLeft;
+            else if (top && right) edge = WindowResizeEdge.TopRight;
+            else if (bottom && right) edge = WindowResizeEdge.BottomRight;
+            else if (bottom && left) edge = WindowResizeEdge.BottomLeft;
+            else if (top) edge = WindowResizeEdge.Top;
+            else if (right) edge = WindowResizeEdge.Right;
+            else if (bottom) edge = WindowResizeEdge.Bottom;
+            else if (left) edge = WindowResizeEdge.Left;
+            else return false;
+
+            return true;
+        }
+
+        CursorStyle GetResizeCursor(WindowResizeEdge edge)
+        {
+            return edge switch
+            {
+                WindowResizeEdge.Top => CursorStyle.ResizeVertical,
+                WindowResizeEdge.Bottom => CursorStyle.ResizeVertical,
+                WindowResizeEdge.Left => CursorStyle.ResizeHorizontal,
+                WindowResizeEdge.Right => CursorStyle.ResizeHorizontal,
+                //WindowResizeEdge.TopLeft => CursorStyle.ResizeDiagonalTopLeftBottomRight,
+                //WindowResizeEdge.TopRight => CursorStyle.ResizeDiagonalBottomLeftTopRight,
+                //WindowResizeEdge.BottomLeft => CursorStyle.ResizeDiagonalBottomLeftTopRight,
+                //WindowResizeEdge.BottomRight => CursorStyle.ResizeDiagonalTopLeftBottomRight,
+                _ => CursorStyle.Arrow,
+            };
+        }
+
+        void SetResizeCursor(CursorStyle cursor)
+        {
+            if (resizeCursorActive && activeResizeCursor == cursor) return;
+            ClearResizeCursor();
+            if (!CursorManager.main) return;
+            CursorManager.main.PushCursor(cursor);
+            activeResizeCursor = cursor;
+            resizeCursorActive = true;
+        }
+
+        void ClearResizeCursor()
+        {
+            if (!resizeCursorActive) return;
+            if (CursorManager.main) CursorManager.main.PopCursor();
+            resizeCursorActive = false;
+        }
+
         private void OnActiveChange() 
         {
-            active = BorderlessWindow.IsActive;
+            active = NativeWindow.IsApiAvailable ? targetWindow.IsActive : Application.isFocused;
             InactiveBackground.SetActive(!active);
             LeftGroup.alpha = CenterGroup.alpha = RightGroup.alpha = active ? 1 : 0.5f;
         }
 
         public void OnPointerEnter(PointerEventData data)
         {
-            if (!framed) BorderlessWindow.CurrentWindowZone = WindowZone.TitleBar;
+            if (!framed)
+            {
+                if (NativeWindow.IsApiAvailable) targetWindow.SetHitTestZone((int)WindowZone.TitleBar);
+            }
         }
 
         public void OnPointerExit(PointerEventData data)
         {
-            BorderlessWindow.CurrentWindowZone = WindowZone.Client;
+            if (NativeWindow.IsApiAvailable) targetWindow.SetHitTestZone((int)WindowZone.Client);
         }
 
-        public void SetCustomCursor(CursorDefinition cursor) 
+        public void OnBeginDrag(PointerEventData data)
         {
-            activeCustomCursor = cursor;
-            currentCursorFrame = 0;
-            Cursor.SetCursor(cursor.Frames[0].Texture, cursor.Pivot, CursorMode.Auto);
+            if (framed || maximized || TryGetResizeEdge(Input.mousePosition, out _) || !NativeWindow.IsApiAvailable) return;
+
+            // Delegate the move to the WM / compositor via EWMH _NET_WM_MOVERESIZE.
+            // Works on native X11 and XWayland on all compositors.
+            targetWindow.StartDrag(GetRootPointer());
+        }
+
+        public void OnDrag(PointerEventData data) { }
+
+        public void OnEndDrag(PointerEventData data)
+        {
+            if (!NativeWindow.IsApiAvailable) return;
+            FinalizeDrag();
         }
     }
 }

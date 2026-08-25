@@ -7,14 +7,13 @@ using JANOARG.Chartmaker.UI.NativeUI;
 using JANOARG.Chartmaker.UI.Themeable;
 using JANOARG.Chartmaker.UI.Tooltip;
 using JANOARG.Chartmaker.Utils;
+using JANOARG.Chartmaker.Utils.NativeAPI;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using FFTWindow = JANOARG.Chartmaker.Utils.FFTWindow;
 
-#if UNITY_STANDALONE_WIN
 using JANOARG.Chartmaker.UI.Cursor;
-#endif
 
 namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 {
@@ -120,6 +119,13 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                     var prefs = Behaviors.Chartmaker.Chartmaker.Preferences;
                     var storage = Behaviors.Chartmaker.Chartmaker.PreferencesStorage;
 
+                    #if UNITY_STANDALONE_LINUX
+                    SpawnForm<FormEntryNotice>(
+                        "Native features in Linux is currently experimental, your mileage will vary greatly based on what distro and window manager you're using."
+                        + "\n\nIf you encounter bugs or surprises, please do take the time and report them to us by going to 'Help' > 'Report an Issue / Suggestion' on the navigation bar."
+                    );
+                    #endif
+
                     SpawnForm<FormEntryHeader>("Appearance");
                     var themeDropdown = SpawnForm<FormEntryDropdown, object>("Theme", () => prefs.Theme, x => {
                         if (prefs.Theme != x.ToString()) 
@@ -135,65 +141,45 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                     themeDropdown.ValidValues.Add("Hyperpop", "Hyperpop");
 
                     SpawnForm<FormEntrySpace>("");
-            
-#if UNITY_STANDALONE_WIN
-                var cursorDropdown = SpawnForm<FormEntryDropdown, object>("Cursor Mode", () => prefs.CustomCursors, x => {
-                    storage.Set("AP:CustomCursors", prefs.CustomCursors = (bool)x); IsDirty = true;
-                    if (CursorChanger.Cursors.Count > 0) CursorChanger.PopCursor(); 
-                    CursorChanger.PushCursor(CursorType.Arrow); BorderlessWindow.UpdateCursor();
-                });
-                cursorDropdown.ValidValues.Add(false, "Native");
-                cursorDropdown.ValidValues.Add(true, "Custom");
-#endif
+
+                    var cursorDropdown = SpawnForm<FormEntryDropdown, object>("Cursor Mode", () => prefs.PreferredCursorMode, x => {
+                        var mode = (PreferredCursorMode)x;
+                        storage.Set("AP:PreferredCursorMode", prefs.PreferredCursorMode = mode);
+                        storage.Set("AP:CustomCursors", prefs.CustomCursors = mode == PreferredCursorMode.PreferCustom);
+                        IsDirty = true;
+                        if (CursorManager.main) CursorManager.main.SetPreferredCursorMode(mode);
+                    });
+                    cursorDropdown.ValidValues.Add(PreferredCursorMode.PreferNative, "Native");
+                    cursorDropdown.ValidValues.Add(PreferredCursorMode.PreferNativeBestEffort, "Native Best Effort");
+                    cursorDropdown.ValidValues.Add(PreferredCursorMode.PreferCustom, "Custom");
             
                     SpawnForm<FormEntryHeader>("Layout");
 
                     FormEntryBool forceNavbar = null;
 
-#if UNITY_STANDALONE_WIN
-                var windowDropdown = SpawnForm<FormEntryDropdown, object>("Window Frame Mode", () => prefs.UseDefaultWindow, x => {
-                    bool y = prefs.UseDefaultWindow;
-                    storage.Set("LA:UseDefaultWindow", prefs.UseDefaultWindow = (bool)x); IsDirty = true;
-                    if (forceNavbar) forceNavbar.gameObject.SetActive(prefs.UseDefaultWindow);
-                    #if !UNITY_EDITOR && UNITY_STANDALONE_WIN 
-                        if ((bool)x != y)
-                        {
-                            if ((bool)x) 
-                            {
-                                BorderlessWindow.SetFramedWindow();
-                                BorderlessWindow.ResizeWindowDelta(2, 1);
-                                BorderlessWindow.MoveWindowDelta(new(-1, 0));
-                            }
-                            else 
-                            {
-                                BorderlessWindow.SetFramelessWindow();
-                                BorderlessWindow.ResizeWindowDelta(-2, -1);
-                                BorderlessWindow.MoveWindowDelta(new(1, 0));
-                            }
-                        }
-                    #else
-                        if ((bool)x != y)
-                        {
-                            BorderlessWindow.IsFramed = (bool)x;
-                        }
-                    #endif
-                });
-                windowDropdown.ValidValues.Add(true, "Native");
-                windowDropdown.ValidValues.Add(false, "Custom");
-#endif
-
-                    forceNavbar = SpawnForm<FormEntryBool, bool>("Navigation Bar", () => prefs.ForceNavigationBar, x => 
-                    {
-                        storage.Set("LA:ForceNavigationBar", prefs.ForceNavigationBar = x); IsDirty = true;
-                        WindowHandler.main.OnFrameChanged();
+                    var windowDropdown = SpawnForm<FormEntryDropdown, object>("Window Frame Mode", () => prefs.UseDefaultWindow, x => {
+                        bool useDefaultWindow = (bool)x;
+                        storage.Set("LA:UseDefaultWindow", prefs.UseDefaultWindow = useDefaultWindow);
+                        IsDirty = true;
+                        if (NativeWindow.IsApiAvailable)
+                            NativeWindow.MainWindow.Style = useDefaultWindow ? WindowStyle.Native : WindowStyle.Custom;
+                        if (forceNavbar) forceNavbar.gameObject.SetActive(useDefaultWindow || IsNativeFrame());
+                        if (WindowHandler.main) WindowHandler.main.OnFrameChanged();
                     });
-                    forceNavbar.gameObject.SetActive(prefs.UseDefaultWindow || BorderlessWindow.IsFramed);
+                    windowDropdown.ValidValues.Add(true, "Native");
+                    windowDropdown.ValidValues.Add(false, "Custom");
+
+                    forceNavbar = SpawnForm<FormEntryBool, bool>("Navigation Bar", () => prefs.ForceNavigationBar, x =>
+                    {
+                        storage.Set("LA:ForceNavigationBar", prefs.ForceNavigationBar = x);
+                        IsDirty = true;
+                        if (WindowHandler.main) WindowHandler.main.OnFrameChanged();
+                    });
+                    forceNavbar.gameObject.SetActive(prefs.UseDefaultWindow || IsNativeFrame());
 
                     FormEntryRange interfaceScaling = null;
                     interfaceScaling = SpawnForm<FormEntryRange, float>("UI Scaling", () => prefs.InterfaceScaling, x =>
                     {
-                        UnityEngine.Debug.Log($"Got UIScalingFactor {prefs.InterfaceScaling}, Getting {interfaceScaling!.CurrentValue}");
-                        
                         // Prevent race config sets
                         if (x == interfaceScaling.Range.minValue)
                             x = prefs.InterfaceScaling;
@@ -206,7 +192,6 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                         {
                             prefs.InterfaceScaling = roundedValue;
                             storage.Set("LA:UIScalingFactor", roundedValue);
-                            UnityEngine.Debug.Log($"Set UIScalingFactor to {storage.Get("LA:UIScalingFactor" , float.NaN)}");
                             WindowHandler.main.OnFrameChanged();
         
                             interfaceScaling.Range.SetValueWithoutNotify(roundedValue);
@@ -336,6 +321,13 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
         T SpawnForm<T, U>(string title, Func<U> get, Action<U> set) where T : FormEntry<U>
             => Formmaker.main.Spawn<T, U>(FormHolder, title, get, set);
+
+        bool IsNativeFrame()
+        {
+            return NativeWindow.IsApiAvailable
+                ? NativeWindow.MainWindow.Style == WindowStyle.Native
+                : Behaviors.Chartmaker.Chartmaker.Preferences.UseDefaultWindow;
+        }
 
         void Tooltipify(FormEntry entry, string text) 
         {

@@ -17,6 +17,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using JANOARG.Shared.Utils;
+using JANOARG.Chartmaker.Utils.NativeAPI;
 
 namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 {
@@ -947,7 +948,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         -intPos * itemHeight - padding.top
                     );
                 
-                    UpdateCursor(CursorType.Grabbing);
+                    UpdateCursor(CursorStyle.HandGrabbing);
                 }
                 else 
                 {
@@ -971,7 +972,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                             -Mathf.Round(pos + 0.5f) * itemHeight - padding.top
                         );
                     
-                        UpdateCursor(CursorType.Grabbing);
+                        UpdateCursor(CursorStyle.HandGrabReady);
                     }
                     else if (canDragInto)
                     {
@@ -981,11 +982,11 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         goto dragInto;
                     }
                     else
-                        UpdateCursor(CursorType.GrabbingBlocked);
+                        UpdateCursor(CursorStyle.HandGrabbingBlocked);
                 }
             }
             else 
-                UpdateCursor(CursorType.GrabbingBlocked);
+                UpdateCursor(CursorStyle.HandGrabbingBlocked);
         }
 
         public void OnItemEndDrag(HierarchyItemHolder item, PointerEventData eventData)
@@ -1005,21 +1006,19 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             HolderGroup.blocksRaycasts = true;
         }
 
-        CursorType CurrentCursor = 0;
+        CursorStyle CurrentCursor = CursorStyle.None;
 
-        public void UpdateCursor(CursorType cursor)
+        public void UpdateCursor(CursorStyle cursor)
         {
             if (CurrentCursor != cursor)
             {
                 if (CurrentCursor != 0)
-                    CursorChanger.PopCursor();
+                    CursorManager.main.PopCursor();
             
                 if (cursor != 0) 
-                    CursorChanger.PushCursor(cursor);
+                    CursorManager.main.PushCursor(cursor);
             
                 CurrentCursor = cursor;
-            
-                BorderlessWindow.UpdateCursor();
             }
         }
     }
