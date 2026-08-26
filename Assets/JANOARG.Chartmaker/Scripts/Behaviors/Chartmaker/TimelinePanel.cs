@@ -1959,8 +1959,6 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                             * texture.width / 3
                     );
 
-                    UnityEngine.Debug.Log(weight + " " + time + " " + pos);
-
                     if (pos < 0 || pos >= densityMap.Length) return;
 
                     densityMap[pos] += weight;

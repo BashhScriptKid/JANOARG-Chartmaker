@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using JANOARG.Chartmaker.Data.Chartmaker;
+using JANOARG.Chartmaker.Data.Chartmaker.MultiEdit;
 using JANOARG.Chartmaker.Data.Chartmaker.Actions;
 using JANOARG.Chartmaker.UI.ContextMenu;
 using JANOARG.Chartmaker.UI.Form;
@@ -807,7 +808,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
             SpawnForm<FormEntrySpace>("");
         
-            void MakeLerpableEditor<T>(LerpableMultiHandler<T> lerpHandler)
+            void MakeLerpableEditor<T>(ChartmakerLerpableMultiHandler<T> lerpHandler)
             {
                 bool advanced = float.IsFinite(lerpHandler.From);
                 SpawnForm<FormEntryBool, bool>("Advanced", () => advanced, x => { 
@@ -815,8 +816,19 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     if (x) lerpHandler.SetLerp(thing);
                     UpdateForm();
                 });
-                if (advanced) SpawnForm<FormEntryFloat, float>("From", () => lerpHandler.From, x => { lerpHandler.From = x; });
-                SpawnForm<FormEntryFloat, float>("To", () => lerpHandler.To, x => { lerpHandler.To = x; });
+                if (lerpHandler.Operation == LerpableOperation.Expression)
+                {
+                    var expressionField = SpawnForm<FormEntryExpression, string>("Expression", () => lerpHandler.CustomExpressionString, x => { 
+                        lerpHandler.CustomExpressionString = x;
+                        lerpHandler.PrepareCustomExpression();
+                    });
+                    expressionField.TestContext = lerpHandler.GetExpressionContext();
+                }
+                else
+                {
+                    if (advanced) SpawnForm<FormEntryFloat, float>("From", () => lerpHandler.From, x => { lerpHandler.From = x; });
+                    SpawnForm<FormEntryFloat, float>("To", () => lerpHandler.To, x => { lerpHandler.To = x; });
+                }
             
                 if (advanced) 
                 {
@@ -832,7 +844,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 }
             
                 SpawnForm<FormEntryDropdown, object>("Operation", () => lerpHandler.Operation, 
-                    x => { lerpHandler.Operation = (LerpableOperation)x; }
+                    x => { lerpHandler.Operation = (LerpableOperation)x; UpdateForm(); }
                 ).TargetEnum(typeof(LerpableOperation));
             }
             void MakeBeatPositionEditor(ChartmakerMultiHandlerBeatPosition beatHandler)
@@ -946,13 +958,14 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 Keyword = CurrentMultiField.Name 
             };
 
-            foreach(object obj in items) {
+            for (int i = 0; i < items.Count; i++) {
+                object obj = items[i];
                 ChartmakerMultiEditActionItem item = new ChartmakerMultiEditActionItem
                 {
                     Target = obj,
                     From = CurrentMultiField.GetValue(obj),
                 };
-                item.To = MultiHandler.Get(item.From, obj);
+                item.To = MultiHandler.Get(item.From, obj, i);
                 action.Targets.Add(item);
             }
             action.Redo();
@@ -960,6 +973,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             history.ActionsAhead.Clear();
             Chartmaker.main.OnHistoryDo();
             Chartmaker.main.OnHistoryUpdate();
+
+            Chartmaker.main.Notify("Multi-edit executed");
         }
 
         private void SetMultiField(FieldInfo field)

@@ -536,7 +536,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 InspectorPanel.main.IsCoverDirty = false;
             }
 
-            Notify("Song data saved!");
+            Notify("Song data saved");
         }
     
         public IEnumerator SaveThenQuit() {
@@ -576,7 +576,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 yield break;
             }
 
-            Notify("Preferences saved!");
+            Notify("Preferences saved");
         }
     
         public void StartSavePrefsRoutine() {

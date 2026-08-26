@@ -51,12 +51,12 @@ MonoBehaviour:
     Value: {r: 0, g: 1, b: 0, a: 1}
   - Key: BorderSelectedZ
     Value: {r: 0, g: 0, b: 1, a: 1}
+  - Key: ShadowNormal
+    Value: {r: 0, g: 0, b: 0, a: 1}
   - Key: DangerHighlighted
     Value: {r: 1, g: 0, b: 0, a: 1}
   - Key: DangerPressed
     Value: {r: 1, g: 0, b: 0, a: 1}
-  - Key: ShadowNormal
-    Value: {r: 0, g: 0, b: 0, a: 1}
   - Key: PopupNormal
     Value: {r: 0, g: 0.75, b: 1, a: 1}
   - Key: FieldSelection
@@ -83,18 +83,20 @@ MonoBehaviour:
     Value: {r: 0, g: 0, b: 0, a: 1}
   - Key: VisualizerHighlighted
     Value: {r: 0, g: 0.15, b: 0, a: 1}
-  - Key: HierarchyItemSelected
-    Value: {r: 0, g: 1, b: 1, a: 0.5019608}
   - Key: VisualizerPressed
     Value: {r: 0, g: 0.25, b: 0, a: 1}
   - Key: VisualizerBorder
     Value: {r: 1, g: 1, b: 1, a: 1}
-  - Key: InspectorHeader
-    Value: {r: 1, g: 0.9, b: 1, a: 1}
   - Key: VisualizerContent
     Value: {r: 0, g: 1, b: 0, a: 1}
+  - Key: HierarchyItemSelected
+    Value: {r: 0, g: 1, b: 1, a: 0.5019608}
+  - Key: InspectorHeader
+    Value: {r: 1, g: 0.9, b: 1, a: 1}
   - Key: PickerItemActive
     Value: {r: 0, g: 0.75, b: 1, a: 0.4}
+  - Key: PickerBackground
+    Value: {r: 1, g: 1, b: 1, a: 1}
   - Key: TimelineBackground
     Value: {r: 1, g: 0.9, b: 1, a: 1}
   - Key: TimelineBackgroundStart
@@ -158,6 +160,4 @@ MonoBehaviour:
   - Key: BlockerContent
     Value: {r: 1, g: 1, b: 1, a: 1}
   - Key: HeaderInactiveBackground
-    Value: {r: 1, g: 1, b: 1, a: 1}
-  - Key: PickerBackground
     Value: {r: 1, g: 1, b: 1, a: 1}

@@ -1496,7 +1496,7 @@ TextureImporter:
         width: 16
         height: 16
       alignment: 0
-      pivot: {x: 0, y: 0}
+      pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
       outline: []
       physicsShape: []
@@ -1504,6 +1504,48 @@ TextureImporter:
       bones: []
       spriteID: 03af8724bdb649eff9e2987d8f12357c
       internalID: -730381560
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Function
+      rect:
+        serializedVersion: 2
+        x: 64
+        y: 400
+        width: 16
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 75d675ef7286ce88b9d65175d74b0ccd
+      internalID: -280284442
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Function Warning
+      rect:
+        serializedVersion: 2
+        x: 80
+        y: 400
+        width: 16
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 76748b99729aef27699697e88f743c75
+      internalID: 839257546
       vertices: []
       indices: 
       edges: []
@@ -1542,6 +1584,8 @@ TextureImporter:
       Filter: -2139277041
       Filter Filled: -1775433027
       Folder: -117557889
+      Function: -280284442
+      Function Warning: 839257546
       Github Icon: 1533055934
       Group: 441202879
       Guilded Icon: 1108116061
