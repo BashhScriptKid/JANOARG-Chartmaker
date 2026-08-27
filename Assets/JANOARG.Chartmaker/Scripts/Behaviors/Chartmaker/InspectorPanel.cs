@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using JANOARG.Chartmaker.Data.Chartmaker;
+using JANOARG.Chartmaker.Data.Chartmaker.MultiEdit;
 using JANOARG.Chartmaker.Data.Chartmaker.Actions;
 using JANOARG.Chartmaker.UI.ContextMenu;
 using JANOARG.Chartmaker.UI.Form;
@@ -467,9 +468,14 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                                         FormTitle.text = "Lane Style";
 
                                         SpawnForm<FormEntryHeader>("Lane");
+                                        var laneMaterialField = SpawnForm<FormEntryDropdown, object>("Material", () => laneStyle.LaneMaterial, x => Chartmaker.main.SetItem(laneStyle, "LaneMaterial", x));
+                                        laneMaterialField.ValidValues.Add("Default", "Default");
+                                        laneMaterialField.ValidValues.Add("Solid", "Solid");
                                         SpawnForm<FormEntryColor, Color>("Color", () => laneStyle.LaneColor, x => Chartmaker.main.SetItem(laneStyle, "LaneColor", x));
 
                                         SpawnForm<FormEntryHeader>("Judge");
+                                        var judgeMaterialField = SpawnForm<FormEntryDropdown, object>("Material", () => laneStyle.JudgeMaterial, x => Chartmaker.main.SetItem(laneStyle, "JudgeMaterial", x));
+                                        judgeMaterialField.ValidValues.Add("Default", "Default");
                                         SpawnForm<FormEntryColor, Color>("Color", () => laneStyle.JudgeColor, x => Chartmaker.main.SetItem(laneStyle, "JudgeColor", x));
                                         break;
 
@@ -481,10 +487,14 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                                         FormTitle.text = "Hit Style";
 
                                         SpawnForm<FormEntryHeader>("Hit Body");
+                                        var mainMaterialField = SpawnForm<FormEntryDropdown, object>("Material", () => hitStyle.MainMaterial, x => Chartmaker.main.SetItem(hitStyle, "MainMaterial", x));
+                                        mainMaterialField.ValidValues.Add("Default", "Default");
                                         SpawnForm<FormEntryColor, Color>("Normal Color", () => hitStyle.NormalColor, x => Chartmaker.main.SetItem(hitStyle, "NormalColor", x));
                                         SpawnForm<FormEntryColor, Color>("Catch Color", () => hitStyle.CatchColor, x => Chartmaker.main.SetItem(hitStyle, "CatchColor", x));
 
                                         SpawnForm<FormEntryHeader>("Hold Tail");
+                                        var holdTailMaterialField = SpawnForm<FormEntryDropdown, object>("Material", () => hitStyle.HoldTailMaterial, x => Chartmaker.main.SetItem(hitStyle, "HoldTailMaterial", x));
+                                        holdTailMaterialField.ValidValues.Add("Default", "Default");
                                         SpawnForm<FormEntryColor, Color>("Color", () => hitStyle.HoldTailColor, x => Chartmaker.main.SetItem(hitStyle, "HoldTailColor", x));
                                         break;
                                         
@@ -798,7 +808,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
             SpawnForm<FormEntrySpace>("");
         
-            void MakeLerpableEditor<T>(LerpableMultiHandler<T> lerpHandler)
+            void MakeLerpableEditor<T>(ChartmakerLerpableMultiHandler<T> lerpHandler)
             {
                 bool advanced = float.IsFinite(lerpHandler.From);
                 SpawnForm<FormEntryBool, bool>("Advanced", () => advanced, x => { 
@@ -806,8 +816,19 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     if (x) lerpHandler.SetLerp(thing);
                     UpdateForm();
                 });
-                if (advanced) SpawnForm<FormEntryFloat, float>("From", () => lerpHandler.From, x => { lerpHandler.From = x; });
-                SpawnForm<FormEntryFloat, float>("To", () => lerpHandler.To, x => { lerpHandler.To = x; });
+                if (lerpHandler.Operation == LerpableOperation.Expression)
+                {
+                    var expressionField = SpawnForm<FormEntryExpression, string>("Expression", () => lerpHandler.CustomExpressionString, x => { 
+                        lerpHandler.CustomExpressionString = x;
+                        lerpHandler.PrepareCustomExpression();
+                    });
+                    expressionField.TestContext = lerpHandler.GetExpressionContext();
+                }
+                else
+                {
+                    if (advanced) SpawnForm<FormEntryFloat, float>("From", () => lerpHandler.From, x => { lerpHandler.From = x; });
+                    SpawnForm<FormEntryFloat, float>("To", () => lerpHandler.To, x => { lerpHandler.To = x; });
+                }
             
                 if (advanced) 
                 {
@@ -823,7 +844,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 }
             
                 SpawnForm<FormEntryDropdown, object>("Operation", () => lerpHandler.Operation, 
-                    x => { lerpHandler.Operation = (LerpableOperation)x; }
+                    x => { lerpHandler.Operation = (LerpableOperation)x; UpdateForm(); }
                 ).TargetEnum(typeof(LerpableOperation));
             }
             void MakeBeatPositionEditor(ChartmakerMultiHandlerBeatPosition beatHandler)
@@ -886,6 +907,12 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     MakeLerpableEditor(v3Handler);
 
                     break;
+                case ChartmakerMultiHandlerColor colorHandler:
+                    SpawnForm<FormEntryDropdown, object>("Axis", () => colorHandler.Axis, x => { colorHandler.Axis = (int)x; }).TargetList("R", "G", "B", "A");
+                    SpawnForm<FormEntrySpace>("");
+                    MakeLerpableEditor(colorHandler);
+
+                    break;
                 case ChartmakerMultiHandler<int> intHandler:
                     MultiHandler.To ??= 0;
                     SpawnForm<FormEntryInt, int>("To", () => (int)intHandler.To, x => { intHandler.To = x; });
@@ -931,13 +958,14 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 Keyword = CurrentMultiField.Name 
             };
 
-            foreach(object obj in items) {
+            for (int i = 0; i < items.Count; i++) {
+                object obj = items[i];
                 ChartmakerMultiEditActionItem item = new ChartmakerMultiEditActionItem
                 {
                     Target = obj,
                     From = CurrentMultiField.GetValue(obj),
                 };
-                item.To = MultiHandler.Get(item.From, obj);
+                item.To = MultiHandler.Get(item.From, obj, i);
                 action.Targets.Add(item);
             }
             action.Redo();
@@ -945,6 +973,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             history.ActionsAhead.Clear();
             Chartmaker.main.OnHistoryDo();
             Chartmaker.main.OnHistoryUpdate();
+
+            Chartmaker.main.Notify("Multi-edit executed");
         }
 
         private void SetMultiField(FieldInfo field)
@@ -956,7 +986,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         private ChartmakerMultiHandler MakeNewHandler(Type type)
         {
         
-            if (type ==  typeof(bool))
+            if (type == typeof(bool))
                 return new ChartmakerMultiHandlerBoolean();
         
             if (type == typeof(BeatPosition))
@@ -970,6 +1000,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         
             if (type == typeof(Vector3))
                 return new ChartmakerMultiHandlerVector3();
+        
+            if (type == typeof(Color))
+                return new ChartmakerMultiHandlerColor();
         
             return Activator.CreateInstance(typeof(ChartmakerMultiHandler<>).MakeGenericType(type)) as ChartmakerMultiHandler;
         }

@@ -70,6 +70,15 @@ namespace JANOARG.Chartmaker.Utils.Math
                 }
             },
             {
+                "mod", new Operator
+                {
+                    Name = "mod",
+                    LeftBindingPower = (int)BindingPower.Multiplicative,
+                    Associativity = Associativity.Left,
+                    InfixFunction = (x, y) => (x % y + y) % y,
+                }
+            },
+            {
                 "^", new Operator
                 {
                     Name = "^",
@@ -104,6 +113,70 @@ namespace JANOARG.Chartmaker.Utils.Math
                     LeftBindingPower = (int)BindingPower.BitwiseAnd,
                     Associativity = Associativity.Right,
                     InfixFunction = (x, y) => Convert.ToInt32(x) & Convert.ToInt32(y),
+                }
+            },
+            // These are technically functions but can be implemented as prefix-only operators
+            {
+                "abs", new Operator
+                {
+                    Name = "abs",
+                    LeftBindingPower = (int)BindingPower.Prefix,
+                    Associativity = Associativity.Left,
+                    PrefixFunction = (x) => System.Math.Abs(x),
+                }
+            },
+            {
+                "rnd", new Operator
+                {
+                    Name = "rnd",
+                    LeftBindingPower = (int)BindingPower.Prefix,
+                    Associativity = Associativity.Left,
+                    PrefixFunction = (x) => System.Math.Round(x),
+                }
+            },
+            {
+                "flr", new Operator
+                {
+                    Name = "flr",
+                    LeftBindingPower = (int)BindingPower.Prefix,
+                    Associativity = Associativity.Left,
+                    PrefixFunction = (x) => System.Math.Floor(x),
+                }
+            },
+            {
+                "ceil", new Operator
+                {
+                    Name = "ceil",
+                    LeftBindingPower = (int)BindingPower.Prefix,
+                    Associativity = Associativity.Left,
+                    PrefixFunction = (x) => System.Math.Ceiling(x),
+                }
+            },
+            {
+                "sin", new Operator
+                {
+                    Name = "sin",
+                    LeftBindingPower = (int)BindingPower.Prefix,
+                    Associativity = Associativity.Left,
+                    PrefixFunction = (x) => System.Math.Sin(x * Mathf.Deg2Rad),
+                }
+            },
+            {
+                "cos", new Operator
+                {
+                    Name = "cos",
+                    LeftBindingPower = (int)BindingPower.Prefix,
+                    Associativity = Associativity.Left,
+                    PrefixFunction = (x) => System.Math.Cos(x * Mathf.Deg2Rad),
+                }
+            },
+            {
+                "tan", new Operator
+                {
+                    Name = "tan",
+                    LeftBindingPower = (int)BindingPower.Prefix,
+                    Associativity = Associativity.Left,
+                    PrefixFunction = (x) => System.Math.Tan(x * Mathf.Deg2Rad),
                 }
             },
         };

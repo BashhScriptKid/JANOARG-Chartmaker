@@ -2,15 +2,28 @@
 
 namespace JANOARG.Chartmaker.Utils.Math
 {
-    internal abstract class Expression
+    public abstract class Expression
     {
-        public abstract double Evaluate();
+        public abstract double Evaluate(ExpressionContext context);
+    }
+
+    internal class VariableExpression : Expression
+    {
+        public string Name;
+        public override double Evaluate(ExpressionContext context)
+        {
+            if (context == null || !context.HasVariable(Name))
+            {
+                throw new ExpressionException($"Unknown variable '{Name}'");
+            }
+            return context.GetVariable(Name);
+        }
     }
 
     internal class ConstantExpression : Expression
     {
         public double Value;
-        public override double Evaluate()
+        public override double Evaluate(ExpressionContext context)
         {
             return Value;
         }
@@ -24,9 +37,9 @@ namespace JANOARG.Chartmaker.Utils.Math
     {
         public Operator Operator;
         public Expression RightExpression;
-        public override double Evaluate()
+        public override double Evaluate(ExpressionContext context)
         {
-            return Operator.PrefixFunction(RightExpression.Evaluate());
+            return Operator.PrefixFunction(RightExpression.Evaluate(context));
         }
         public override string ToString()
         {
@@ -39,9 +52,9 @@ namespace JANOARG.Chartmaker.Utils.Math
         public Operator Operator;
         public Expression LeftExpression;
         public Expression RightExpression;
-        public override double Evaluate()
+        public override double Evaluate(ExpressionContext context)
         {
-            return Operator.InfixFunction(LeftExpression.Evaluate(), RightExpression.Evaluate());
+            return Operator.InfixFunction(LeftExpression.Evaluate(context), RightExpression.Evaluate(context));
         }
         public override string ToString()
         {

@@ -19,12 +19,30 @@ namespace JANOARG.Chartmaker.Utils.Math
         }
     }
 
+    internal class NamedConstantExpressionToken : ExpressionToken
+    {
+        public string Constant;
+        public override string ToString()
+        {
+            return $"constant '{Constant}'";
+        }
+    }
+
     internal class OperatorExpressionToken : ExpressionToken
     {
         public string Operator;
         public override string ToString()
         {
             return $"operator '{Operator}'";
+        }
+    }
+
+    internal class VariableExpressionToken : ExpressionToken
+    {
+        public string Variable;
+        public override string ToString()
+        {
+            return $"variable '{Variable}'";
         }
     }
 
@@ -41,6 +59,14 @@ namespace JANOARG.Chartmaker.Utils.Math
         public override string ToString()
         {
             return "')'";
+        }
+    }
+
+    internal class SeparatorExpressionToken : ExpressionToken
+    {
+        public override string ToString()
+        {
+            return "','";
         }
     }
 }
