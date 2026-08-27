@@ -1767,6 +1767,9 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                             if (pendingRequest.hasError)
                             {
                                 // Fall back to sync for this frame.
+                                // ReadPixels reads the active target; without this it hits the
+                                // backbuffer, which is only legal inside the drawing phase.
+                                RenderTexture.active = rtex;
                                 tex.ReadPixels(rectConfig, 0, 0);
                                 FlipAndEnqueueManaged(tex.GetRawTextureData());
                             }
