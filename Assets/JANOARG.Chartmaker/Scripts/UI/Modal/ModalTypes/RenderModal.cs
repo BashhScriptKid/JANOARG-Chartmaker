@@ -88,12 +88,28 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
         }
 
+        // Encoders expose wildly different preset scales (named strings, p1-p7,
+        // numeric 0-13, ...) under different flag names (-preset, -cpu-used, -quality,
+        // -speed). This collapses all of that down to one fixed scale for the UI;
+        // each RenderFormatItem maps these 5 steps onto whatever its own encoder
+        // actually accepts.
+        public enum EncoderSpeed
+        {
+            Fastest,
+            Fast,
+            Balanced,
+            Slow,
+            Slowest
+        }
+
         struct RenderFormatItem
         {
             public MediaFormat Format;
             public string FfmpegArg;
             public string Description;
             public MediaFormat[] Compatibility;
+            public string PresetArg;                            // null => encoder has no speed control
+            public Dictionary<EncoderSpeed, string> Presets;
         }
         
         private readonly Dictionary<MediaFormat, string> _formatDisplayNames = new()
@@ -120,6 +136,73 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
             { MediaFormat.pcm,    "PCM" },
         };
 
+        // Shared per-scale preset tables, reused across encoders that share the
+        // same underlying -preset/-cpu-used/etc. naming scheme.
+        private static readonly Dictionary<EncoderSpeed, string> _x26xPresets = new()
+        {
+            { EncoderSpeed.Fastest,  "ultrafast" },
+            { EncoderSpeed.Fast,     "faster" },
+            { EncoderSpeed.Balanced, "medium" },
+            { EncoderSpeed.Slow,     "slow" },
+            { EncoderSpeed.Slowest,  "veryslow" },
+        };
+        private static readonly Dictionary<EncoderSpeed, string> _nvencPresets = new()
+        {
+            { EncoderSpeed.Fastest,  "p1" },
+            { EncoderSpeed.Fast,     "p2" },
+            { EncoderSpeed.Balanced, "p4" },
+            { EncoderSpeed.Slow,     "p6" },
+            { EncoderSpeed.Slowest,  "p7" },
+        };
+        private static readonly Dictionary<EncoderSpeed, string> _qsvPresets = new()
+        {
+            { EncoderSpeed.Fastest,  "veryfast" },
+            { EncoderSpeed.Fast,     "fast" },
+            { EncoderSpeed.Balanced, "medium" },
+            { EncoderSpeed.Slow,     "slow" },
+            { EncoderSpeed.Slowest,  "veryslow" },
+        };
+        private static readonly Dictionary<EncoderSpeed, string> _amfPresets = new()
+        {
+            { EncoderSpeed.Fastest,  "speed" },
+            { EncoderSpeed.Fast,     "speed" },
+            { EncoderSpeed.Balanced, "balanced" },
+            { EncoderSpeed.Slow,     "quality" },
+            { EncoderSpeed.Slowest,  "quality" },
+        };
+        private static readonly Dictionary<EncoderSpeed, string> _vpxPresets = new()
+        {
+            { EncoderSpeed.Fastest,  "5" },
+            { EncoderSpeed.Fast,     "4" },
+            { EncoderSpeed.Balanced, "2" },
+            { EncoderSpeed.Slow,     "1" },
+            { EncoderSpeed.Slowest,  "0" },
+        };
+        private static readonly Dictionary<EncoderSpeed, string> _aomCpuUsedPresets = new()
+        {
+            { EncoderSpeed.Fastest,  "8" },
+            { EncoderSpeed.Fast,     "6" },
+            { EncoderSpeed.Balanced, "4" },
+            { EncoderSpeed.Slow,     "2" },
+            { EncoderSpeed.Slowest,  "0" },
+        };
+        private static readonly Dictionary<EncoderSpeed, string> _rav1ePresets = new()
+        {
+            { EncoderSpeed.Fastest,  "10" },
+            { EncoderSpeed.Fast,     "8" },
+            { EncoderSpeed.Balanced, "5" },
+            { EncoderSpeed.Slow,     "2" },
+            { EncoderSpeed.Slowest,  "0" },
+        };
+        private static readonly Dictionary<EncoderSpeed, string> _svtav1Presets = new()
+        {
+            { EncoderSpeed.Fastest,  "12" },
+            { EncoderSpeed.Fast,     "10" },
+            { EncoderSpeed.Balanced, "6" },
+            { EncoderSpeed.Slow,     "3" },
+            { EncoderSpeed.Slowest,  "0" },
+        };
+
         private readonly RenderFormatItem[] _VideoEncoders =
         {
             // H.264
@@ -127,25 +210,29 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 Format = MediaFormat.h264,
                 FfmpegArg = "libx264",
                 Description = "Software",
-                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov, MediaFormat.flv }
+                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov, MediaFormat.flv },
+                PresetArg = "-preset", Presets = _x26xPresets
             },
             new() {
                 Format = MediaFormat.h264,
                 FfmpegArg = "h264_amf",
                 Description = "AMD",
-                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov, MediaFormat.flv }
+                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov, MediaFormat.flv },
+                PresetArg = "-quality", Presets = _amfPresets
             },
             new() {
                 Format = MediaFormat.h264,
                 FfmpegArg = "h264_nvenc",
                 Description = "NVIDIA",
-                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov, MediaFormat.flv }
+                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov, MediaFormat.flv },
+                PresetArg = "-preset", Presets = _nvencPresets
             },
             new() {
                 Format = MediaFormat.h264,
                 FfmpegArg = "h264_qsv",
                 Description = "Intel QSV",
-                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov, MediaFormat.flv }
+                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov, MediaFormat.flv },
+                PresetArg = "-preset", Presets = _qsvPresets
             },
             new() {
                 Format = MediaFormat.h264,
@@ -171,25 +258,29 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 Format = MediaFormat.h265,
                 FfmpegArg = "libx265",
                 Description = "Software",
-                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov }
+                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov },
+                PresetArg = "-preset", Presets = _x26xPresets
             },
             new() {
                 Format = MediaFormat.h265,
                 FfmpegArg = "hevc_amf",
                 Description = "AMD",
-                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov }
+                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov },
+                PresetArg = "-quality", Presets = _amfPresets
             },
             new() {
                 Format = MediaFormat.h265,
                 FfmpegArg = "hevc_nvenc",
                 Description = "NVIDIA",
-                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov }
+                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov },
+                PresetArg = "-preset", Presets = _nvencPresets
             },
             new() {
                 Format = MediaFormat.h265,
                 FfmpegArg = "hevc_qsv",
                 Description = "Intel QSV",
-                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov }
+                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov },
+                PresetArg = "-preset", Presets = _qsvPresets
             },
 
             // VPX
@@ -197,7 +288,8 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 Format = MediaFormat.vp8,
                 FfmpegArg = "libvpx",
                 Description = "Software",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv },
+                PresetArg = "-cpu-used", Presets = _vpxPresets
             },
             new() {
                 Format = MediaFormat.vp8,
@@ -216,7 +308,8 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 Format = MediaFormat.vp9,
                 FfmpegArg = "libvpx-vp9",
                 Description = "Software",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv },
+                PresetArg = "-cpu-used", Presets = _aomCpuUsedPresets
             },
             new() {
                 Format = MediaFormat.vp9,
@@ -228,7 +321,8 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 Format = MediaFormat.vp9,
                 FfmpegArg = "vp9_qsv",
                 Description = "Intel QSV",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv },
+                PresetArg = "-preset", Presets = _qsvPresets
             },
             new() {
                 Format = MediaFormat.vp9,
@@ -242,37 +336,43 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 Format = MediaFormat.av1,
                 FfmpegArg = "libaom-av1",
                 Description = "AOMedia",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv, MediaFormat.mp4 }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv, MediaFormat.mp4 },
+                PresetArg = "-cpu-used", Presets = _aomCpuUsedPresets
             },
             new() {
                 Format = MediaFormat.av1,
                 FfmpegArg = "librav1e",
                 Description = "rav1e",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv, MediaFormat.mp4 }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv, MediaFormat.mp4 },
+                PresetArg = "-speed", Presets = _rav1ePresets
             },
             new() {
                 Format = MediaFormat.av1,
                 FfmpegArg = "libsvtav1",
                 Description = "SVT",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv , MediaFormat.mp4}
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv , MediaFormat.mp4},
+                PresetArg = "-preset", Presets = _svtav1Presets
             },
             new() {
                 Format = MediaFormat.av1,
                 FfmpegArg = "av1_nvenc",
                 Description = "NVIDIA",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv , MediaFormat.mp4}
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv , MediaFormat.mp4},
+                PresetArg = "-preset", Presets = _nvencPresets
             },
             new() {
                 Format = MediaFormat.av1,
                 FfmpegArg = "av1_qsv",
                 Description = "Intel QSV",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv , MediaFormat.mp4}
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv , MediaFormat.mp4},
+                PresetArg = "-preset", Presets = _qsvPresets
             },
             new() {
                 Format = MediaFormat.av1,
                 FfmpegArg = "av1_amf",
                 Description = "AMD",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv , MediaFormat.mp4}
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv , MediaFormat.mp4},
+                PresetArg = "-quality", Presets = _amfPresets
             },
             new() {
                 Format = MediaFormat.av1,
@@ -513,8 +613,9 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
             });
 
             // Pre declaration for allowing dropdown item updates
-            FormEntryDropdown videoFormatField = null, videoEncoderField = null; 
-            FormEntryDropdown audioFormatField = null, audioEncoderField = null; 
+            FormEntryDropdown videoFormatField = null, videoEncoderField = null;
+            FormEntryDropdown audioFormatField = null, audioEncoderField = null;
+            FormEntryDropdown speedField = null;
 
             // Helper method to update encoder options
             void UpdateEncoderOptions(FormEntryDropdown formatField, FormEntryDropdown encoderField, RenderFormatItem[] encoders)
@@ -635,14 +736,25 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 PrefsDirty = true;
                 Prefs.VideoEncoder = (string)v;
 
-                Vector2 encoderCrfRange = GetCRFRange(Array.Find(_VideoEncoders, x => x.FfmpegArg == Prefs.VideoEncoder).Format);
+                RenderFormatItem encoder = Array.Find(_VideoEncoders, x => x.FfmpegArg == Prefs.VideoEncoder);
+
+                Vector2 encoderCrfRange = GetCRFRange(encoder.Format);
                 crfField!.Range.minValue = Mathf.Min(encoderCrfRange.x, encoderCrfRange.y);
                 crfField!.Range.maxValue = Mathf.Max(encoderCrfRange.x, encoderCrfRange.y);
                 crfField!.SetValue(Mathf.Clamp(crfField.CurrentValue, crfField.Range.minValue, crfField.Range.maxValue));
+
+                speedField!.gameObject.SetActive(encoder.PresetArg != null);
             });
             videoEncoderField.CurrentValue = Prefs.VideoEncoder; // Initialize valud for encoder update method;
             MakeCompoundField(videoFormatField, videoEncoderField);
             UpdateEncoderOptions(videoFormatField, videoEncoderField, _VideoEncoders);
+
+            speedField = SpawnForm<FormEntryDropdown, object>("Encoder Speed", () => (EncoderSpeed)Prefs.EncoderSpeed, v =>
+            {
+                Prefs.EncoderSpeed = (int)(EncoderSpeed)v; PrefsDirty = true;
+            });
+            speedField.TargetEnum(typeof(EncoderSpeed));
+            speedField.gameObject.SetActive(Array.Find(_VideoEncoders, x => x.FfmpegArg == Prefs.VideoEncoder).PresetArg != null);
 
             // Create audio encoder field
             audioFormatField = SpawnForm<FormEntryDropdown, object>("Audio Encoding", () => audioFormatField.CurrentValue, v => {
@@ -1119,11 +1231,17 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 float camHeight = Mathf.Min(1f, 7f / 4f * resolution.x / resolution.y) * 0.9f;
                 float fov = Mathf.Atan2(Mathf.Tan(30f * Mathf.Deg2Rad), camHeight) * 2f * Mathf.Rad2Deg;
 
-                Vector2 crfRange = GetCRFRange(Array.Find(_VideoEncoders, x => x.FfmpegArg == Prefs.VideoEncoder).Format);
-                int crf = 
+                RenderFormatItem currentEncoder = Array.Find(_VideoEncoders, x => x.FfmpegArg == Prefs.VideoEncoder);
+
+                Vector2 crfRange = GetCRFRange(currentEncoder.Format);
+                int crf =
                     Prefs.UseCrf
                         ? Prefs.CrfVal
                         : Mathf.RoundToInt(Mathf.LerpUnclamped(crfRange.x, crfRange.y, Prefs.VideoQuality));
+
+                string presetOption = currentEncoder.PresetArg != null
+                    ? $"{currentEncoder.PresetArg} {currentEncoder.Presets[(EncoderSpeed)Prefs.EncoderSpeed]} "
+                    : "";
 
                 string videoFormatArg = Prefs.VideoEncoder;
                 string audioFormatArg = Prefs.AudioEncoder;
@@ -1298,6 +1416,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                                     audioInputArgs +
                                     $"-map 0:v -map 1:a " +
                                     $"-vcodec {videoFormatArg} -vf format=rgb24 -pix_fmt yuv420p -acodec {audioFormatArg} " +
+                                    presetOption +
                                     $"{qualityOptions} -b:a {Prefs.AudioBitRate}k " +
                                     $"-y \"{outputPath}\"";
 
@@ -1974,6 +2093,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
         public float HitSfxVolume = 60;
         public bool  UseCrf;
         public int CrfVal;
+        public int EncoderSpeed = (int)RenderModal.EncoderSpeed.Balanced;
 
         public void Load(Storage storage)
         {
@@ -1998,6 +2118,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
             AdaptiveBitrate = storage.Get("RD:AdaptiveBitrate", AdaptiveBitrate);
             UseCrf          = storage.Get("RD:UseCrf", UseCrf);
             CrfVal          = storage.Get("RD:CrfVal", CrfVal);
+            EncoderSpeed    = storage.Get("RD:EncoderSpeed", EncoderSpeed);
 
             AntiAliasing = storage.Get("RD:AntiAliasing", AntiAliasing);
 
@@ -2028,6 +2149,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
             storage.Set("RD:AdaptiveBitrate", AdaptiveBitrate);
             storage.Set("RD:UseCrf", UseCrf);
             storage.Set("RD:CrfVal", CrfVal);
+            storage.Set("RD:EncoderSpeed", EncoderSpeed);
 
             storage.Set("RD:AntiAliasing", AntiAliasing);
 
