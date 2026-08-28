@@ -2271,6 +2271,25 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         int GetTimestampRow(TimestampType[] types, float localY) =>
             Math.Clamp(Mathf.FloorToInt((ItemsHolder.rect.height - localY - 3) / 24) + ScrollOffset, 0, types.Length - 1);
 
+        /// <summary>
+        /// The world Y a hit object's preview has to sit at for the drop to land under it. The creation path
+        /// quantises the pointer to 1/20ths of the visible range and then centres the note on the result, and
+        /// UpdateItems places the item's top from that - so a preview tracking the raw pointer is off by up to
+        /// half a step plus half a length, and the note appears to jump on release. Mirrors all three steps.
+        /// </summary>
+        float GetHitPreviewWorldY(float localY)
+        {
+            float vpStart = .5f - VerticalScale * .5f + VerticalOffset;
+            float vpEnd = .5f + VerticalScale * .5f + VerticalOffset;
+            float height = ItemsHolder.rect.height - 8;
+
+            float snapped = Mathf.Lerp(vpStart, vpEnd, Mathf.Round(Mathf.Clamp01(1 - (localY - 4) / height) / .05f) * .05f);
+            float position = snapped - Options.NewHitObjectLength / 2;
+            float anchored = Mathf.Floor(-InverseLerpUnclamped(vpStart, vpEnd, position) * height) - 3;
+
+            return ItemsHolder.TransformPoint(new Vector3(0, ItemsHolder.rect.yMax + anchored, 0)).y;
+        }
+
         public void OnPointerDown(PointerEventData eventData)
         {
             bool contains(RectTransform rt)                  => RectTransformUtility.RectangleContainsScreenPoint(rt, eventData.pressPosition, eventData.pressEventCamera);
@@ -2331,6 +2350,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     }
 
                     PreviewerTail.gameObject.transform.position = eventData.pressPosition;
+
+                    if (mode is TimelinePickerMode.CatchHit or TimelinePickerMode.NormalHit)
+                        PreviewerTail.gameObject.transform.position *= new Vector3Frag(y: GetHitPreviewWorldY(dragStart.y));
+
                     initialPreviewersPosition = PreviewerTail.gameObject.transform.position;
                 }
                 
@@ -3016,6 +3039,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
                                     hitTailRectTransform.anchorMin = new Vector2(hitMinX, 1);
                                     hitTailRectTransform.anchorMax = new Vector2(hitMaxX, 1);
+                                    PreviewerTail.gameObject.transform.position *= new Vector3Frag(y: GetHitPreviewWorldY(dragEnd.y));
+
                                     hitTailRectTransform.sizeDelta = new Vector2(0, PreviewerTail.GetComponent<RectTransform>().rect.height);;
                                     hitTailRectTransform.position  *= new Vector3Frag(y: PreviewerTail.gameObject.transform.position.y);
                                     
@@ -3341,8 +3366,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
                                     float vpStart = .5f - VerticalScale * .5f + VerticalOffset;
                                     float vpEnd = .5f + VerticalScale * .5f + VerticalOffset;
-                                    float yStart = Mathf.Lerp(vpStart, vpEnd, Mathf.Round(Mathf.Clamp01(1 - (Mathf.Max(dragStart.y, dragEnd.y) - 4) / (ItemsHolder.rect.height - 8)) / .05f) * .05f);
-                                    float yEnd = Mathf.Lerp(vpStart, vpEnd, Mathf.Round(Mathf.Clamp01(1 - (Mathf.Min(dragStart.y, dragEnd.y) - 4) / (ItemsHolder.rect.height - 8)) / .05f) * .05f);
+                                    // Follows where the pointer is now rather than an extreme of the gesture, so a
+                                    // vertical drag keeps moving the note instead of sticking at the end it passed.
+                                    float yEnd = Mathf.Lerp(vpStart, vpEnd, Mathf.Round(Mathf.Clamp01(1 - (dragEnd.y - 4) / (ItemsHolder.rect.height - 8)) / .05f) * .05f);
 
                                     hit.Offset = (BeatPosition)Math.Min(beatStart, beatEnd);
                                     hit.HoldLength = Math.Abs(beatStart - beatEnd);
