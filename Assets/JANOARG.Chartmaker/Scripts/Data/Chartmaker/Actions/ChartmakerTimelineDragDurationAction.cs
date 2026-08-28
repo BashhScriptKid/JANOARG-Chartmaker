@@ -4,7 +4,7 @@ using JANOARG.Shared.Data.ChartInfo;
 
 namespace JANOARG.Chartmaker.Data.Chartmaker.Actions
 {
-    public class ChartmakerTimelineDragHoldLengthAction: IChartmakerAction
+    public class ChartmakerTimelineDragDurationAction: IChartmakerAction
     {
         public IList  Targets = new List<object>();
         public string Keyword;
@@ -25,8 +25,12 @@ namespace JANOARG.Chartmaker.Data.Chartmaker.Actions
         void Do(float value) 
         {
             foreach (object item in Targets)
+            {
                 if (item is HitObject hit)
                     hit.HoldLength += value;
+                else if (item is Timestamp ts)
+                    ts.Duration += value;
+            }
         }
     }
 }
