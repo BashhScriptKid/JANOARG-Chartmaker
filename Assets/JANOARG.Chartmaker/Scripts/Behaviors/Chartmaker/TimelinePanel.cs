@@ -149,6 +149,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public IList DraggingItem;
         float        DraggingItemOffset;
 
+        IList DraggingHold;        // Hit objects being resized by their tail dragger
+        float DraggingHoldOffset;  // Beat delta already written by the action this drag continues
+        float DraggingHoldFloor;   // Shortest hold in the selection, the point the whole drag stops shrinking at
+
         // Vertical item dragging is previewed while the pointer moves and only committed on release,
         // so the underlying data stays untouched until the gesture is known to be valid.
         int   DragRowDelta;        // Storyboard: attribute rows the selection is offset by
@@ -879,6 +883,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                             tailRectTransform.anchorMax = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, timeEndPoint), 1);
                             tailRectTransform.anchoredPosition = new Vector2(0, position);
                             tailRectTransform.sizeDelta = new Vector2(0, length);
+
+                            if (ItemTailHandles[tailCount])
+                                ItemTailHandles[tailCount].Item = hit;
+
                             tailCount++;
                         }
                         if (time < PeekRange.x - dOffset || time > PeekRange.y + dOffset) 
@@ -2363,6 +2371,41 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
 
         /// <summary>
+        /// Starts a hold length drag from a tail's dragger. The pointer's travel becomes a single beat delta shared
+        /// by the whole selection, so holds of differing lengths keep their spacing instead of collapsing onto one
+        /// length the way a per-item assignment would.
+        /// </summary>
+        public void BeginDragHoldLength(IList items, PointerEventData eventData)
+        {
+            DraggingHold = items;
+            DraggingItem = null;
+            dragMode = TimelineDragMode.HoldLengthDrag;
+
+            bool localPos(RectTransform rt, out Vector2 pos) => RectTransformUtility.ScreenPointToLocalPointInRectangle(rt, eventData.pressPosition, eventData.pressEventCamera, out pos);
+            localPos(ItemsHolder, out dragStart);
+
+            dragEnd = dragStart;
+            timeStart = timeEnd = Mathf.Lerp(PeekRange.x, PeekRange.y, dragStart.x / ItemsHolder.rect.width);
+            beatStart = RoundBeat(timeStart);
+
+            ChartmakerHistory history = Chartmaker.main.History;
+            IChartmakerAction last = history.ActionsBehind.Count == 0 ? null : history.ActionsBehind.Peek();
+            if (last is ChartmakerTimelineDragHoldLengthAction lastResize && Equals(lastResize.Targets, DraggingHold))
+                DraggingHoldOffset = lastResize.Value;
+            else
+                DraggingHoldOffset = 0;
+
+            // Measured against the lengths the action this drag continues started from, since that action is undone
+            // before every new value is written - the live lengths already carry DraggingHoldOffset.
+            float shortest = float.MaxValue;
+            foreach (object item in items)
+                if (item is HitObject hit)
+                    shortest = Mathf.Min(shortest, hit.HoldLength);
+            DraggingHoldFloor = shortest == float.MaxValue ? 0 : Mathf.Max(shortest - DraggingHoldOffset, 0);
+        }
+
+
+        /// <summary>
         /// Recomputes the previewed vertical offset for the selection being dragged. Nothing is written to the
         /// chart here - the preview only feeds the render pass until <see cref="CommitVerticalDrag"/> runs.
         /// </summary>
@@ -2546,7 +2589,37 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     Metronome metronome = Chartmaker.main.CurrentSong.Timing;
                     beatEnd = RoundBeat(timeEnd);
 
-                    if (DraggingItem != null)
+                    if (dragMode == TimelineDragMode.HoldLengthDrag)
+                    {
+                        if (DraggingHold == null || DraggingHold.Count <= 0) return;
+
+                        ChartmakerHistory history = Chartmaker.main.History;
+                        ChartmakerTimelineDragHoldLengthAction action;
+                        IChartmakerAction last = history.ActionsBehind.Count == 0 ? null : history.ActionsBehind.Peek();
+
+                        if (last is ChartmakerTimelineDragHoldLengthAction lastResize && Equals(lastResize.Targets, DraggingHold))
+                        {
+                            action = lastResize;
+                            action.Undo();
+                        }
+                        else
+                        {
+                            action = new ChartmakerTimelineDragHoldLengthAction {
+                                Targets = DraggingHold,
+                            };
+                            history.ActionsBehind.Push(action);
+                        }
+
+                        // Clamped as one shared delta rather than per hold, so the selection stops as a unit once its
+                        // shortest hold reaches its own head instead of piling the rest up at zero.
+                        action.Value = Mathf.Max(ToRoundedBeat(beatEnd - beatStart + DraggingHoldOffset), -DraggingHoldFloor);
+                        action.Redo();
+
+                        history.ActionsAhead.Clear();
+                        Chartmaker.main.OnHistoryDo();
+                        Chartmaker.main.OnHistoryUpdate();
+                    }
+                    else if (DraggingItem != null)
                     {
                         if (DraggingItem.Count <= 0) return;
 
@@ -2859,6 +2932,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         public void OnEndDrag(PointerEventData eventData)
         {
+            DraggingHold = null;
+
             if (DraggingItem != null) 
             {
                 // The commit re-renders through OnHistoryDo, so the preview state has to be cleared first
@@ -3365,7 +3440,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         TimelineDrag = 1,
         Timeline     = 3,
         Select       = 5,
-        ItemDrag     = 7,
+        ItemDrag       = 7,
+        HoldLengthDrag = 9,
     }
 
     public enum FrequencyScale
