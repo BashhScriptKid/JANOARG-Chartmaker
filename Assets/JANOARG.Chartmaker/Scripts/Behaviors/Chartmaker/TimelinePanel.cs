@@ -462,13 +462,19 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     item.gameObject.SetActive(true);
             }
 
-            while (ItemTailHandles.Count < ItemTails.Count)
+            // Padded against the index asked for rather than the pool's length, so the list stays addressable
+            // whichever index a caller reaches for instead of relying on them arriving in order
+            while (ItemTailHandles.Count <= index)
                 ItemTailHandles.Add(null);
             ItemTailHandles[index] ??= item.GetComponentInChildren<TimelineItemTailHandle>(true);
 
             // Ownership is dropped on every fetch, so only the pass that claims a tail this frame can drag it
             if (ItemTailHandles[index])
                 ItemTailHandles[index].Item = null;
+
+            // Tails are pooled across every mode, and only the storyboard pass sets a colour, so one left tinted
+            // by a refused drag would carry that tint into whichever pass claims it next
+            item.color = ItemTailSample.color;
 
             return item;
         }
