@@ -2385,6 +2385,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             DragRowDelta = 0;
             DragPositionDelta = 0;
             DragVerticalBlocked = false;
+            PlayerView.main.ClearHitPositionPreview();
         
             bool localPos(RectTransform rt, out Vector2 pos) => RectTransformUtility.ScreenPointToLocalPointInRectangle(rt, eventData.pressPosition, eventData.pressEventCamera, out pos);
             localPos(ItemsHolder, out dragStart);
@@ -2695,6 +2696,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     // Quantized in viewport space like the creation path, so the step stays a constant
                     // fraction of the panel instead of growing as the vertical zoom tightens
                     DragPositionDelta = Mathf.Round((to - from) / .05f) * .05f * VerticalScale;
+
+                    // The timeline draws the offset itself (see UpdateItems); the player view cannot, because it
+                    // renders from the chart, so it is handed the same offset to overlay while the drag is live.
+                    PlayerView.main.SetHitPositionPreview(DraggingItem, DragPositionDelta);
                     break;
                 }
             }
@@ -3151,6 +3156,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 DragRowDelta = 0;
                 DragPositionDelta = 0;
                 DragVerticalBlocked = false;
+
+                // Same reason the fields above are cleared first: the commit renders through OnHistoryDo, and an
+                // overlay still standing at that point would stack on the value it just wrote.
+                PlayerView.main.ClearHitPositionPreview();
 
                 CommitVerticalDrag(dragged, rowDelta, positionDelta, blocked);
             }

@@ -27,6 +27,15 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public Image  BoundingBox;
         [Space]
         public ChartManager Manager;
+
+        // A lane offset lent to these hit objects for the length of one manager pass. See UpdateObjects.
+        readonly List<HitObject> PreviewPositionTargets = new();
+        float                    PreviewPositionOffset;
+
+        // What the last lend borrowed and owes back, recorded rather than recomputed so the return is exact.
+        readonly List<HitObject> _LentHits = new();
+        readonly List<float>     _LentPositions = new();
+        readonly List<(Timestamp Stamp, float From, float Target)> _LentTimestamps = new();
         [Space]
         [Header("Cover")]
         public CoverViewMode CurrentCoverViewMode;
@@ -232,12 +241,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         }
 
         /// <summary>
-        /// The edit path. Every external caller of this is a chart mutation site, so it is
-        /// also where the lane window index gets invalidated — a rebuild costs well under a
-        /// millisecond and happens lazily on the next query, so an edit burst collapses into
-        /// one. Marking dirty here rather than watching individual fields is deliberate:
-        /// lane steps stay offset-sorted, so editing a middle step can produce a new first
-        /// step, and a field watcher that missed it would silently stop rendering that lane.
+        /// The ultimate invalidator. Call this when you mess with the datas and
+        /// it will update the chart view.
         /// </summary>
         public void UpdateObjects()
         {
@@ -250,12 +255,38 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         /// <summary>The per-frame path — same work, but the windows are already current.</summary>
         void UpdateObjectsForFrame() => UpdateObjects(InformationBar.main.sec, InformationBar.main.beat);
 
+        /// <summary>
+        /// Shows a selection at a lane position it has not been moved to yet. Nothing is rendered here - the drag
+        /// that sets this renders through OnHistoryDo on the same pointer move. Pass no targets, or a zero offset,
+        /// to clear.
+        /// </summary>
+        public void SetHitPositionPreview(IList targets, float offset)
+        {
+            PreviewPositionTargets.Clear();
+            PreviewPositionOffset = offset;
+
+            if (targets == null || Mathf.Approximately(offset, 0))
+                return;
+
+            foreach (object item in targets)
+                if (item is HitObject hit)
+                    PreviewPositionTargets.Add(hit);
+        }
+
+        public void ClearHitPositionPreview() => SetHitPositionPreview(null, 0);
+
         public void UpdateObjects(float sec, float beat)
         {
             CurrentTime = sec;
 
             if (Chartmaker.main.CurrentChart != null)
             {
+                // The previewed offset is lent to the chart for the manager pass below and taken straight
+                // back after it. Only that pass reads hit positions out of the chart - everything below it
+                // works off the values that pass baked - so the window is one call wide, and no save,
+                // inspector read or timeline render can see the borrowed values.
+                LendHitPositionPreview();
+
                 if (Chartmaker.main.CurrentChart != Manager?.CurrentChart)
                 {
                     Manager = new ChartManager(
@@ -292,6 +323,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
                     Manager!.Update(sec, beat, LaneActiveMask);
                 }
+
+                ReturnHitPositionPreview();
             
                 MainCamera.transform.position = Manager.Camera.CameraPivot;
                 MainCamera.transform.eulerAngles = Manager.Camera.CameraRotation; 
@@ -512,6 +545,61 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 BoundingBox.rectTransform.anchoredPosition = new (0, 0);
                 DarkBackground.SetActive(false);
                 CoverToolbar.SetActive(false);
+            }
+
+            // Offsets the previewed hit objects in the chart, recording what they held. Position timestamps move
+            // with them, matching ChartmakerMoveHitObjectAction - a storyboarded position would otherwise
+            // overwrite the offset the moment the manager evaluated it, and the note would sit still under the
+            // drag.
+            //
+            // Anything a previous lend failed to give back is returned first, so a throw between the two
+            // cannot strand the borrowed values in the chart for longer than a frame.
+            void LendHitPositionPreview()
+            {
+                ReturnHitPositionPreview();
+
+                if (PreviewPositionTargets.Count <= 0)
+                    return;
+
+                foreach (HitObject hit in PreviewPositionTargets)
+                {
+                    _LentHits.Add(hit);
+                    _LentPositions.Add(hit.Position);
+
+                    hit.Position += PreviewPositionOffset;
+
+                    foreach (Timestamp stamp in hit.Storyboard.Timestamps)
+                    {
+                        if (stamp.ID != TimestampIDs.Position)
+                            continue;
+
+                        _LentTimestamps.Add((stamp, stamp.From, stamp.Target));
+
+                        stamp.From   += PreviewPositionOffset;
+                        stamp.Target += PreviewPositionOffset;
+                    }
+                }
+            }
+
+            // Puts back what the lend borrowed, by assignment rather than by subtracting the offset again - a
+            // preview held across many frames would otherwise drift the values it only borrowed. Safe to call
+            // when nothing is outstanding.
+            void ReturnHitPositionPreview()
+            {
+                for (int a = 0; a < _LentHits.Count; a++)
+                    _LentHits[a].Position = _LentPositions[a];
+
+                for (int a = 0; a < _LentTimestamps.Count; a++)
+                {
+                    (Timestamp stamp, float from, float target) = _LentTimestamps[a];
+
+                    stamp.From   = from;
+                    stamp.Target = target;
+                }
+
+                _LentHits.Clear();
+                _LentPositions.Clear();
+                _LentTimestamps.Clear();
             }
         }
 
@@ -1290,16 +1378,14 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             UpdateObjects();
         }
 
-        /// <summary>
-        /// Time windows telling the view which lanes are worth updating on a given frame.
-        ///
-        /// The Client solves this with a forward-only cursor over lanes sorted by cue time,
-        /// destroying each lane once passed. The Chartmaker cannot: time scrubs backwards, so
-        /// a passed lane has to be able to come back. This keeps every lane's window in a
-        /// sorted list instead and answers "which lanes overlap this instant" by binary
-        /// search. Windows are in seconds, matching LaneStepManager.Offset and the cue
-        /// formula below.
-        /// </summary>
+            // Time windows telling the view which lanes are worth updating on a given frame.
+            // 
+            // The Client solves this with a forward-only cursor over lanes sorted by cue time,
+            // destroying each lane once passed. The Chartmaker cannot: time scrubs backwards, so
+            // a passed lane has to be able to come back. This keeps every lane's window in a
+            // sorted list instead and answers "which lanes overlap this instant" by binary
+            // search. Windows are in seconds, matching LaneStepManager.Offset and the cue
+            // formula below.
         class LaneWindowIndex
         {
             // Ported from PlayerScreen.cs in the Client, which arrived at these by playtesting.
@@ -1332,14 +1418,12 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             float _LastTime;
             bool  _Dirty = true;
 
-            /// <summary>Marks the index stale; the rebuild happens on the next query.</summary>
+            // <summary>Marks the index stale; the rebuild happens on the next query.</summary>
             public void Invalidate() => _Dirty = true;
 
-            /// <summary>
-            /// Updates <paramref name="mask"/> to one flag per lane, rebuilding first if
-            /// needed so callers never have to sequence Invalidate against Rebuild.
-            /// The mask carries across calls — it is stepped, not recomputed.
-            /// </summary>
+            // Updates <paramref name="mask"/> to one flag per lane, rebuilding first if
+            // needed so callers never have to sequence Invalidate against Rebuild.
+            // The mask carries across calls — it is stepped, not recomputed.
             public void GetActive(Chart chart, PlayableSong song, float speed, float time, ref bool[] mask)
             {
                 int laneCount = chart.Lanes.Count;
@@ -1369,7 +1453,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 _LastTime = time;
             }
 
-            /// <summary>Rebuilds the mask and both cursors from scratch.</summary>
+            // <summary>Rebuilds the mask and both cursors from scratch.</summary>
             void Reset(float time, bool[] mask, int laneCount)
             {
                 for (var i = 0; i < laneCount; i++)
@@ -1461,7 +1545,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 _Dirty = false;
             }
 
-            /// <summary>How many windows have a Cue at or before <paramref name="time"/>.</summary>
+            // <summary>How many windows have a Cue at or before <paramref name="time"/>.</summary>
             int CountCueAtOrBefore(float time)
             {
                 int lo = 0, hi = _Windows.Count;
@@ -1477,7 +1561,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 return lo;
             }
 
-            /// <summary>How many windows have an End strictly before <paramref name="time"/>.</summary>
+            // <summary>How many windows have an End strictly before <paramref name="time"/>.</summary>
             int CountEndBefore(float time)
             {
                 int lo = 0, hi = _ByEnd.Count;
