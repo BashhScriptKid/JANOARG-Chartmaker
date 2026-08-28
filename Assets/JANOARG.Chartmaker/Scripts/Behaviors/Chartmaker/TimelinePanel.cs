@@ -2446,6 +2446,27 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         };
 
         /// <summary>
+        /// Whether a timestamp spanning <paramref name="from"/> to <paramref name="to"/> on <paramref name="row"/>
+        /// would overlap one already there - the rule the creation path applies when it decides whether to accept
+        /// the timestamp a drag just drew. Touching end to start is not an overlap; anything past that is.
+        /// </summary>
+        bool IsTimestampRangeBlocked(Storyboardable thing, int row, float from, float to)
+        {
+            TimestampType[] types = thing.timestampTypes;
+            if (row < 0 || row >= types.Length)
+                return false;
+
+            TimestampIDs id = types[row].ID;
+            float start = Mathf.Min(from, to);
+            float duration = Mathf.Abs(to - from);
+
+            return thing.Storyboard.Timestamps.FindIndex(x => x.ID == id && (
+                (x.Offset < start + duration && start < x.Offset + x.Duration)
+                || (x.Duration == 0 && duration == 0 && Mathf.Approximately(x.Offset, start))
+            )) >= 0;
+        }
+
+        /// <summary>
         /// Works out how far the selection may shrink and grow, measured once against the lengths the drag started
         /// from. The whole selection stops together at whichever member runs out of room first, so a drag never
         /// collapses differing lengths onto one value or pushes a timestamp into its neighbour on the same row.
@@ -2973,6 +2994,12 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                                     // same geometry as committed tails so it clips against TailsHolder identically
                                     int sbRow = GetTimestampRow(sbThing.timestampTypes, dragEnd.y);
                                     sbTailRectTransform.anchoredPosition = new Vector2(0, -24 * (sbRow - ScrollOffset) - 6);
+
+                                    // The creation path drops a timestamp that would overlap one already on the row,
+                                    // so the preview says as much while the drag is still running rather than
+                                    // letting go and leaving nothing behind
+                                    pseudoTail.color = IsTimestampRangeBlocked(sbThing, sbRow, beatStart, beatEnd)
+                                        ? Themer.main.Keys["DangerHighlighted"] : ItemTailSample.color;
 
                                     // Keep the endpoint marker on the same row as the tail it terminates
                                     PreviewerTail.gameObject.transform.position *= new Vector3Frag(y: sbTailRectTransform.position.y);
