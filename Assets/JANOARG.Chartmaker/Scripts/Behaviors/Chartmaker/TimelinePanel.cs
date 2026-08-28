@@ -121,6 +121,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         [HideInInspector] public List<TimelineItem> Items;
         public Image ItemTailSample;
         [HideInInspector] public List<Image> ItemTails;
+        // Index-aligned with ItemTails, resolved lazily so a pool entry that outlives a reload still finds its dragger
+        readonly List<TimelineItemTailHandle> ItemTailHandles = new();
         public TMP_Text LabelSample;
         [HideInInspector] public List<TMP_Text> Labels;
         public LineGraph GraphSample;
@@ -452,7 +454,15 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 if (!item.gameObject.activeSelf)
                     item.gameObject.SetActive(true);
             }
-        
+
+            while (ItemTailHandles.Count < ItemTails.Count)
+                ItemTailHandles.Add(null);
+            ItemTailHandles[index] ??= item.GetComponentInChildren<TimelineItemTailHandle>(true);
+
+            // Ownership is dropped on every fetch, so only the pass that claims a tail this frame can drag it
+            if (ItemTailHandles[index])
+                ItemTailHandles[index].Item = null;
+
             return item;
         }
         TMP_Text GetItemLabel(int index)
