@@ -474,7 +474,11 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             TMP_Text item;
         
             if (Labels.Count <= index)
+            {
                 Labels.Add(item = Instantiate(LabelSample, LabelsHolder));
+                // Labels stretch across the tail they annotate, so a raycasting one covers the tail's dragger
+                item.raycastTarget = false;
+            }
             else
             {
                 item = Labels[index];
@@ -489,7 +493,11 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             LineGraph item;
         
             if (Graphs.Count <= index)
+            {
                 Graphs.Add(item = Instantiate(GraphSample, GraphsHolder));
+                // Same as the labels: the curve spans its timestamp's tail, dragger included
+                item.raycastTarget = false;
+            }
             else
             {
                 item = Graphs[index];
