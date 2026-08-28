@@ -2199,6 +2199,14 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             return (int)dragMode % 2 == 1;
         }
         
+        /// <summary>
+        /// Maps a point in <see cref="ItemsHolder"/> local space onto the storyboard attribute row it sits on.
+        /// The clamp is applied after <see cref="ScrollOffset"/>, so a point past the bottom edge resolves to the
+        /// last attribute rather than the last visible row.
+        /// </summary>
+        int GetTimestampRow(TimestampType[] types, float localY) =>
+            Math.Clamp(Mathf.FloorToInt((ItemsHolder.rect.height - localY - 3) / 24) + ScrollOffset, 0, types.Length - 1);
+
         public void OnPointerDown(PointerEventData eventData)
         {
             bool contains(RectTransform rt)                  => RectTransformUtility.RectangleContainsScreenPoint(rt, eventData.pressPosition, eventData.pressEventCamera);
@@ -2253,20 +2261,6 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         float length = Mathf.Floor((end - start) * height) + 2;
         
                         hitobjectRect.sizeDelta = new Vector2(6, length);
-                    }
-                    else if (InspectorPanel.main.CurrentObject is Storyboardable thing)
-                    {
-                        TimestampType[] types = thing.timestampTypes;
-                        int index = Math.Clamp(
-                            Mathf.FloorToInt((ItemsHolder.rect.height - eventData.pressPosition.y - 3) / 24) + ScrollOffset, 
-                            0, 
-                            types.Length - 1
-                        );
-
-                        // Snap PreviewerTail to the center of the selected row
-                        float yPosition = ItemsHolder.rect.height - (index - ScrollOffset) * 24 - 3 - 12; // -12 to center in 24px row
-    
-                        PreviewerTail.gameObject.transform.position *= new Vector2Frag(y: yPosition);
                     }
 
                     PreviewerTail.gameObject.transform.position = eventData.pressPosition;
@@ -2554,7 +2548,6 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                                     break;
                                 
                                 case TimelineMode.HitObjects:
-                                case TimelineMode.Storyboard:
                                     // Only get a new tail if we don't have one
                                     if (pseudoTail == null)
                                         pseudoTail = GetItemTail(-3280);
@@ -2587,6 +2580,49 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                                     if (eventData.position.x < initialPreviewersPosition.x)
                                         PreviewerTail.gameObject.transform.position *= new Vector3Frag(x: eventData.position.x);
                                     break;
+
+                                case TimelineMode.Storyboard:
+                                {
+                                    if (InspectorPanel.main.CurrentObject is not Storyboardable sbThing)
+                                        break;
+
+                                    // Only get a new tail if we don't have one
+                                    if (pseudoTail == null)
+                                        pseudoTail = GetItemTail(-3280);
+
+                                    RectTransform sbTailRectTransform = pseudoTail.rectTransform;
+
+                                    // Convert world positions to local positions in ItemsHolder for normalization
+                                    Vector2 sbPreviewerLocalPos = ItemsHolder.InverseTransformPoint(initialPreviewersPosition);
+
+                                    RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                                        ItemsHolder,
+                                        eventData.position,
+                                        eventData.pressEventCamera,
+                                        out Vector2 sbPointerLocalPos
+                                    );
+
+                                    // Get normalized positions
+                                    float sbPreviewerNormalizedX = Mathf.InverseLerp(0, ItemsHolder.rect.width, sbPreviewerLocalPos.x);
+                                    float sbPointerNormalizedX = Mathf.InverseLerp(0, ItemsHolder.rect.width, sbPointerLocalPos.x);
+
+                                    // Set anchors to stretch between the two points
+                                    sbTailRectTransform.anchorMin = new Vector2(Mathf.Min(sbPreviewerNormalizedX, sbPointerNormalizedX), 1);
+                                    sbTailRectTransform.anchorMax = new Vector2(Mathf.Max(sbPreviewerNormalizedX, sbPointerNormalizedX), 1);
+                                    sbTailRectTransform.sizeDelta = new Vector2(0, 20);
+
+                                    // Place the preview on the row the timestamp will actually be created on, using the
+                                    // same geometry as committed tails so it clips against TailsHolder identically
+                                    int sbRow = GetTimestampRow(sbThing.timestampTypes, dragEnd.y);
+                                    sbTailRectTransform.anchoredPosition = new Vector2(0, -24 * (sbRow - ScrollOffset) - 6);
+
+                                    // Keep the endpoint marker on the same row as the tail it terminates
+                                    PreviewerTail.gameObject.transform.position *= new Vector3Frag(y: sbTailRectTransform.position.y);
+
+                                    if (eventData.position.x < initialPreviewersPosition.x)
+                                        PreviewerTail.gameObject.transform.position *= new Vector3Frag(x: eventData.position.x);
+                                    break;
+                                }
                             }
                             
                             break;
@@ -2766,7 +2802,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
                                     TimestampType[] types = thing.timestampTypes;
                                     Storyboard storyboard = thing.Storyboard;
-                                    TimestampType type = types[Math.Clamp(Mathf.FloorToInt((ItemsHolder.rect.height - dragEnd.y - 3) / 24) + ScrollOffset, 0, types.Length - 1)];
+                                    TimestampType type = types[GetTimestampRow(types, dragEnd.y)];
                             
                                     Timestamp ts = new Timestamp {
                                         ID = type.ID,
