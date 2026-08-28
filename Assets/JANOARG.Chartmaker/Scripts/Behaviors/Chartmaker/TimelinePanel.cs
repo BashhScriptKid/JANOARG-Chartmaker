@@ -2316,6 +2316,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     if (mode is TimelinePickerMode.CatchHit or TimelinePickerMode.NormalHit)
                     {
                         hitobjectRect = PreviewerTail.GetComponent<RectTransform>();
+                        PreviewerTail.Icon.sprite = mode == TimelinePickerMode.NormalHit
+                            ? NormalHitIcon : CatchHitIcon;
         
                         float vpStart = .5f - VerticalScale * .5f + VerticalOffset;
                         float vpEnd = .5f + VerticalScale * .5f + VerticalOffset;
@@ -3355,6 +3357,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             }
 
             Previewer.gameObject.SetActive(false);
+            // Reset sprite in case it was Hit Object's context
+            Previewer.Icon.sprite = LineIcon;
+            
             PreviewerTail.gameObject.SetActive(false);
 
             if (pseudoTail != null)
