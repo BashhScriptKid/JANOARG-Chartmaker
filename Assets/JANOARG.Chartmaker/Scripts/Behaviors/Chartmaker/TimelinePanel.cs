@@ -2363,10 +2363,18 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         
             ChartmakerHistory history = Chartmaker.main.History;
             IChartmakerAction last = history.ActionsBehind.Count == 0 ? null : history.ActionsBehind.Peek();
-            if (last is ChartmakerTimelineDragFloatAction lastMove && Equals(lastMove.Targets, DraggingItem))
-                DraggingItemOffset = lastMove.Value;
-            else 
-                DraggingItemOffset = 0;
+            // Seeded from whichever action OnDrag will go on to reuse, which depends on what is being dragged:
+            // lanes and BPM stops each have their own, everything else shares the beat position one. Matching only
+            // some of them leaves the offset at zero while OnDrag still reuses and undoes the action carrying it,
+            // so the selection jumps back by the previous drag's whole distance the moment the pointer moves.
+            DraggingItemOffset =
+                last is ChartmakerTimelineDragFloatAction floatMove && Equals(floatMove.Targets, DraggingItem)
+                    ? floatMove.Value
+                : last is ChartmakerTimelineDragLaneAction laneMove && Equals(laneMove.Targets, DraggingItem)
+                    ? laneMove.Value
+                : last is ChartmakerTimelineDragBeatPositionAction beatMove && Equals(beatMove.Targets, DraggingItem)
+                    ? beatMove.Value
+                : 0;
         }
 
 
