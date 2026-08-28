@@ -146,6 +146,12 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         bool         lastPlayed;
         public IList DraggingItem;
         float        DraggingItemOffset;
+
+        // Vertical item dragging is previewed while the pointer moves and only committed on release,
+        // so the underlying data stays untouched until the gesture is known to be valid.
+        int   DragRowDelta;        // Storyboard: attribute rows the selection is offset by
+        float DragPositionDelta;   // Hit objects: lane position the selection is offset by
+        bool  DragVerticalBlocked; // Storyboard: previewed rows collide, so the drop is refused
         
 
         #endregion
@@ -602,7 +608,12 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         if (timeEndPoint < PeekRange.x - dOffset || time > PeekRange.y + dOffset)
                             continue;
 
-                        float index = Array.FindIndex(types, x => x.ID == timestamp.ID) - ScrollOffset;
+                        int sourceRow = Array.FindIndex(types, x => x.ID == timestamp.ID);
+                        bool isDraggedTimestamp = DragRowDelta != 0 && DraggingItem != null && DraggingItem.Contains(timestamp);
+
+                        float index = (isDraggedTimestamp
+                            ? Math.Clamp(sourceRow + DragRowDelta, 0, types.Length - 1)
+                            : sourceRow) - ScrollOffset;
                         if (index < -1 || index >= TimelineHeight + 1)
                             continue;
 
@@ -611,6 +622,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         if (!Mathf.Approximately(time, timeEndPoint))
                         {
                             tail = GetItemTail(tailCount);
+                            // Tails are pooled, so the colour has to be restored every frame, not only when tinting
+                            tail.color = isDraggedTimestamp && DragVerticalBlocked
+                                ? Themer.main.Keys["DangerHighlighted"] : ItemTailSample.color;
                             RectTransform tailRectTransform = tail.rectTransform;
                             tailRectTransform.anchorMin = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, time), 1);
                             tailRectTransform.anchorMax = new (InverseLerpUnclamped(PeekRange.x, PeekRange.y, timeEndPoint), 1);
@@ -840,8 +854,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         if (timeEndPoint < PeekRange.x - dOffset || time > PeekRange.y + dOffset) 
                             continue;
 
-                        float start = InverseLerpUnclamped(vpStart, vpEnd, hit.Position);
-                        float end = InverseLerpUnclamped(vpStart, vpEnd, hit.Position + hit.Length);
+                        float hitPosition = hit.Position + (DraggingItem != null && DraggingItem.Contains(hit) ? DragPositionDelta : 0);
+
+                        float start = InverseLerpUnclamped(vpStart, vpEnd, hitPosition);
+                        float end = InverseLerpUnclamped(vpStart, vpEnd, hitPosition + hit.Length);
                         float position = Mathf.Floor(-start * height) - 3;
                         float length = Mathf.Floor((end - start) * height) + 2;
 
@@ -2313,6 +2329,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         {
             DraggingItem = items;
             dragMode = TimelineDragMode.ItemDrag;
+
+            DragRowDelta = 0;
+            DragPositionDelta = 0;
+            DragVerticalBlocked = false;
         
             bool localPos(RectTransform rt, out Vector2 pos) => RectTransformUtility.ScreenPointToLocalPointInRectangle(rt, eventData.pressPosition, eventData.pressEventCamera, out pos);
             localPos(ItemsHolder, out dragStart);
@@ -2329,6 +2349,142 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 DraggingItemOffset = lastMove.Value;
             else 
                 DraggingItemOffset = 0;
+        }
+
+
+        /// <summary>
+        /// Recomputes the previewed vertical offset for the selection being dragged. Nothing is written to the
+        /// chart here - the preview only feeds the render pass until <see cref="CommitVerticalDrag"/> runs.
+        /// </summary>
+        void UpdateVerticalDragPreview()
+        {
+            if (DraggingItem == null || DraggingItem.Count <= 0)
+                return;
+
+            switch (CurrentMode)
+            {
+                case TimelineMode.Storyboard when InspectorPanel.main.CurrentObject is Storyboardable thing:
+                {
+                    TimestampType[] types = thing.timestampTypes;
+                    int delta = GetTimestampRow(types, dragEnd.y) - GetTimestampRow(types, dragStart.y);
+
+                    // Clamp against the selection's extremes, so every dragged timestamp stays in range and
+                    // the selection keeps its relative row spacing instead of piling up at an edge.
+                    int lowest = int.MaxValue, highest = int.MinValue;
+                    foreach (object item in DraggingItem)
+                    {
+                        if (item is not Timestamp ts) continue;
+                        int row = Array.FindIndex(types, x => x.ID == ts.ID);
+                        lowest = Math.Min(lowest, row);
+                        highest = Math.Max(highest, row);
+                    }
+                    if (lowest > highest)
+                        return;
+
+                    DragRowDelta = Math.Clamp(delta, -lowest, types.Length - 1 - highest);
+
+                    // A drop is refused when a moved timestamp would land on top of one already on that row,
+                    // matching the rule the creation path enforces.
+                    DragVerticalBlocked = false;
+                    if (DragRowDelta == 0)
+                        return;
+
+                    Storyboard storyboard = thing.Storyboard;
+                    foreach (object item in DraggingItem)
+                    {
+                        if (item is not Timestamp ts) continue;
+                        int row = Array.FindIndex(types, x => x.ID == ts.ID);
+                        TimestampIDs newID = types[Math.Clamp(row + DragRowDelta, 0, types.Length - 1)].ID;
+
+                        if (storyboard.Timestamps.FindIndex(x =>
+                                !DraggingItem.Contains(x) && x.ID == newID && (
+                                    (x.Offset < ts.Offset + ts.Duration && ts.Offset < x.Offset + x.Duration)
+                                    || (x.Duration == 0 && ts.Duration == 0 && Mathf.Approximately(x.Offset, ts.Offset))
+                                )) >= 0)
+                        {
+                            DragVerticalBlocked = true;
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case TimelineMode.HitObjects:
+                {
+                    float vpStart = .5f - VerticalScale * .5f + VerticalOffset;
+                    float vpEnd = .5f + VerticalScale * .5f + VerticalOffset;
+                    float height = ItemsHolder.rect.height - 8;
+
+                    float from = Mathf.Clamp01(1 - (dragStart.y - 4) / height);
+                    float to = Mathf.Clamp01(1 - (dragEnd.y - 4) / height);
+
+                    // Quantized in viewport space like the creation path, so the step stays a constant
+                    // fraction of the panel instead of growing as the vertical zoom tightens
+                    DragPositionDelta = Mathf.Round((to - from) / .05f) * .05f * VerticalScale;
+                    break;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Applies the previewed vertical offset to the chart as a single undo entry. A blocked storyboard drag
+        /// commits nothing, leaving the tails on the rows they started from.
+        /// </summary>
+        void CommitVerticalDrag(IList dragged, int rowDelta, float positionDelta, bool blocked)
+        {
+            if (dragged == null || dragged.Count <= 0)
+                return;
+
+            ChartmakerCompositeAction composite = new();
+
+            if (CurrentMode == TimelineMode.Storyboard && InspectorPanel.main.CurrentObject is Storyboardable thing)
+            {
+                if (blocked || rowDelta == 0)
+                    return;
+
+                TimestampType[] types = thing.timestampTypes;
+                composite.Name = "Retarget " + Chartmaker.GetItemName(dragged);
+
+                foreach (object item in dragged)
+                {
+                    if (item is not Timestamp ts) continue;
+                    int row = Array.FindIndex(types, x => x.ID == ts.ID);
+
+                    composite.Actions.Add(new ChartmakerModifyAction {
+                        Item = ts,
+                        Keyword = "ID",
+                        From = ts.ID,
+                        To = types[Math.Clamp(row + rowDelta, 0, types.Length - 1)].ID,
+                    });
+                }
+            }
+            else if (CurrentMode == TimelineMode.HitObjects)
+            {
+                if (Mathf.Approximately(positionDelta, 0))
+                    return;
+
+                composite.Name = "Move " + Chartmaker.GetItemName(dragged);
+
+                foreach (object item in dragged)
+                {
+                    if (item is not HitObject hit) continue;
+
+                    composite.Actions.Add(new ChartmakerMoveHitObjectAction {
+                        Item = hit,
+                        Offset = new Vector3(positionDelta, 0, 0),
+                    });
+                }
+            }
+            else return;
+
+            if (composite.Actions.Count <= 0)
+                return;
+
+            ChartmakerHistory history = Chartmaker.main.History;
+            history.ActionsBehind.Push(composite);
+            composite.Redo();
+            history.ActionsAhead.Clear();
+            Chartmaker.main.OnHistoryDo();
+            Chartmaker.main.OnHistoryUpdate();
         }
 
         private Image pseudoTail = null;
@@ -2454,6 +2610,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                                 break;
                             }
                         }
+                        UpdateVerticalDragPreview();
+
                         history.ActionsAhead.Clear();
                         Chartmaker.main.OnHistoryDo();
                         Chartmaker.main.OnHistoryUpdate();
@@ -2693,7 +2851,19 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         {
             if (DraggingItem != null) 
             {
+                // The commit re-renders through OnHistoryDo, so the preview state has to be cleared first
+                // or that pass stacks the previewed offset on top of the value it just wrote.
+                IList dragged = DraggingItem;
+                int   rowDelta = DragRowDelta;
+                float positionDelta = DragPositionDelta;
+                bool  blocked = DragVerticalBlocked;
+
                 DraggingItem = null;
+                DragRowDelta = 0;
+                DragPositionDelta = 0;
+                DragVerticalBlocked = false;
+
+                CommitVerticalDrag(dragged, rowDelta, positionDelta, blocked);
             }
             else
             {
