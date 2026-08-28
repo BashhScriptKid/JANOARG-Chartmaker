@@ -153,7 +153,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         float DragDurationFloor;     // Shortest length in the selection, how far the whole drag can shrink
         float DragDurationCeiling;   // Storyboard: room to the nearest neighbour, how far the whole drag can grow
         float DragDurationAnchor;    // Beat the grabbed tail ended on, the point the pointer is snapping that end to
-        ChartmakerTimelineDragDurationAction DragDurationAction; // This gesture's entry, rewritten as it moves
+        ChartmakerCompositeAction DragDurationAction; // This gesture's entry, rewritten as it moves
+        float DragDurationValue;                      // What that entry currently says, for the no-op check
 
         // Vertical item dragging is previewed while the pointer moves and only committed on release,
         // so the underlying data stays untouched until the gesture is known to be valid.
@@ -632,6 +633,11 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         if (timeEndPoint < PeekRange.x - dOffset || time > PeekRange.y + dOffset)
                             continue;
 
+                        // Drawn even when it has collapsed to nothing: the dragger lives on this game object, and
+                        // dropping the tail from the frame deactivates it mid-gesture, so the press that is holding
+                        // it never gets its release
+                        bool isResizedTimestamp = DraggingDuration != null && DraggingDuration.Contains(timestamp);
+
                         int sourceRow = Array.FindIndex(types, x => x.ID == timestamp.ID);
                         bool isDraggedTimestamp = DragRowDelta != 0 && DraggingItem != null && DraggingItem.Contains(timestamp);
 
@@ -643,7 +649,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
                         float posX = InverseLerpUnclamped(PeekRange.x, PeekRange.y, time);
                         Image tail;
-                        if (!Mathf.Approximately(time, timeEndPoint))
+                        if (!Mathf.Approximately(time, timeEndPoint) || isResizedTimestamp)
                         {
                             tail = GetItemTail(tailCount);
                             // Tails are pooled, so the colour has to be restored every frame, not only when tinting
@@ -889,7 +895,11 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         float position = Mathf.Floor(-start * height) - 3;
                         float length = Mathf.Floor((end - start) * height) + 2;
 
-                        if (!Mathf.Approximately(time, timeEndPoint))
+                        // Kept in the frame at zero length while it is being dragged, so the dragger's game object
+                        // is not deactivated out from under the press that is holding it
+                        bool isResizedHit = DraggingDuration != null && DraggingDuration.Contains(hit);
+
+                        if (!Mathf.Approximately(time, timeEndPoint) || isResizedHit)
                         {
                             var tail = GetItemTail(tailCount);
                             RectTransform tailRectTransform = tail.rectTransform;
@@ -2394,7 +2404,6 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 : 0;
         }
 
-
         /// <summary>
         /// Starts a length drag from a tail's dragger. The pointer's travel becomes a single beat delta shared by
         /// the whole selection, so items of differing lengths keep their spacing instead of collapsing onto one
@@ -2501,7 +2510,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 float end = ts.Offset + ts.Duration;
                 foreach (Timestamp other in storyboard.Timestamps)
                 {
-                    if (other.ID != ts.ID || DraggingDuration.Contains(other) || other.Offset < end)
+                    // A neighbour in the drag constrains just the same: every length grows by one shared delta, so
+                    // ends move and offsets do not, and this one's end can still reach that one's start
+                    if (ReferenceEquals(other, ts) || other.ID != ts.ID || other.Offset < end)
                         continue;
 
                     DragDurationCeiling = Mathf.Min(DragDurationCeiling, other.Offset - end);
@@ -2524,9 +2535,31 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
             if (DragDurationAction == null)
             {
-                DragDurationAction = new ChartmakerTimelineDragDurationAction {
-                    Targets = DraggingDuration,
+                // The same modify action the inspector writes when a length is typed into it, one per target and
+                // wrapped as a single entry - each carries the length the drag started from, so the entry says
+                // what it did rather than by how much
+                DragDurationAction = new ChartmakerCompositeAction {
+                    Name = "Resize " + Chartmaker.GetItemName(DraggingDuration),
                 };
+
+                foreach (object item in DraggingDuration)
+                {
+                    string keyword = item switch {
+                        HitObject => "HoldLength",
+                        Timestamp => "Duration",
+                        _         => null,
+                    };
+                    if (keyword == null) continue;
+
+                    float length = GetItemDuration(item);
+                    DragDurationAction.Actions.Add(new ChartmakerModifyAction {
+                        Item = item,
+                        Keyword = keyword,
+                        From = length,
+                        To = length,
+                    });
+                }
+
                 history.ActionsBehind.Push(DragDurationAction);
             }
             else DragDurationAction.Undo();
@@ -2534,10 +2567,14 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             // Snapped by destination rather than by movement: the grabbed tail's end lands on the gridline under
             // the pointer. Snapping the movement instead makes the delta a whole number of grid steps, so zoomed
             // out a short drag rounds to nothing while a longer one arrives all at once.
-            DragDurationAction.Value = Mathf.Clamp(beatEnd - DragDurationAnchor, -DragDurationFloor, DragDurationCeiling);
+            DragDurationValue = Mathf.Clamp(beatEnd - DragDurationAnchor, -DragDurationFloor, DragDurationCeiling);
+
+            foreach (IChartmakerAction action in DragDurationAction.Actions)
+                if (action is ChartmakerModifyAction modify)
+                    modify.To = (float)modify.From + DragDurationValue;
+
             DragDurationAction.Redo();
 
-            history.ActionsAhead.Clear();
             Chartmaker.main.OnHistoryDo();
             Chartmaker.main.OnHistoryUpdate();
         }
@@ -2553,17 +2590,30 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
             ChartmakerHistory history = Chartmaker.main.History;
 
-            if (DragDurationAction != null && Mathf.Approximately(DragDurationAction.Value, 0)
+            if (DragDurationAction != null
                 && history.ActionsBehind.Count > 0 && ReferenceEquals(history.ActionsBehind.Peek(), DragDurationAction))
             {
-                history.ActionsBehind.Pop();
+                // A gesture that ends where it started takes its entry back rather than leaving an undo step that
+                // does nothing - and leaves the redo stack alone, since it undid its own work on the way out
+                if (Mathf.Approximately(DragDurationValue, 0))
+                {
+                    DragDurationAction.Undo();
+                    history.ActionsBehind.Pop();
+                }
+                else history.ActionsAhead.Clear();
+
                 Chartmaker.main.OnHistoryUpdate();
             }
 
             DraggingDuration = null;
             DragDurationAction = null;
+            DragDurationValue = 0;
             DragDurationFloor = 0;
             DragDurationCeiling = float.PositiveInfinity;
+
+            // The handle owns this gesture end to end, so the panel's own press and end-drag handlers - which are
+            // what normally clear this - never run for it
+            isDragged = false;
 
             if (dragMode == TimelineDragMode.DurationDrag)
                 dragMode = TimelineDragMode.None;
