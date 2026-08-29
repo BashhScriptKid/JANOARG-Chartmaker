@@ -455,13 +455,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         private void SeekToTime(float time, object inspectorTarget)
         {
-            Chartmaker.main.SongSource.time = Mathf.Clamp(time, 0, Chartmaker.main.SongSource.clip.length);
-    
-            if (Chartmaker.main.SongSource.time == 0 && !Chartmaker.main.SongSource.isPlaying)
-            {
-                Chartmaker.main.SongSource.Play();
-                Chartmaker.main.SongSource.Pause();
-            }
+            Chartmaker.main.SeekTo(time);
 
             InspectorPanel.main.SetObject(inspectorTarget);
     
