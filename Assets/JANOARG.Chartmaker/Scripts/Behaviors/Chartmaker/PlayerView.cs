@@ -288,29 +288,12 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         public void ClearHitPositionPreview() => SetHitPositionPreview(null, 0);
 
-        /// <summary>
-        /// Raised by <see cref="Chartmaker.SeekTo"/>. The next pass evaluates storyboards in
-        /// full rather than stepping the previous evaluation forward.
-        /// </summary>
-        public void MarkSeek() => _SeekPending = true;
-
-        bool _SeekPending;
-
         public void UpdateObjects(float sec, float beat)
         {
             CurrentTime = sec;
 
             if (Chartmaker.main.CurrentChart != null)
             {
-                // A jump breaks the continuity the in-place update assumes. A manager built
-                // below starts with its sources already marked changed, so clearing the flag
-                // here is right either way.
-                if (_SeekPending)
-                {
-                    _SeekPending = false;
-                    Manager?.MarkSourcesChanged();
-                }
-
                 // The previewed offset is lent to the chart for the manager pass below and taken straight
                 // back after it. Only that pass reads hit positions out of the chart - everything below it
                 // works off the values that pass baked - so the window is one call wide, and no save,

@@ -646,10 +646,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
     
 
         /// <summary>
-        /// Moves the playhead. Every seek runs through here so the view can be told one
-        /// happened: the managers evaluate storyboards in place, as an increment on the
-        /// previous evaluation, and that only holds while time advances the way playback
-        /// advances it. Lifecycle resets to zero are not seeks and do not belong here.
+        /// Moves the playhead. Every seek runs through here, so the clamping and the priming
+        /// below are done once rather than at each call site. Lifecycle resets to zero are not
+        /// seeks and do not belong here.
         /// </summary>
         public void SeekTo(float seconds)
         {
@@ -667,8 +666,6 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             SongSource.timeSamples = (int)Mathf.Clamp(
                 seconds * SongSource.clip.frequency, 0, SongSource.clip.samples - 1
             );
-
-            PlayerView.main?.MarkSeek();
         }
 
         public static string GetItemName(object item) => item switch
