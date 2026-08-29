@@ -894,10 +894,17 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         if (timeEndPoint < PeekRange.x - dOffset || time > PeekRange.y + dOffset) 
                             continue;
 
-                        float hitPosition = hit.Position + (DraggingItem != null && DraggingItem.Contains(hit) ? DragPositionDelta : 0);
+                        float hitPosition = hit.Position;
+                        float hitLength = hit.Length;
+                        if (DraggingItem != null && DraggingItem.Contains(hit))
+                        {
+                            bool isShift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+                            if (isShift) hitLength += DragPositionDelta;
+                            else hitPosition += DragPositionDelta;
+                        }
 
                         float start = InverseLerpUnclamped(vpStart, vpEnd, hitPosition);
-                        float end = InverseLerpUnclamped(vpStart, vpEnd, hitPosition + hit.Length);
+                        float end = InverseLerpUnclamped(vpStart, vpEnd, hitPosition + hitLength);
                         float position = Mathf.Floor(-start * height) - 3;
                         float length = Mathf.Floor((end - start) * height) + 2;
 
@@ -2765,16 +2772,26 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 if (Mathf.Approximately(positionDelta, 0))
                     return;
 
-                composite.Name = "Move " + Chartmaker.GetItemName(dragged);
+                bool isShift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+                composite.Name = (isShift ? "Resize " : "Move ") + Chartmaker.GetItemName(dragged);
 
                 foreach (object item in dragged)
                 {
                     if (item is not HitObject hit) continue;
-
-                    composite.Actions.Add(new ChartmakerMoveHitObjectAction {
-                        Item = hit,
-                        Offset = new Vector3(positionDelta, 0, 0),
-                    });
+                    if (isShift)
+                    {
+                        composite.Actions.Add(new ChartmakerMoveHitObjectEndAction {
+                            Item = hit,
+                            Offset = new Vector3(positionDelta, 0, 0),
+                        });
+                    }
+                    else
+                    {
+                        composite.Actions.Add(new ChartmakerMoveHitObjectAction {
+                            Item = hit,
+                            Offset = new Vector3(positionDelta, 0, 0),
+                        });
+                    }
                 }
             }
             else return;
@@ -3415,77 +3432,77 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public void OnScroll(PointerEventData eventData)
         {
             bool isShift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
-                bool isCtrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
-                bool isAlt = Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt);
+            bool isCtrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+            bool isAlt = Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt);
 
-                Chartmaker chartmaker = Chartmaker.main;
+            Chartmaker chartmaker = Chartmaker.main;
 
-                // Ctrl+Shift modifier = Vertical zoom
-                if (isCtrl && isShift)
-                {
-                    if (CurrentMode == TimelineMode.HitObjects)
-                    {
-                        float zoom = Mathf.Pow(2, ResizeVelocity * -eventData.scrollDelta.y / 10f);
-                        Options.VerticalScale = VerticalScale *= zoom;
-                        Options.UpdateFields();
-                    }
-                    UpdateTimeline(true);
-                }
-                // Shift modifier = Vertical scroll
-                else if (isShift)
-                {
-                    if (CurrentMode == TimelineMode.HitObjects)
-                    {
-                        Options.VerticalOffset = VerticalOffset += -eventData.scrollDelta.y * VerticalScale / 10;
-                        Options.UpdateFields();
-                    }
-                    else 
-                    {
-                        ScrollOffset = Mathf.Max(Mathf.Min(ScrollOffset + (int)Mathf.Sign(-eventData.scrollDelta.y), ItemHeight - TimelineHeight), 0);
-                    }
-                    UpdateTimeline(true);
-                    UpdateScrollbar();
-                }
-                // Ctrl modifier = Horizontal zoom
-                else if (isCtrl)
+            // Ctrl+Shift modifier = Vertical zoom
+            if (isCtrl && isShift)
+            {
+                if (CurrentMode == TimelineMode.HitObjects)
                 {
                     float zoom = Mathf.Pow(2, ResizeVelocity * -eventData.scrollDelta.y / 10f);
-                    float center = GetPointerTimeAtTimeline(eventData);
-                    float currentXRange = PeekRange.x - (center - PeekRange.x) * (zoom - 1);
-                    float currentYRange = PeekRange.y - (center - PeekRange.y) * (zoom - 1);
-
-                    PeekRange.x = Mathf.Clamp(currentXRange, PeekLimit.x, PeekRange.y);
-                    PeekRange.y = Mathf.Clamp(currentYRange, PeekRange.x, PeekLimit.y);
+                    Options.VerticalScale = VerticalScale *= zoom;
+                    Options.UpdateFields();
                 }
-                // Alt modifier = Seek current time
-                else if (isAlt || (Options.FollowSeekLine && chartmaker.SongSource.isPlaying))
+                UpdateTimeline(true);
+            }
+            // Shift modifier = Vertical scroll
+            else if (isShift)
+            {
+                if (CurrentMode == TimelineMode.HitObjects)
                 {
-
-                    Metronome metronome = chartmaker.CurrentSong.Timing;
-                    float bpm = metronome.GetStop(chartmaker.SongSource.time, out _).BPM;
-                    float density = (PeekRange.y - PeekRange.x) * bpm / TicksHolder.rect.width / 8;
-                    float factor = Mathf.Floor(Mathf.Log(density, SeparationFactor));
-                    float step = Mathf.Pow(SeparationFactor, factor + 1);
-
-                    float time = chartmaker.SongSource.time + (-eventData.scrollDelta.y * step / bpm * 240);
-                    if (chartmaker.SongSource.time == 0 && !chartmaker.SongSource.isPlaying)
-                    {
-                        chartmaker.SongSource.Play();
-                        chartmaker.SongSource.Pause();
-                    }
-                    chartmaker.SongSource.time = Mathf.Clamp(time, 0, chartmaker.SongSource.clip.length);
+                    Options.VerticalOffset = VerticalOffset += -eventData.scrollDelta.y * VerticalScale / 10;
+                    Options.UpdateFields();
                 }
-                // No modifier = Horizontal scroll
-                else
+                else 
                 {
-                    float offset = Mathf.Clamp(
-                        (PeekRange.y - PeekRange.x) / TicksHolder.rect.width * 50 * -eventData.scrollDelta.y,
-                        PeekLimit.x - PeekRange.x,
-                        PeekLimit.y - PeekRange.y
-                    );
+                    ScrollOffset = Mathf.Max(Mathf.Min(ScrollOffset + (int)Mathf.Sign(-eventData.scrollDelta.y), ItemHeight - TimelineHeight), 0);
+                }
+                UpdateTimeline(true);
+                UpdateScrollbar();
+            }
+            // Ctrl modifier = Horizontal zoom
+            else if (isCtrl)
+            {
+                float zoom = Mathf.Pow(2, ResizeVelocity * -eventData.scrollDelta.y / 10f);
+                float center = GetPointerTimeAtTimeline(eventData);
+                float currentXRange = PeekRange.x - (center - PeekRange.x) * (zoom - 1);
+                float currentYRange = PeekRange.y - (center - PeekRange.y) * (zoom - 1);
 
-                    PeekRange.x += offset;
-                    PeekRange.y += offset;
+                PeekRange.x = Mathf.Clamp(currentXRange, PeekLimit.x, PeekRange.y);
+                PeekRange.y = Mathf.Clamp(currentYRange, PeekRange.x, PeekLimit.y);
+            }
+            // Alt modifier = Seek current time
+            else if (isAlt || (Options.FollowSeekLine && chartmaker.SongSource.isPlaying))
+            {
+
+                Metronome metronome = chartmaker.CurrentSong.Timing;
+                float bpm = metronome.GetStop(chartmaker.SongSource.time, out _).BPM;
+                float density = (PeekRange.y - PeekRange.x) * bpm / TicksHolder.rect.width / 8;
+                float factor = Mathf.Floor(Mathf.Log(density, SeparationFactor));
+                float step = Mathf.Pow(SeparationFactor, factor + 1);
+
+                float time = chartmaker.SongSource.time + (-eventData.scrollDelta.y * step / bpm * 240);
+                if (chartmaker.SongSource.time == 0 && !chartmaker.SongSource.isPlaying)
+                {
+                    chartmaker.SongSource.Play();
+                    chartmaker.SongSource.Pause();
+                }
+                chartmaker.SongSource.time = Mathf.Clamp(time, 0, chartmaker.SongSource.clip.length);
+            }
+            // No modifier = Horizontal scroll
+            else
+            {
+                float offset = Mathf.Clamp(
+                    (PeekRange.y - PeekRange.x) / TicksHolder.rect.width * 50 * -eventData.scrollDelta.y,
+                    PeekLimit.x - PeekRange.x,
+                    PeekLimit.y - PeekRange.y
+                );
+
+                PeekRange.x += offset;
+                PeekRange.y += offset;
             }
         }
 

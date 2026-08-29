@@ -31,10 +31,12 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         // A lane offset lent to these hit objects for the length of one manager pass. See UpdateObjects.
         readonly List<HitObject> PreviewPositionTargets = new();
         float                    PreviewPositionOffset;
+        float                    PreviewWidthOffset;
 
         // What the last lend borrowed and owes back, recorded rather than recomputed so the return is exact.
         readonly List<HitObject> _LentHits = new();
         readonly List<float>     _LentPositions = new();
+        readonly List<float>     _LentWidths = new();
         readonly List<(Timestamp Stamp, float From, float Target)> _LentTimestamps = new();
         [Space]
         [Header("Cover")]
@@ -263,7 +265,18 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public void SetHitPositionPreview(IList targets, float offset)
         {
             PreviewPositionTargets.Clear();
-            PreviewPositionOffset = offset;
+            
+            bool isShift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+            if (isShift)
+            {
+                PreviewPositionOffset = 0;
+                PreviewWidthOffset = offset;
+            }
+            else
+            {
+                PreviewPositionOffset = offset;
+                PreviewWidthOffset = 0;
+            }
 
             if (targets == null || Mathf.Approximately(offset, 0))
                 return;
@@ -558,6 +571,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             {
                 ReturnHitPositionPreview();
 
+                bool isShift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+
                 if (PreviewPositionTargets.Count <= 0)
                     return;
 
@@ -565,18 +580,20 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 {
                     _LentHits.Add(hit);
                     _LentPositions.Add(hit.Position);
+                    _LentWidths.Add(hit.Length);
 
                     hit.Position += PreviewPositionOffset;
+                    hit.Length += PreviewWidthOffset;
 
                     foreach (Timestamp stamp in hit.Storyboard.Timestamps)
                     {
-                        if (stamp.ID != TimestampIDs.Position)
-                            continue;
+                        if (stamp.ID == TimestampIDs.Position)
+                        {
+                            _LentTimestamps.Add((stamp, stamp.From, stamp.Target));
 
-                        _LentTimestamps.Add((stamp, stamp.From, stamp.Target));
-
-                        stamp.From   += PreviewPositionOffset;
-                        stamp.Target += PreviewPositionOffset;
+                            stamp.From   += PreviewPositionOffset;
+                            stamp.Target += PreviewPositionOffset;
+                        }
                     }
                 }
             }
@@ -587,7 +604,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             void ReturnHitPositionPreview()
             {
                 for (int a = 0; a < _LentHits.Count; a++)
+                {
                     _LentHits[a].Position = _LentPositions[a];
+                    _LentHits[a].Length = _LentWidths[a];
+                }
 
                 for (int a = 0; a < _LentTimestamps.Count; a++)
                 {
@@ -599,6 +619,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
                 _LentHits.Clear();
                 _LentPositions.Clear();
+                _LentWidths.Clear();
                 _LentTimestamps.Clear();
             }
         }
