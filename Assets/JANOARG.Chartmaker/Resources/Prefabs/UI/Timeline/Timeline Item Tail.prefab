@@ -186,7 +186,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   Target: {fileID: 6897106639897976878}
-  ID: BorderHighlighted
+  ID: BorderActive
 --- !u!1 &8485379777505357280
 GameObject:
   m_ObjectHideFlags: 0
