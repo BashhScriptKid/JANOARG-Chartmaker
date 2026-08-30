@@ -127,7 +127,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     string group = InspectorPanel.main.CurrentObject switch
                     {
                         Lane laneCurrentObject => laneCurrentObject.Group,
-                        LaneGroup laneGroupCurrentObject => laneGroupCurrentObject.Group,
+                        LaneGroup laneGroupCurrentObject => laneGroupCurrentObject.Name,
                         _ => ""
                     };
 

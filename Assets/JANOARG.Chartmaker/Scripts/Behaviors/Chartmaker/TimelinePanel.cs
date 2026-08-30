@@ -3335,6 +3335,16 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                                     {
                                         Position = new(0, -4, 0)
                                     };
+                                    
+                                    switch (InspectorPanel.main.CurrentHierarchyObject)
+                                    {
+                                        case Lane adjacentLane:
+                                            lane.Group = adjacentLane.Group;
+                                            break;
+                                        case LaneGroup parent:
+                                            lane.Group = parent.Name;
+                                            break;
+                                    }
 
                                     lane.LaneSteps.Add(new LaneStep
                                     {

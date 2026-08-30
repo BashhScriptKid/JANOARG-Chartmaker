@@ -18,6 +18,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using JANOARG.Shared.Utils;
 using JANOARG.Chartmaker.Utils.NativeAPI;
+using System.Linq;
 
 namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 {
@@ -511,13 +512,17 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         {
             static string KeyOf(string id) => KeyboardHandler.main.Keybindings[id].Keybind.ToString();
 
-            UnityEngine.Debug.Log("Right Click Select " + item.Target + " " + holder.Target);;;
+            UnityEngine.Debug.Log("Right Click Select " + item.Target + " " + holder.Target);
             
-            ContextMenuListSublist addHierarchyList = new ContextMenuListSublist("New", GetItems(item.Target));
+            var newItems = GetItems(item.Target, item.Type);
+            ContextMenuListItem addHierarchyList = newItems.Length > 0
+                ? new ContextMenuListSublist("New", newItems)
+                : new ContextMenuListAction("New", () => {}, _enabled: false);
             
             InspectorPanel.main.SetObject(item.Target);
             ContextMenuHolder.main.OpenRoot(new ContextMenuList(
                 addHierarchyList,
+                new ContextMenuListSeparator(),
                 new ContextMenuListAction("Cut", Chartmaker.main.Cut, KeyOf("ED:Cut"), 
                     icon: "Cut", _enabled: Chartmaker.main.CanCopy()),
                 new ContextMenuListAction("Copy", Chartmaker.main.Copy, KeyOf("ED:Copy"), 
@@ -534,15 +539,15 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     _enabled: item.Children.Count > 0)
             ), (RectTransform)holder.transform, ContextMenuDirection.Cursor);
 
-            ContextMenuListItem[] GetItems(object itemType)
+            ContextMenuListItem[] GetItems(object item, HierarchyItemType itemType)
             {
                 Chart chart = Chartmaker.main.CurrentChart;
                 PlayableSong song = Chartmaker.main.CurrentSong;
                 switch (itemType)
                 {
-                    case LaneStyle:
-                    case HitStyle:
-                    case Palette:
+                    case HierarchyItemType.LaneStyle:
+                    case HierarchyItemType.HitStyle:
+                    case HierarchyItemType.Palette:
                         return new ContextMenuListItem[]
                         {
                             new ContextMenuListAction("Lane Style", () =>
@@ -591,16 +596,16 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                             }),
                         };
                     
-                    case PlayableSong:
-                    case Cover:
+                    case HierarchyItemType.PlayableSong:
+                    case HierarchyItemType.Cover:
                         return new ContextMenuListItem[]
                         {
                             new ContextMenuListAction("Cover Layer", () => ModalHolder.main.Spawn<NewCoverLayerModal>()),
                         };
                     
                     case HierarchyItemType.World:
-                    case Lane:
-                    case LaneGroup:
+                    case HierarchyItemType.Lane:
+                    case HierarchyItemType.LaneGroup:
                         return new ContextMenuListItem[]
                         {
                             new ContextMenuListAction("Lane", () =>
@@ -608,7 +613,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                                 string group = InspectorPanel.main.CurrentObject switch
                                 {
                                     Lane laneCurrentObject => laneCurrentObject.Group,
-                                    LaneGroup laneGroupCurrentObject => laneGroupCurrentObject.Group,
+                                    LaneGroup laneGroupCurrentObject => laneGroupCurrentObject.Name,
                                     _ => ""
                                 };
 
@@ -639,7 +644,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                                 string parent = InspectorPanel.main.CurrentObject switch
                                 {
                                     Lane laneCurrentObject => laneCurrentObject.Group,
-                                    LaneGroup laneGroupCurrentObject => laneGroupCurrentObject.Group,
+                                    LaneGroup laneGroupCurrentObject => laneGroupCurrentObject.Name,
                                     _ => ""
                                 };
 
@@ -651,16 +656,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                             }),
                         };
                     
-                    case HierarchyItemType.Chart:
-                    case HierarchyItemType.Camera:
                     default:
-                        return new ContextMenuListItem[]
-                        {
-                            new ContextMenuListAction("None...", () => { }, _enabled:false)
-                        };
+                        return new ContextMenuListItem[] {};
                 }
-
-                return null;
             }
         }
 
