@@ -645,6 +645,29 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         }
     
 
+        /// <summary>
+        /// Moves the playhead. Every seek runs through here, so the clamping and the priming
+        /// below are done once rather than at each call site. Lifecycle resets to zero are not
+        /// seeks and do not belong here.
+        /// </summary>
+        public void SeekTo(float seconds)
+        {
+            if (!SongSource || !SongSource.clip)
+                return;
+
+            // A source that has never played ignores a position written to it, so prime it.
+            if (SongSource.time == 0 && !SongSource.isPlaying)
+            {
+                SongSource.Play();
+                SongSource.Pause();
+            }
+
+            // Sample-accurate, and it cannot land on clip.length the way a seconds write can.
+            SongSource.timeSamples = (int)Mathf.Clamp(
+                seconds * SongSource.clip.frequency, 0, SongSource.clip.samples - 1
+            );
+        }
+
         public static string GetItemName(object item) => item switch
         {
             IList list =>       list.Count > 0 

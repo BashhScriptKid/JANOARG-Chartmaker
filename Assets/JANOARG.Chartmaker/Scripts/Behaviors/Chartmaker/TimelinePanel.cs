@@ -2971,7 +2971,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                             break;
                         }
                         case TimelineDragMode.Timeline:
-                            Chartmaker.main.SongSource.time = Mathf.Clamp(metronome.ToSeconds(beatEnd), 0, Chartmaker.main.SongSource.clip.length);
+                            Chartmaker.main.SeekTo(metronome.ToSeconds(beatEnd));
 
                             if (PickerPanel.main.CurrentTimelinePickerMode is TimelinePickerMode.Cursor or TimelinePickerMode.Select or TimelinePickerMode.Delete)
                                 break;
@@ -3142,12 +3142,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     case TimelineDragMode.SeekBarRightClick:
                     case TimelineDragMode.CurrentTime:
                     {
-                        if (chartmaker.SongSource.time == 0 && !chartmaker.SongSource.isPlaying)
-                        {
-                            chartmaker.SongSource.Play();
-                            chartmaker.SongSource.Pause();
-                        }
-                        chartmaker.SongSource.timeSamples = (int)Mathf.Clamp(time * chartmaker.SongSource.clip.frequency, 0, chartmaker.SongSource.clip.samples - 1);
+                        chartmaker.SeekTo(time);
                         break;
                     }
                     case TimelineDragMode.PeekRange:
@@ -3173,7 +3168,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             Metronome metronome = Chartmaker.main.CurrentSong.Timing;
             if (eventData.button == PointerEventData.InputButton.Right && IsTimelineDragging())
             {
-                Chartmaker.main.SongSource.time = Mathf.Clamp(metronome.ToSeconds(beatStart), 0, Chartmaker.main.SongSource.clip.length);
+                Chartmaker.main.SeekTo(metronome.ToSeconds(beatStart));
             }
             
             OnEndDrag(eventData);
@@ -3495,12 +3490,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 float step = Mathf.Pow(SeparationFactor, factor + 1);
 
                 float time = chartmaker.SongSource.time + (-eventData.scrollDelta.y * step / bpm * 240);
-                if (chartmaker.SongSource.time == 0 && !chartmaker.SongSource.isPlaying)
-                {
-                    chartmaker.SongSource.Play();
-                    chartmaker.SongSource.Pause();
-                }
-                chartmaker.SongSource.time = Mathf.Clamp(time, 0, chartmaker.SongSource.clip.length);
+                chartmaker.SeekTo(time);
             }
             // No modifier = Horizontal scroll
             else
