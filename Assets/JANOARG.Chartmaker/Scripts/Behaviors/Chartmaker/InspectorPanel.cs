@@ -478,8 +478,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                                                 }
                                                 catch (KeyNotFoundException e)
                                                 {
-                                                    DialogModal err = ModalHolder.main.Spawn<DialogModal>();
-                                                    err.SetMessageOk("Key not found", $"UUID {e.Message} was not found in the dictionary.\nOne or more events can't be adjusted properly due to missing object.");
+                                                    ModalHolder.main.Spawn<DialogModal>().SetDialog("Key not found", $"UUID {e.Message} was not found in the dictionary.\nOne or more events can't be adjusted properly due to missing object.", new[]{"OK"}, _ => {});
                                                 }
                                             }
 
@@ -507,7 +506,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                                                             case 1:
                                                                 if (Chartmaker.main.CurrentChart == null)
                                                                 {
-                                                                    ModalHolder.main.Spawn<DialogModal>().SetMessageOk("No chart loaded", "Cannot adjust timing events without a chart loaded.", _ => {});
+                                                                    ModalHolder.main.Spawn<DialogModal>().SetDialog("No chart loaded", "Cannot adjust timing events without a chart loaded.", new[]{"OK"}, _ => {});
                                                                     break;
                                                                 }
                                                                 PreserveTimingData();
@@ -516,7 +515,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                                                             default:
                                                                 if (Chartmaker.main.CurrentChart == null)
                                                                 {
-                                                                    ModalHolder.main.Spawn<DialogModal>().SetMessageOk("No chart loaded", "Cannot adjust timing events without a chart loaded.", _ => {});
+                                                                    ModalHolder.main.Spawn<DialogModal>().SetDialog("No chart loaded", "Cannot adjust timing events without a chart loaded.", new[]{"OK"}, _ => {});
                                                                     break;
                                                                 }
                                                                 Chartmaker.main.SetItem(stop, "BPM", x);
