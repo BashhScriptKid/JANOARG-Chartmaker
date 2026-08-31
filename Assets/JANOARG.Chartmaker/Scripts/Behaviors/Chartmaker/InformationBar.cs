@@ -8,7 +8,6 @@ using JANOARG.Chartmaker.UI.Modal.ModalTypes;
 using JANOARG.Chartmaker.UI.Themeable;
 using JANOARG.Chartmaker.Utils;
 using JANOARG.Shared.Data.ChartInfo;
-using JANOARG.Chartmaker.Utils;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -253,9 +252,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             else if (VisualizerMode == VisualizerMode.LoudnessMeter)
             {
                 const int fftCount = 2 << 8;
-                const float riseTime = .3f, fallTime = .3f;
+                const float riseTime = .05f, fallTime = .5f;
 
-                float[] fftLeft = new float[fftCount], fftRight = new float[fftCount];
+                float[] dataLeft = new float[fftCount], dataRight = new float[fftCount];
                 float[] data = new float[fftCount * clip.channels];
             
                 clip.GetData(data, Mathf.Clamp(sampleOffset - fftCount / 2, 0, clip.samples - fftCount));
@@ -265,30 +264,26 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     switch ((a + sampleOffset) % clip.channels)
                     {
                         case 0:
-                            fftLeft[a / clip.channels] = data[a]; break;
+                            dataLeft[a / clip.channels] = data[a]; break;
                         case 1: 
-                            fftRight[a / clip.channels] = data[a]; break;
+                            dataRight[a / clip.channels] = data[a]; break;
                     }
                 }
             
-                FFT.Transform(fftLeft, Chartmaker.Preferences.FFTWindow);
+                KWeight.ApplyKWeightFilter(ref dataLeft, clip.frequency);
             
                 // Mono/Stereo audio channel check
                 if (clip.channels == 1) 
-                    fftRight = fftLeft;
+                    dataRight = dataLeft;
                 else 
-                    FFT.Transform(fftRight, Chartmaker.Preferences.FFTWindow);
+                    KWeight.ApplyKWeightFilter(ref dataRight, clip.frequency);
 
                 float[] loudness = new float[2];
+                
                 for (int a = 0; a < fftCount / 2; a++) 
                 {
-                    float freq = (a + 1f) / fftCount * Chartmaker.main.CurrentSong.Clip.frequency;
-                    float weight = FrequencyScaling.AWeight(freq) / fftCount / fftCount * (a + .5f) * 4;
-                
-                    weight *= weight;
-                
-                    loudness[0] += fftLeft[a] * fftLeft[a] * weight;
-                    loudness[1] += fftRight[a] * fftRight[a] * weight;
+                    loudness[0] += dataLeft[a] * dataLeft[a];
+                    loudness[1] += dataRight[a] * dataRight[a];
                 }
 
                 int segmentCount = 19;
@@ -298,22 +293,27 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 for (int a = 0; a < loudness.Length; a++) 
                 {
                     Image bar = AddBar();
-                
-                    float width = Mathf.Pow(1e4f, bar.rectTransform.sizeDelta.x / rect.width - 1);
-                    width = Mathf.Lerp(width, loudness[a], 1 - Mathf.Pow(.001f, Time.deltaTime / (width < loudness[a] ? riseTime : fallTime)));
-                    width = Mathf.Clamp01(1 + Mathf.Log(width, 1e4f));
-                
-                    bar.rectTransform.sizeDelta = new Vector2(width * rect.width, barHeight - 1);
+                    float barWidth = bar.rectTransform.sizeDelta.x;
+                    bar.rectTransform.sizeDelta = new Vector2(
+                        Mathf.Lerp(loudness[a] / fftCount, barWidth, Mathf.Pow(0.01f, Time.deltaTime / 0.3f)), 
+                        barHeight - 1
+                    );
                     bar.rectTransform.anchoredPosition = new Vector2(0, a * barHeight);
                     bar.color = Color.clear;
+                    barWidth = bar.rectTransform.sizeDelta.x;
+
+                    float lufs = (10 * Mathf.Log10(barWidth)) - 0.691f;
+                    float width = lufs / segmentCount / 2 + 1;
 
                     for (int b = 0; b < segmentCount; b++) 
                     {
                         Image segment = AddBar();
+                        float barLoudness = (segmentCount - b - 1) * -2;
+                        float maxBrightness = barLoudness > -14 ? 1 : .8f;
                     
                         segment.rectTransform.sizeDelta = new Vector2(segmentWidth - 1, barHeight - 1);
                         segment.rectTransform.anchoredPosition = new Vector2(b * segmentWidth, a * barHeight);
-                        segment.color = color * new Color(1, 1, 1, Mathf.Clamp01((width * segmentCount - b) * 2) * .8f);
+                        segment.color = color * new Color(1, 1, 1, Mathf.Clamp((width * segmentCount - b) * 2, 0.1f, 1) * maxBrightness);
                     }
                 }
             }

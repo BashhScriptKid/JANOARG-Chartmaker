@@ -1,6 +1,7 @@
 using JANOARG.Chartmaker.Behaviors.Chartmaker;
 using JANOARG.Chartmaker.Data;
 using JANOARG.Chartmaker.Utils;
+using JANOARG.Chartmaker.Utils.NativeAPI;
 using JANOARG.Shared.Data.ChartInfo;
 using UnityEngine;
 using FFTWindow = JANOARG.Chartmaker.Utils.FFTWindow;
@@ -15,9 +16,10 @@ namespace JANOARG.Chartmaker.Constants
         public bool AutoUpdateCheck = true;
         public bool ShowHiddenFiles;
 
-        public string Theme         = "Prototype";
-        public bool   CustomCursors = true;
-        public bool   UseDefaultWindow;
+        public string Theme            = "Prototype";
+        public bool   CustomCursors    = true;
+        public bool   UseDefaultWindow = false;
+        public PreferredCursorMode PreferredCursorMode = PreferredCursorMode.PreferCustom;
 
         public FileSizeBase   FileSizeBase   = Application.platform == RuntimePlatform.WindowsPlayer ? FileSizeBase.Binary : FileSizeBase.Decimal;
         public FFTWindow      FFTWindow      = FFTWindow.Hann;
@@ -27,7 +29,13 @@ namespace JANOARG.Chartmaker.Constants
     
         public bool  PerfectHitsounds;
         public bool  ForceNavigationBar;
-        public float InterfaceScaling;
+        public float InterfaceScaling = 1;
+
+        public int  WindowX;
+        public int  WindowY;
+        public int  WindowWidth;
+        public int  WindowHeight;
+        public bool WindowMaximized;
 
         public void Load(Storage storage)
         {
@@ -39,11 +47,18 @@ namespace JANOARG.Chartmaker.Constants
 
             Theme = storage.Get("AP:Theme", Theme);
             CustomCursors = storage.Get("AP:CustomCursors", CustomCursors);
+            PreferredCursorMode = storage.Get("AP:PreferredCursorMode", CustomCursors ? PreferredCursorMode.PreferCustom : PreferredCursorMode.PreferNative);
             UseDefaultWindow = storage.Get("LA:UseDefaultWindow", UseDefaultWindow);
             ForceNavigationBar = storage.Get("LA:ForceNavigationBar", true);
             
-            InterfaceScaling = storage.Get("LA:UIScalingFactor", 1);
-        
+            InterfaceScaling = storage.Get("LA:UIScalingFactor", InterfaceScaling);
+
+            WindowX = storage.Get("LA:WindowX", WindowX);
+            WindowY = storage.Get("LA:WindowY", WindowY);
+            WindowWidth = storage.Get("LA:WindowWidth", WindowWidth);
+            WindowHeight = storage.Get("LA:WindowHeight", WindowHeight);
+            WindowMaximized = storage.Get("LA:WindowMaximized", WindowMaximized);
+
             QualitySettings.vSyncCount = storage.Get("GS:VSync", 1);
             QualitySettings.antiAliasing = storage.Get("GS:AntiAliasing", 0);
 

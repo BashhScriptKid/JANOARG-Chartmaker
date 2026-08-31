@@ -25,6 +25,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         {
             if (HoldTail)
                 Destroy(HoldTail.gameObject);
+            if (FlickEmblem)
+                Destroy(FlickEmblem.gameObject);
         }
 
         public void UpdateObjects(HitObjectManager hit) 
@@ -72,10 +74,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     break;
             }
 
-            Vector2 camStart = PlayerView.main.MainCamera.WorldToScreenPoint(IndicatorRenderers[0].transform.position);
-            Vector2 camEnd = PlayerView.main.MainCamera.WorldToScreenPoint(IndicatorRenderers[1].transform.position);
-
-            if (Renderer.sharedMaterial != material) 
+            if (Renderer.sharedMaterial != material)
             {
                 Renderer.enabled = material;
                 Renderer.sharedMaterial = material;
@@ -87,19 +86,22 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 }
             }
 
-            if (hit.HoldMesh && visible) 
-            { 
+            if (hit.HoldMesh && visible)
+            {
                 if (!HoldTail)
                     HoldTail = Instantiate(PlayerView.main.HoldMeshSample, transform.parent);
-            
+
+                if (!HoldTail.gameObject.activeSelf)
+                    HoldTail.gameObject.SetActive(true);
+
                 HoldTail.sharedMaterial = styles[index].HoldTailMaterial;
                 HoldTail.GetComponent<MeshFilter>().sharedMesh = hit.HoldMesh;
             }
-            else 
+            else if (HoldTail && HoldTail.gameObject.activeSelf)
             {
-                if (HoldTail) {
-                    Destroy(HoldTail.gameObject);
-                } 
+                // Hidden, not destroyed — notes cross in and out of range constantly while
+                // scrubbing, and the flick emblem below already works this way.
+                HoldTail.gameObject.SetActive(false);
             }
 
             if (hit.Current.Flickable) 
@@ -108,6 +110,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     FlickEmblem = Instantiate(PlayerView.main.HoldMeshSample, transform);
                 } 
             
+                
+                FlickEmblem.gameObject.SetActive(true);
                 FlickEmblem.sharedMaterial = mainMaterial;
                 FlickEmblem.transform.eulerAngles = PlayerView.main.MainCamera.transform.eulerAngles;
             
@@ -116,15 +120,22 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 FlickEmblem.GetComponent<MeshFilter>().sharedMesh = directional 
                     ? PlayerView.main.ArrowFlickIndicator : PlayerView.main.FreeFlickIndicator;
             
-                if (directional) 
+                if (directional)
                     FlickEmblem.transform.Rotate(Vector3.back * hit.Current.FlickDirection);
                 else
+                {
+                    // Only the free-flick emblem needs screen-space endpoints, so the two
+                    // projections stay in this branch instead of running for every note.
+                    Vector2 camStart = PlayerView.main.MainCamera.WorldToScreenPoint(IndicatorRenderers[0].transform.position);
+                    Vector2 camEnd = PlayerView.main.MainCamera.WorldToScreenPoint(IndicatorRenderers[1].transform.position);
+
                     FlickEmblem.transform.Rotate(Vector3.forward * Vector2.SignedAngle(Vector2.right, camEnd - camStart));
+                }
             }
             else 
             {
-                if (FlickEmblem) 
-                    Destroy(FlickEmblem.gameObject);
+                if (FlickEmblem)
+                    FlickEmblem.gameObject.SetActive(false); // hide, don't destroy yet
             }
         }
     }

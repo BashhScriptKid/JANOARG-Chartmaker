@@ -90,9 +90,9 @@ namespace JANOARG.Chartmaker.UI.Pickers.ColorPicker
         {
             base.Open();
 
-            UpdateUI();
             UpdateHSV();
             UpdateHex();
+            UpdateUI();
         
             recursionBuster = true;
      

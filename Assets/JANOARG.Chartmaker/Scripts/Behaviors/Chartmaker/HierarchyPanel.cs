@@ -16,6 +16,9 @@ using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using JANOARG.Shared.Utils;
+using JANOARG.Chartmaker.Utils.NativeAPI;
+using System.Linq;
 
 namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 {
@@ -48,7 +51,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public Image  SearchIcon;
         public Image  SearchClearIcon;
 
-        Dictionary<string, HierarchyItem> GroupItems = new();
+        List<HierarchyItem> GroupItems = new();
 
         public void Awake()
         {
@@ -136,7 +139,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         chartItem.Children.Add(worldItem = new ()
                         {
                             Name = "World",
-                            Type = HierarchyItemType.World,
+                            Type = HierarchyItemType.World
                         });
                     }
 
@@ -210,33 +213,52 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         HierarchyItem worldItem = Items[0].Children[2];
                         worldItem.Children.Clear();
 
-                        // Add lane groups
-                        Dictionary<string, HierarchyItem> newGroupItems = new ();
-                        foreach (LaneGroup group in chart.Groups)
+                        // Add lane groups — parallel list matching chart.Groups indices.
+                        // Duplicates get their own HierarchyItems with (n) suffix, same as PlayerView.
+                        // Expanded state belongs to the group, not to its position in the list.
+                        // Carrying it over by index meant deleting a group shifted every later
+                        // group's state onto its neighbour, so unrelated trees sprang open.
+                        Dictionary<LaneGroup, bool> wasExpanded = new();
+
+                        foreach (HierarchyItem old in GroupItems)
+                            if (old.Target is LaneGroup oldGroup)
+                                wasExpanded[oldGroup] = old.Expanded;
+
+                        List<HierarchyItem> newGroupItems = new();
+                        for (int gi = 0; gi < chart.Groups.Count; gi++)
                         {
-                            HierarchyItem item = new () 
+                            LaneGroup group = chart.Groups[gi];
+
+                            // Names are already deduplicated in-place by PlayerView on load,
+                            // so group.Name is safe to use directly as the display name.
+                            newGroupItems.Add(new HierarchyItem
                             {
                                 Name = group.Name,
                                 Type = HierarchyItemType.LaneGroup,
                                 Target = group,
-                                Expanded = GroupItems.ContainsKey(group.Name) ? GroupItems[group.Name].Expanded : false,
-                            };
-                            newGroupItems[group.Name] = item;
+                                Expanded = wasExpanded.TryGetValue(group, out bool e) && e,
+                            });
                         }
-                    
+
                         GroupItems = newGroupItems;
-                        Dictionary<string, HierarchyItem>.KeyCollection keys = GroupItems.Keys;
-                        int keyindex = 0;
-                    
-                        foreach (string key in keys)
+
+                        // Resolve parent hierarchy using first-match by name, same as client.
+                        for (int gi = 0; gi < chart.Groups.Count; gi++)
                         {
-                            LaneGroup data = (LaneGroup)GroupItems[key].Target;
-                            if (!string.IsNullOrEmpty(data.Group) && GroupItems.ContainsKey(data.Group)) GroupItems[data.Group].Children.Add(GroupItems[key]);
-                            else worldItem.Children.Add(GroupItems[key]);
-                            keyindex++;
+                            LaneGroup data = chart.Groups[gi];
+                            if (!string.IsNullOrEmpty(data.Group))
+                            {
+                                int parentIdx = chart.Groups.FindIndex(g => g.Name == data.Group);
+                                if (parentIdx >= 0)
+                                {
+                                    GroupItems[parentIdx].Children.Add(GroupItems[gi]);
+                                    continue;
+                                }
+                            }
+                            worldItem.Children.Add(GroupItems[gi]);
                         }
-                    
-                        // Add lanes
+
+                        // Add lanes — first-match by group name, same as client.
                         foreach (Lane lane in chart.Lanes)
                         {
                             HierarchyItem item = new () {
@@ -246,9 +268,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                                 Target = lane,
                             };
 
-                            if (!string.IsNullOrEmpty(lane.Group) && GroupItems.ContainsKey(lane.Group))
-                                GroupItems[lane.Group].Children.Add(item);
-                            else 
+                            int groupIdx = string.IsNullOrEmpty(lane.Group) ? -1 : chart.Groups.FindIndex(g => g.Name == lane.Group);
+                            if (groupIdx >= 0)
+                                GroupItems[groupIdx].Children.Add(item);
+                            else
                                 worldItem.Children.Add(item);
                         }
                     }
@@ -433,13 +456,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         private void SeekToTime(float time, object inspectorTarget)
         {
-            Chartmaker.main.SongSource.time = Mathf.Clamp(time, 0, Chartmaker.main.SongSource.clip.length);
-    
-            if (Chartmaker.main.SongSource.time == 0 && !Chartmaker.main.SongSource.isPlaying)
-            {
-                Chartmaker.main.SongSource.Play();
-                Chartmaker.main.SongSource.Pause();
-            }
+            Chartmaker.main.SeekTo(time);
 
             InspectorPanel.main.SetObject(inspectorTarget);
     
@@ -489,13 +506,17 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         {
             static string KeyOf(string id) => KeyboardHandler.main.Keybindings[id].Keybind.ToString();
 
-            UnityEngine.Debug.Log("Right Click Select " + item.Target + " " + holder.Target);;;
+            UnityEngine.Debug.Log("Right Click Select " + item.Target + " " + holder.Target);
             
-            ContextMenuListSublist addHierarchyList = new ContextMenuListSublist("New", GetItems(item.Target));
+            var newItems = GetItems(item.Target, item.Type);
+            ContextMenuListItem addHierarchyList = newItems.Length > 0
+                ? new ContextMenuListSublist("New", newItems)
+                : new ContextMenuListAction("New", () => {}, _enabled: false);
             
             InspectorPanel.main.SetObject(item.Target);
             ContextMenuHolder.main.OpenRoot(new ContextMenuList(
                 addHierarchyList,
+                new ContextMenuListSeparator(),
                 new ContextMenuListAction("Cut", Chartmaker.main.Cut, KeyOf("ED:Cut"), 
                     icon: "Cut", _enabled: Chartmaker.main.CanCopy()),
                 new ContextMenuListAction("Copy", Chartmaker.main.Copy, KeyOf("ED:Copy"), 
@@ -512,15 +533,15 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     _enabled: item.Children.Count > 0)
             ), (RectTransform)holder.transform, ContextMenuDirection.Cursor);
 
-            ContextMenuListItem[] GetItems(object itemType)
+            ContextMenuListItem[] GetItems(object item, HierarchyItemType itemType)
             {
                 Chart chart = Chartmaker.main.CurrentChart;
                 PlayableSong song = Chartmaker.main.CurrentSong;
                 switch (itemType)
                 {
-                    case LaneStyle:
-                    case HitStyle:
-                    case Palette:
+                    case HierarchyItemType.LaneStyle:
+                    case HierarchyItemType.HitStyle:
+                    case HierarchyItemType.Palette:
                         return new ContextMenuListItem[]
                         {
                             new ContextMenuListAction("Lane Style", () =>
@@ -569,16 +590,16 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                             }),
                         };
                     
-                    case PlayableSong:
-                    case Cover:
+                    case HierarchyItemType.PlayableSong:
+                    case HierarchyItemType.Cover:
                         return new ContextMenuListItem[]
                         {
                             new ContextMenuListAction("Cover Layer", () => ModalHolder.main.Spawn<NewCoverLayerModal>()),
                         };
                     
                     case HierarchyItemType.World:
-                    case Lane:
-                    case LaneGroup:
+                    case HierarchyItemType.Lane:
+                    case HierarchyItemType.LaneGroup:
                         return new ContextMenuListItem[]
                         {
                             new ContextMenuListAction("Lane", () =>
@@ -586,7 +607,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                                 string group = InspectorPanel.main.CurrentObject switch
                                 {
                                     Lane laneCurrentObject => laneCurrentObject.Group,
-                                    LaneGroup laneGroupCurrentObject => laneGroupCurrentObject.Group,
+                                    LaneGroup laneGroupCurrentObject => laneGroupCurrentObject.Name,
                                     _ => ""
                                 };
 
@@ -617,7 +638,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                                 string parent = InspectorPanel.main.CurrentObject switch
                                 {
                                     Lane laneCurrentObject => laneCurrentObject.Group,
-                                    LaneGroup laneGroupCurrentObject => laneGroupCurrentObject.Group,
+                                    LaneGroup laneGroupCurrentObject => laneGroupCurrentObject.Name,
                                     _ => ""
                                 };
 
@@ -629,16 +650,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                             }),
                         };
                     
-                    case HierarchyItemType.Chart:
-                    case HierarchyItemType.Camera:
                     default:
-                        return new ContextMenuListItem[]
-                        {
-                            new ContextMenuListAction("None...", () => { }, _enabled:false)
-                        };
+                        return new ContextMenuListItem[] {};
                 }
-
-                return null;
             }
         }
 
@@ -674,6 +688,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             SearchField.text = "";
         }
 
+        // -------------------------------------------------- Resizing
+
+        float HierarchyRestoreWidth = 0;
+
         public void ToggleExpand(HierarchyItem item) 
         {
             item.Expanded = !item.Expanded;
@@ -683,19 +701,33 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
     
         public void OnResizerDrag()
         {
-            ResizeHierarchy(Input.mousePosition.x, false);
+            float scale = Chartmaker.main.ChartmakerCanvas.scaleFactor;
+            ResizeHierarchy(Input.mousePosition.x / scale, false);
         }
         public void OnResizerEndDrag()
         {
-            ResizeHierarchy(Input.mousePosition.x);
+            float scale = Chartmaker.main.ChartmakerCanvas.scaleFactor;
+            ResizeHierarchy(Input.mousePosition.x / scale);
         }
     
         public void ResizeHierarchy(float width, bool snap = true)
         {
-            if (snap) width = width < 168 ? 69 : 268;
-            else width = Mathf.Clamp(Mathf.Floor(width), 69, 268);
+            const float MIN_FEASIBLE_WIDTH = 268;
+            const float COLLAPSED_WIDTH = 69;
+            const float TRANSITION_WIDTH = (MIN_FEASIBLE_WIDTH + COLLAPSED_WIDTH) / 2;
 
-            PanelHolder.anchoredPosition = new(width - 226, PanelHolder.anchoredPosition.y);
+            float scale = Chartmaker.main.ChartmakerCanvas.scaleFactor;
+
+            float maxWidth = Mathf.Max(MIN_FEASIBLE_WIDTH, Screen.width / scale * 0.33f);
+            
+            if (snap) width = 
+                width < TRANSITION_WIDTH ? COLLAPSED_WIDTH : 
+                width < MIN_FEASIBLE_WIDTH ? MIN_FEASIBLE_WIDTH :
+                Mathf.Min(width, maxWidth);
+            else width = Mathf.Clamp(Mathf.Floor(width), COLLAPSED_WIDTH, maxWidth);
+
+            PanelHolder.anchoredPosition *= new Vector2Frag(x: Mathf.Min(MIN_FEASIBLE_WIDTH, width) - 226);
+            PanelHolder.sizeDelta *= new Vector2Frag(x: Mathf.Max(width - 268 + 226, 226));
             Chartmaker.main.PlayerViewHolder.anchoredPosition = new(
                 width, 
                 Chartmaker.main.PlayerViewHolder.anchoredPosition.y
@@ -710,7 +742,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
             if (snap)
             {
-                IsCollapsed = width < 168;
+                IsCollapsed = width < TRANSITION_WIDTH;
+                if (!IsCollapsed) HierarchyRestoreWidth = width;
                 HierarchyTabButton.interactable = IsCollapsed;
                 CollapserButton.gameObject.SetActive(!IsCollapsed);
             }
@@ -718,12 +751,13 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
     
         public void Collapse()
         {
+            HierarchyRestoreWidth = PanelHolder.sizeDelta.x;
             ResizeHierarchy(0, true);
         }
     
         public void Restore()
         {
-            ResizeHierarchy(240, true);
+            ResizeHierarchy(HierarchyRestoreWidth, true);
         }
 
         // -------------------------------------------------- Dragging
@@ -765,6 +799,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         IChartmakerAction GetDragAction(HierarchyItemHolder item)
         {
+            // Cleared when a drag starts and only set once the pointer is over a valid drop
+            // target, so releasing anywhere else leaves it null. Every branch below reads it.
+            if (item1 == null) return null;
+
             if (isDragInto)
             {
                 if (item.Target.Target is Lane lane)
@@ -913,7 +951,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         -intPos * itemHeight - padding.top
                     );
                 
-                    UpdateCursor(CursorType.Grabbing);
+                    UpdateCursor(CursorStyle.HandGrabbing);
                 }
                 else 
                 {
@@ -937,7 +975,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                             -Mathf.Round(pos + 0.5f) * itemHeight - padding.top
                         );
                     
-                        UpdateCursor(CursorType.Grabbing);
+                        UpdateCursor(CursorStyle.HandGrabReady);
                     }
                     else if (canDragInto)
                     {
@@ -947,45 +985,52 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         goto dragInto;
                     }
                     else
-                        UpdateCursor(CursorType.GrabbingBlocked);
+                        UpdateCursor(CursorStyle.HandGrabbingBlocked);
                 }
             }
             else 
-                UpdateCursor(CursorType.GrabbingBlocked);
+                UpdateCursor(CursorStyle.HandGrabbingBlocked);
         }
 
         public void OnItemEndDrag(HierarchyItemHolder item, PointerEventData eventData)
         {
-            IChartmakerAction action = GetDragAction(item);
-            if (action != null) 
-                Chartmaker.main.DoAction(action);
+            // The cleanup restores blocksRaycasts, so anything thrown above it leaves the panel
+            // unable to receive input at all — with isDragging stuck true, no drag can start to
+            // clear it either.
+            try
+            {
+                IChartmakerAction action = GetDragAction(item);
 
-            UpdateHolders();
-            UpdateCursor(0);
-        
-            isDragging = false;
-        
-            DragIntoIndicator.gameObject.SetActive(false);
-            DragBetweenIndicator.gameObject.SetActive(false);
-        
-            HolderGroup.blocksRaycasts = true;
+                if (action != null)
+                    Chartmaker.main.DoAction(action);
+            }
+            finally
+            {
+                UpdateHolders();
+                UpdateCursor(0);
+
+                isDragging = false;
+
+                DragIntoIndicator.gameObject.SetActive(false);
+                DragBetweenIndicator.gameObject.SetActive(false);
+
+                HolderGroup.blocksRaycasts = true;
+            }
         }
 
-        CursorType CurrentCursor = 0;
+        CursorStyle CurrentCursor = CursorStyle.None;
 
-        public void UpdateCursor(CursorType cursor)
+        public void UpdateCursor(CursorStyle cursor)
         {
             if (CurrentCursor != cursor)
             {
                 if (CurrentCursor != 0)
-                    CursorChanger.PopCursor();
+                    CursorManager.main.PopCursor();
             
                 if (cursor != 0) 
-                    CursorChanger.PushCursor(cursor);
+                    CursorManager.main.PushCursor(cursor);
             
                 CurrentCursor = cursor;
-            
-                BorderlessWindow.UpdateCursor();
             }
         }
     }

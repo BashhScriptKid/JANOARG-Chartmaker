@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -12,6 +13,7 @@ using JANOARG.Chartmaker.UI;
 using JANOARG.Chartmaker.UI.Modal;
 using JANOARG.Chartmaker.UI.Modal.ModalTypes;
 using JANOARG.Chartmaker.UI.NativeUI;
+using JANOARG.Chartmaker.Utils.NativeAPI;
 using JANOARG.Chartmaker.UI.Themeable;
 using JANOARG.Shared.Data.ChartInfo;
 using JANOARG.Chartmaker.Utils;
@@ -303,6 +305,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 try
                 {
                     SongSource.clip = CurrentSong.Clip = DownloadHandlerAudioClip.GetContent(stream);
+                    TimelinePanel.main.CacheWaveformData();
                 }
                 catch (Exception e)
                 {
@@ -402,6 +405,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         
             TimelinePanel.main.UpdatePeekLimit();
             TimelinePanel.main.UpdateItems();
+            TimelinePanel.main.UpdateDensityGraph();
         
             PlayerView.main.UpdateObjects();
         
@@ -411,7 +415,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             ClipboardItem = null;
             OnClipboardUpdate();
 
-            BorderlessWindow.RenameWindow(CurrentSong.SongArtist + " - " + CurrentSong.SongName + " // JANOARG Chartmaker");
+            if (NativeWindow.IsApiAvailable)
+                NativeWindow.MainWindow.Title = CurrentSong.SongArtist + " - " + CurrentSong.SongName + " // JANOARG Chartmaker";
         
             SetEditorActive(true);
         }
@@ -423,6 +428,26 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             CurrentChart = JACDecoder.Decode(File.ReadAllText(path));
             CurrentChartPath = path;
             CurrentChartMeta = chart;
+            DeduplicateGroupNames(CurrentChart);
+        }
+
+        /// <summary>
+        /// Appends (n) suffixes to duplicate LaneGroup names in-place, so that saving
+        /// the file produces unique names. Charters can salvage a broken chart by loading
+        /// it in this version and saving again.
+        /// </summary>
+        public static void DeduplicateGroupNames(Chart chart)
+        {
+            List<LaneGroup> groups = chart.Groups;
+            for (int i = 0; i < groups.Count; i++)
+            {
+                List<LaneGroup> duplicates = groups.FindAll(x => x.Name == groups[i].Name);
+                if (duplicates.Count < 2) continue;
+
+                int n = 0;
+                foreach (LaneGroup laneGroup in duplicates)
+                    laneGroup.Name = n++ != 0 ? $"{laneGroup.Name} ({n})" : laneGroup.Name;
+            }
         }
 
         public Task OpenChartAsync(ExternalChartMeta chart)
@@ -454,16 +479,24 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             }
 
             Loader.SetActive(false);
+
             InformationBar.main.UpdateChartButton();
+            
             InspectorPanel.main.UpdateButtons();
             InspectorPanel.main.UpdateForm();
             InspectorPanel.main.CurrentHierarchyObject = null;
+
             HierarchyPanel.main.SetMode(HierarchyMode.Chart);
+
             TimelinePanel.main.SetTabMode(TimelineMode.Lanes);
             TimelinePanel.main.UpdateItems();
+            TimelinePanel.main.UpdateDensityGraph();
+
             PlayerView.main.UpdateObjects();
+
             History = new();
             OnHistoryUpdate();
+
             ClipboardItem = null;
             OnClipboardUpdate();
         }
@@ -503,7 +536,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 InspectorPanel.main.IsCoverDirty = false;
             }
 
-            Notify("Song data saved!");
+            Notify("Song data saved");
         }
     
         public IEnumerator SaveThenQuit() {
@@ -543,7 +576,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 yield break;
             }
 
-            Notify("Preferences saved!");
+            Notify("Preferences saved");
         }
     
         public void StartSavePrefsRoutine() {
@@ -566,7 +599,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
             PlayerView.main.ClearObjects();
         
-            BorderlessWindow.RenameWindow("JANOARG Chartmaker");
+            if (NativeWindow.IsApiAvailable)
+                NativeWindow.MainWindow.Title = "JANOARG Chartmaker";
 
             IsDirty = false;
         }
@@ -611,6 +645,29 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         }
     
 
+        /// <summary>
+        /// Moves the playhead. Every seek runs through here, so the clamping and the priming
+        /// below are done once rather than at each call site. Lifecycle resets to zero are not
+        /// seeks and do not belong here.
+        /// </summary>
+        public void SeekTo(float seconds)
+        {
+            if (!SongSource || !SongSource.clip)
+                return;
+
+            // A source that has never played ignores a position written to it, so prime it.
+            if (SongSource.time == 0 && !SongSource.isPlaying)
+            {
+                SongSource.Play();
+                SongSource.Pause();
+            }
+
+            // Sample-accurate, and it cannot land on clip.length the way a seconds write can.
+            SongSource.timeSamples = (int)Mathf.Clamp(
+                seconds * SongSource.clip.frequency, 0, SongSource.clip.samples - 1
+            );
+        }
+
         public static string GetItemName(object item) => item switch
         {
             IList list =>       list.Count > 0 
@@ -632,6 +689,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         {
             InspectorPanel.main.UpdateForm();
             TimelinePanel.main.UpdateItems();
+            TimelinePanel.main.SetDensityGraphDirty();
             PlayerView.main.UpdateObjects();
             HierarchyPanel.main.UpdateHierarchy();
             IsDirty = true;
@@ -661,9 +719,73 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         public void DoAction(IChartmakerAction action)
         {
             action.Redo();
+
+            // After a successful add, check if any added LaneGroups have colliding names
+            // and fold the dedup renames into the same undo entry as a composite.
+            if (action is ChartmakerAddAction addAction)
+            {
+                List<IChartmakerAction> dedupeRenames = BuildDedupeRenames(addAction);
+                if (dedupeRenames.Count > 0)
+                {
+                    ChartmakerCompositeAction composite = new()
+                    {
+                        Name = addAction.GetName(),
+                        Actions = { addAction },
+                    };
+                    foreach (IChartmakerAction rename in dedupeRenames)
+                    {
+                        rename.Redo();
+                        composite.Actions.Add(rename);
+                    }
+                    History.AddAction(composite);
+                    OnHistoryDo();
+                    OnHistoryUpdate();
+                    return;
+                }
+            }
+
             History.AddAction(action);
             OnHistoryDo();
             OnHistoryUpdate();
+        }
+
+        private List<IChartmakerAction> BuildDedupeRenames(ChartmakerAddAction addAction)
+        {
+            List<IChartmakerAction> renames = new();
+
+            IEnumerable<object> added = addAction.Item is System.Collections.IList list
+                ? list.Cast<object>()
+                : new[] { addAction.Item };
+
+            foreach (object item in added)
+            {
+                switch (item)
+                {
+                    case LaneGroup group:
+                    {
+                        string newName = InspectorPanel.main.GetNewGroupName(group.Name, group);
+                        if (newName != group.Name)
+                            renames.Add(new ChartmakerGroupRenameAction { From = group.Name, To = newName });
+                        break;
+                    }
+                    case LaneStyle laneStyle:
+                    {
+                        string newName = InspectorPanel.main.GetNewLaneStyleName(laneStyle.Name, laneStyle);
+                        if (newName != laneStyle.Name)
+                            renames.Add(new ChartmakerModifyAction { Item = laneStyle, Keyword = "Name", From = laneStyle.Name, To = newName });
+                        break;
+                    }
+                    case HitStyle hitStyle:
+                    {
+                        string newName = InspectorPanel.main.GetNewHitStyleName(hitStyle.Name, hitStyle);
+                        if (newName != hitStyle.Name)
+                            renames.Add(new ChartmakerModifyAction { Item = hitStyle, Keyword = "Name", From = hitStyle.Name, To = newName });
+                        break;
+                    }
+                }
+            }
+
+            return renames;
         }
 
         public void SetItem(object target, string field, object value)
@@ -710,6 +832,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     bpmStopList.Sort((x, y) => x.Offset.CompareTo(y.Offset));
                     break;
             
+                case Storyboard storyboard:
+                    storyboard.Timestamps.Sort((x, y) => x.Offset.CompareTo(y.Offset));
+                    break;
+            
                 case List<Timestamp> timeStampList:
                     timeStampList.Sort((x, y) => x.Offset.CompareTo(y.Offset));
                     break;
@@ -721,6 +847,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 case List<LaneStep> laneStepList:
                     laneStepList.Sort((x, y) => x.Offset.CompareTo(y.Offset));
                     break;
+
                 case List<HitObject> hitObjectList:
                     hitObjectList.Sort((x, y) => x.Offset.CompareTo(y.Offset));
                     break;
@@ -952,13 +1079,18 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         public void Copy()
         {
-            if (!CanCopy()) 
+            if (!CanCopy())
+            {
+                Notify("This object cannot be copied.");
                 return;
-        
+            }
+
             if ((InspectorPanel.main.CurrentTimestamp?.Count ?? 0) > 0)
                 ClipboardItem = InspectorPanel.main.CurrentTimestamp;
             else
                 ClipboardItem = InspectorPanel.main.CurrentObject;
+            
+            Notify("Copied " + GetItemName(ClipboardItem) + " to clipboard.");
         
             OnClipboardUpdate();
         }

@@ -17,9 +17,13 @@ using JANOARG.Chartmaker.UI.Form.FormTypes;
 using JANOARG.Shared.Data.ChartInfo;
 using JANOARG.Chartmaker.Utils;
 using TMPro;
+using Unity.Collections;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
+using UnityEngine.Rendering;
 using UnityEngine.UI;
 using Random = UnityEngine.Random;
+using UnityEditor;
 
 namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 {
@@ -85,12 +89,28 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
         }
 
+        // Encoders expose wildly different preset scales (named strings, p1-p7,
+        // numeric 0-13, ...) under different flag names (-preset, -cpu-used, -quality,
+        // -speed). This collapses all of that down to one fixed scale for the UI;
+        // each RenderFormatItem maps these 5 steps onto whatever its own encoder
+        // actually accepts.
+        public enum EncoderSpeed
+        {
+            Fastest,
+            Fast,
+            Balanced,
+            Slow,
+            Slowest
+        }
+
         struct RenderFormatItem
         {
             public MediaFormat Format;
             public string FfmpegArg;
             public string Description;
             public MediaFormat[] Compatibility;
+            public string PresetArg;                            // null => encoder has no speed control
+            public Dictionary<EncoderSpeed, string> Presets;
         }
         
         private readonly Dictionary<MediaFormat, string> _formatDisplayNames = new()
@@ -117,6 +137,73 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
             { MediaFormat.pcm,    "PCM" },
         };
 
+        // Shared per-scale preset tables, reused across encoders that share the
+        // same underlying -preset/-cpu-used/etc. naming scheme.
+        private static readonly Dictionary<EncoderSpeed, string> _x26xPresets = new()
+        {
+            { EncoderSpeed.Fastest,  "ultrafast" },
+            { EncoderSpeed.Fast,     "faster" },
+            { EncoderSpeed.Balanced, "medium" },
+            { EncoderSpeed.Slow,     "slow" },
+            { EncoderSpeed.Slowest,  "veryslow" },
+        };
+        private static readonly Dictionary<EncoderSpeed, string> _nvencPresets = new()
+        {
+            { EncoderSpeed.Fastest,  "p1" },
+            { EncoderSpeed.Fast,     "p2" },
+            { EncoderSpeed.Balanced, "p4" },
+            { EncoderSpeed.Slow,     "p6" },
+            { EncoderSpeed.Slowest,  "p7" },
+        };
+        private static readonly Dictionary<EncoderSpeed, string> _qsvPresets = new()
+        {
+            { EncoderSpeed.Fastest,  "veryfast" },
+            { EncoderSpeed.Fast,     "fast" },
+            { EncoderSpeed.Balanced, "medium" },
+            { EncoderSpeed.Slow,     "slow" },
+            { EncoderSpeed.Slowest,  "veryslow" },
+        };
+        private static readonly Dictionary<EncoderSpeed, string> _amfPresets = new()
+        {
+            { EncoderSpeed.Fastest,  "speed" },
+            { EncoderSpeed.Fast,     "speed" },
+            { EncoderSpeed.Balanced, "balanced" },
+            { EncoderSpeed.Slow,     "quality" },
+            { EncoderSpeed.Slowest,  "quality" },
+        };
+        private static readonly Dictionary<EncoderSpeed, string> _vpxPresets = new()
+        {
+            { EncoderSpeed.Fastest,  "5" },
+            { EncoderSpeed.Fast,     "4" },
+            { EncoderSpeed.Balanced, "2" },
+            { EncoderSpeed.Slow,     "1" },
+            { EncoderSpeed.Slowest,  "0" },
+        };
+        private static readonly Dictionary<EncoderSpeed, string> _aomCpuUsedPresets = new()
+        {
+            { EncoderSpeed.Fastest,  "8" },
+            { EncoderSpeed.Fast,     "6" },
+            { EncoderSpeed.Balanced, "4" },
+            { EncoderSpeed.Slow,     "2" },
+            { EncoderSpeed.Slowest,  "0" },
+        };
+        private static readonly Dictionary<EncoderSpeed, string> _rav1ePresets = new()
+        {
+            { EncoderSpeed.Fastest,  "10" },
+            { EncoderSpeed.Fast,     "8" },
+            { EncoderSpeed.Balanced, "5" },
+            { EncoderSpeed.Slow,     "2" },
+            { EncoderSpeed.Slowest,  "0" },
+        };
+        private static readonly Dictionary<EncoderSpeed, string> _svtav1Presets = new()
+        {
+            { EncoderSpeed.Fastest,  "12" },
+            { EncoderSpeed.Fast,     "10" },
+            { EncoderSpeed.Balanced, "6" },
+            { EncoderSpeed.Slow,     "3" },
+            { EncoderSpeed.Slowest,  "0" },
+        };
+
         private readonly RenderFormatItem[] _VideoEncoders =
         {
             // H.264
@@ -124,25 +211,29 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 Format = MediaFormat.h264,
                 FfmpegArg = "libx264",
                 Description = "Software",
-                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov, MediaFormat.flv }
+                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov, MediaFormat.flv },
+                PresetArg = "-preset", Presets = _x26xPresets
             },
             new() {
                 Format = MediaFormat.h264,
                 FfmpegArg = "h264_amf",
                 Description = "AMD",
-                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov, MediaFormat.flv }
+                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov, MediaFormat.flv },
+                PresetArg = "-quality", Presets = _amfPresets
             },
             new() {
                 Format = MediaFormat.h264,
                 FfmpegArg = "h264_nvenc",
                 Description = "NVIDIA",
-                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov, MediaFormat.flv }
+                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov, MediaFormat.flv },
+                PresetArg = "-preset", Presets = _nvencPresets
             },
             new() {
                 Format = MediaFormat.h264,
                 FfmpegArg = "h264_qsv",
                 Description = "Intel QSV",
-                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov, MediaFormat.flv }
+                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov, MediaFormat.flv },
+                PresetArg = "-preset", Presets = _qsvPresets
             },
             new() {
                 Format = MediaFormat.h264,
@@ -168,25 +259,29 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 Format = MediaFormat.h265,
                 FfmpegArg = "libx265",
                 Description = "Software",
-                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov }
+                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov },
+                PresetArg = "-preset", Presets = _x26xPresets
             },
             new() {
                 Format = MediaFormat.h265,
                 FfmpegArg = "hevc_amf",
                 Description = "AMD",
-                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov }
+                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov },
+                PresetArg = "-quality", Presets = _amfPresets
             },
             new() {
                 Format = MediaFormat.h265,
                 FfmpegArg = "hevc_nvenc",
                 Description = "NVIDIA",
-                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov }
+                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov },
+                PresetArg = "-preset", Presets = _nvencPresets
             },
             new() {
                 Format = MediaFormat.h265,
                 FfmpegArg = "hevc_qsv",
                 Description = "Intel QSV",
-                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov }
+                Compatibility = new[] { MediaFormat.mp4, MediaFormat.mkv, MediaFormat.mov },
+                PresetArg = "-preset", Presets = _qsvPresets
             },
 
             // VPX
@@ -194,7 +289,8 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 Format = MediaFormat.vp8,
                 FfmpegArg = "libvpx",
                 Description = "Software",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv },
+                PresetArg = "-cpu-used", Presets = _vpxPresets
             },
             new() {
                 Format = MediaFormat.vp8,
@@ -213,7 +309,8 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 Format = MediaFormat.vp9,
                 FfmpegArg = "libvpx-vp9",
                 Description = "Software",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv },
+                PresetArg = "-cpu-used", Presets = _aomCpuUsedPresets
             },
             new() {
                 Format = MediaFormat.vp9,
@@ -225,7 +322,8 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 Format = MediaFormat.vp9,
                 FfmpegArg = "vp9_qsv",
                 Description = "Intel QSV",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv },
+                PresetArg = "-preset", Presets = _qsvPresets
             },
             new() {
                 Format = MediaFormat.vp9,
@@ -239,43 +337,49 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 Format = MediaFormat.av1,
                 FfmpegArg = "libaom-av1",
                 Description = "AOMedia",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv, MediaFormat.mp4 },
+                PresetArg = "-cpu-used", Presets = _aomCpuUsedPresets
             },
             new() {
                 Format = MediaFormat.av1,
                 FfmpegArg = "librav1e",
                 Description = "rav1e",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv, MediaFormat.mp4 },
+                PresetArg = "-speed", Presets = _rav1ePresets
             },
             new() {
                 Format = MediaFormat.av1,
                 FfmpegArg = "libsvtav1",
                 Description = "SVT",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv , MediaFormat.mp4},
+                PresetArg = "-preset", Presets = _svtav1Presets
             },
             new() {
                 Format = MediaFormat.av1,
                 FfmpegArg = "av1_nvenc",
                 Description = "NVIDIA",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv , MediaFormat.mp4},
+                PresetArg = "-preset", Presets = _nvencPresets
             },
             new() {
                 Format = MediaFormat.av1,
                 FfmpegArg = "av1_qsv",
                 Description = "Intel QSV",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv , MediaFormat.mp4},
+                PresetArg = "-preset", Presets = _qsvPresets
             },
             new() {
                 Format = MediaFormat.av1,
                 FfmpegArg = "av1_amf",
                 Description = "AMD",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv , MediaFormat.mp4},
+                PresetArg = "-quality", Presets = _amfPresets
             },
             new() {
                 Format = MediaFormat.av1,
                 FfmpegArg = "av1_vaapi",
                 Description = "VA-API",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv , MediaFormat.mp4}
             }
         };
 
@@ -303,13 +407,13 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 Format = MediaFormat.opus,
                 FfmpegArg = "libopus",
                 Description = "Software",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv, MediaFormat.mp4 }
             },
             new() {
                 Format = MediaFormat.opus,
                 FfmpegArg = "opus",
                 Description = "Legacy",
-                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv }
+                Compatibility = new[] { MediaFormat.webm, MediaFormat.mkv, MediaFormat.mp4 }
             },
             
             // Vorbis
@@ -391,11 +495,12 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
         Vector2 GetCRFRange(MediaFormat format) => format switch
         {
             // x/h.264 typical range
-            MediaFormat.h264  => new Vector2(51, 18), 
-            MediaFormat.h265  => new Vector2(51, 18), 
-            MediaFormat.vp8   => new Vector2(63, 4), 
-            MediaFormat.vp9   => new Vector2(63, 4), 
-            _ => new Vector2(63, 0), 
+            MediaFormat.h264  => new Vector2(51, 18),
+            MediaFormat.h265  => new Vector2(51, 18),
+            MediaFormat.vp8   => new Vector2(63, 4),
+            MediaFormat.vp9   => new Vector2(63, 4),
+            MediaFormat.av1   => new Vector2(63, 0),
+            _ => new Vector2(63, 0),
         };
         
 
@@ -509,8 +614,9 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
             });
 
             // Pre declaration for allowing dropdown item updates
-            FormEntryDropdown videoFormatField = null, videoEncoderField = null; 
-            FormEntryDropdown audioFormatField = null, audioEncoderField = null; 
+            FormEntryDropdown videoFormatField = null, videoEncoderField = null;
+            FormEntryDropdown audioFormatField = null, audioEncoderField = null;
+            FormEntryDropdown speedField = null;
 
             // Helper method to update encoder options
             void UpdateEncoderOptions(FormEntryDropdown formatField, FormEntryDropdown encoderField, RenderFormatItem[] encoders)
@@ -603,6 +709,13 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
 
             SpawnForm<FormEntryHeader>("Format");
+
+            FormEntryRange vqualField = null;
+            FormEntryFloat vbitrateField = null;
+            FormEntryRange crfField = null;
+
+            FormEntryInt abitrateField = null;
+
             // Create format field
             var formatField = SpawnForm<FormEntryDropdown, object>("File Format", () => Prefs.OutputType, x =>
             {
@@ -625,6 +738,15 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 if (Prefs.VideoEncoder == (string)v) return;
                 PrefsDirty = true;
                 Prefs.VideoEncoder = (string)v;
+
+                RenderFormatItem encoder = Array.Find(_VideoEncoders, x => x.FfmpegArg == Prefs.VideoEncoder);
+
+                Vector2 encoderCrfRange = GetCRFRange(encoder.Format);
+                crfField!.Range.minValue = Mathf.Min(encoderCrfRange.x, encoderCrfRange.y);
+                crfField!.Range.maxValue = Mathf.Max(encoderCrfRange.x, encoderCrfRange.y);
+                crfField!.SetValue(Mathf.Clamp(crfField.CurrentValue, crfField.Range.minValue, crfField.Range.maxValue));
+
+                speedField!.gameObject.SetActive(encoder.PresetArg != null);
             });
             videoEncoderField.CurrentValue = Prefs.VideoEncoder; // Initialize valud for encoder update method;
             MakeCompoundField(videoFormatField, videoEncoderField);
@@ -669,6 +791,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                     new ContextMenuListAction("Standard", () => { }, _enabled: false),
                     getItem("5:4", 5 / 4f),
                     getItem("4:3", 4 / 3f),
+                    getItem("3:2", 3 / 2f),
 
                     new ContextMenuListSeparator(),
 
@@ -747,56 +870,104 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
             antiAliasingField.ValidValues.Add(8, "8x MSAA");
             antiAliasingField.ValidValues.Add(16, "16x MSAA");
 
+
             SpawnForm<FormEntrySpace>();
 
-            FormEntryRange vqualField = null;
-            FormEntryFloat vbitrateField = null;
 
-            var vOptions = SpawnForm<FormEntryBool, bool>("Adaptive Bitrate", () => Prefs.AdaptiveBitrate, o =>
+            speedField = SpawnForm<FormEntryDropdown, object>("Quality Preset", () => (EncoderSpeed)Prefs.EncoderSpeed, v =>
             {
-                Prefs.AdaptiveBitrate = o;
-
-                switch (o)
-                {
-                    case true:
-                        vqualField.gameObject.SetActive(true);
-                        vbitrateField.gameObject.SetActive(false);
-                        break;
-                    case false:
-                        vqualField.gameObject.SetActive(false);
-                        vbitrateField.gameObject.SetActive(true);
-
-                        break;
-                }
+                Prefs.EncoderSpeed = (int)(EncoderSpeed)v; PrefsDirty = true;
             });
+            speedField.TargetEnum(typeof(EncoderSpeed));
+            speedField.gameObject.SetActive(Array.Find(_VideoEncoders, x => x.FfmpegArg == Prefs.VideoEncoder).PresetArg != null);
 
-            vqualField = SpawnForm<FormEntryRange, float>("Video Quality", () => Prefs.VideoQuality * 100, x =>
+
+            Vector2 crfRange;
+
+            var videoOptions = SpawnForm<FormEntryDropdown, object>("Video Quality", () => Prefs.VideoQualityMode, o =>
+            {
+                Prefs.VideoQualityMode = (VideoQualityMode)o;
+
+                crfRange = GetCRFRange(Array.Find(_VideoEncoders, x => x.FfmpegArg == Prefs.VideoEncoder).Format);
+                if (Prefs.VideoQualityMode == VideoQualityMode.AdaptiveBitrateCRF)
+                {
+                    crfField!.SetValue(Mathf.RoundToInt(Mathf.Round(Mathf.LerpUnclamped(crfRange.x, crfRange.y, Prefs.VideoQuality))));
+                    crfField.Reset();
+                }
+                else
+                {
+                    vqualField!.SetValue(Mathf.RoundToInt(Mathf.InverseLerp(crfRange.x, crfRange.y, Prefs.VideoCrf) * 100));
+                    vqualField.Reset();
+                }
+
+                f_updateVideoQualityMode();
+            });
+            void f_updateVideoQualityMode()
+            {
+                crfField!.gameObject.SetActive(Prefs.VideoQualityMode == VideoQualityMode.AdaptiveBitrateCRF);
+                vqualField!.gameObject.SetActive(Prefs.VideoQualityMode == VideoQualityMode.AdaptiveBitrate);
+                vbitrateField!.gameObject.SetActive(Prefs.VideoQualityMode == VideoQualityMode.FixedBitrate);
+            }
+
+            videoOptions.ValidValues.Add(VideoQualityMode.Auto,               "Automatic");
+            videoOptions.ValidValues.Add(VideoQualityMode.FixedBitrate,       "Fixed Bitrate");
+            videoOptions.ValidValues.Add(VideoQualityMode.AdaptiveBitrate,    "Adaptive Bitrate");
+            videoOptions.ValidValues.Add(VideoQualityMode.AdaptiveBitrateCRF, "Adaptive Bitrate (CRF)");
+
+            crfField = SpawnForm<FormEntryRange, float>("", () => Prefs.VideoCrf, v =>
+            {
+                Prefs.VideoCrf = Mathf.RoundToInt(v); PrefsDirty = true;
+            });
+            Vector2 initialCrfRange = GetCRFRange(Array.Find(_VideoEncoders, x => x.FfmpegArg == Prefs.VideoEncoder).Format);
+            crfField.Range.minValue = Mathf.Min(initialCrfRange.x, initialCrfRange.y);
+            crfField.Range.maxValue = Mathf.Max(initialCrfRange.x, initialCrfRange.y);
+            crfField.Range.wholeNumbers = true;
+
+            vqualField = SpawnForm<FormEntryRange, float>("", () => Prefs.VideoQuality * 100, x =>
             {
                 Prefs.VideoQuality = x / 100; PrefsDirty = true;
             });
             vqualField.Range.maxValue = 100; vqualField.Range.wholeNumbers = true;
 
-            vbitrateField = SpawnForm<FormEntryFloat, float>("Video Bitrate (kbps)", () => Prefs.VideoBitRate, v =>
+            vbitrateField = SpawnForm<FormEntryFloat, float>("", () => Prefs.VideoBitRate, v =>
             {
                 Prefs.VideoBitRate = v;
             });
-
-            switch (Prefs.AdaptiveBitrate)
+            f_updateVideoQualityMode();
+            
+            var audioOptions = SpawnForm<FormEntryDropdown, object>("Audio Quality", () => Prefs.AudioQualityMode, o =>
             {
-                case true:
-                    vqualField.gameObject.SetActive(true);
-                    vbitrateField.gameObject.SetActive(false);
-                    break;
-                case false:
-                    vqualField.gameObject.SetActive(false);
-                    vbitrateField.gameObject.SetActive(true);
-                    break;
-            }
+                Prefs.AudioQualityMode = (AudioQualityMode)o;
 
-            SpawnForm<FormEntryInt, int>("Audio Bitrate (kbps)", () => Prefs.AudioBitRate, x =>
+                f_updateAudioQualityMode();
+            });
+            audioOptions.ValidValues.Add(AudioQualityMode.Auto,               "Automatic");
+            audioOptions.ValidValues.Add(AudioQualityMode.FixedBitrate,       "Fixed Bitrate");
+            void f_updateAudioQualityMode()
+            {
+                abitrateField!.gameObject.SetActive(Prefs.AudioQualityMode == AudioQualityMode.FixedBitrate);
+            }
+            abitrateField = SpawnForm<FormEntryInt, int>("", () => Prefs.AudioBitRate, x =>
             {
                 Prefs.AudioBitRate = x; PrefsDirty = true;
             });
+            f_updateAudioQualityMode();
+            
+
+
+            SpawnForm<FormEntryHeader>("Audio");
+
+
+            SpawnForm<FormEntryBool, bool>("Include Hit SFX", () => Prefs.AddHitSfx, x =>
+            {
+                Prefs.AddHitSfx = x; PrefsDirty = true;
+            });
+            var hitSfxVolField = SpawnForm<FormEntryRange, float>("Hit SFX Volume", () => Prefs.HitSfxVolume, x =>
+            {
+                Prefs.HitSfxVolume = x; PrefsDirty = true;
+            });
+            hitSfxVolField.Range.maxValue = 200; hitSfxVolField.Range.wholeNumbers = true;
+
 
             SpawnForm<FormEntryHeader>("Other");
             SpawnForm<FormEntryBool, bool>("Open File on Complete", () => Prefs.OpenOnComplete, x =>
@@ -850,6 +1021,172 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
             _ = RenderRoutine();
         }
 
+        // Hit SFX overlay
+        //
+        // The hit sound clips (Normal/Catch/Flick) live under a Resources folder, so in
+        // a player build they are packed into the engine's asset archive and no longer
+        // exist as files on disk. Loading them as AudioClips and pulling the samples out
+        // resolves them the same way chart playback does, in-editor and in a build alike.
+        // Must be called from the main thread -- Resources.Load is not thread-safe.
+        private static PcmAudio LoadHitSfx(string clipName)
+        {
+            var clip = Resources.Load<AudioClip>("Sounds/" + clipName);
+            if (clip == null) throw new Exception($"Hit SFX clip not found in Resources: Sounds/{clipName}");
+
+            // Clips imported without Preload Audio Data start unloaded, and GetData would
+            // hand back silence for them. These assets have Load In Background off, so the
+            // load is synchronous and the data is ready when LoadAudioData returns.
+            if (clip.loadState != AudioDataLoadState.Loaded && !clip.LoadAudioData())
+                throw new Exception($"Failed to load audio data for hit SFX clip: Sounds/{clipName}");
+
+            float[] floatSamples = new float[clip.samples * clip.channels];
+            if (!clip.GetData(floatSamples, 0))
+                throw new Exception($"Failed to read samples from hit SFX clip: Sounds/{clipName}");
+
+            short[] samples = new short[floatSamples.Length];
+            for (int i = 0; i < samples.Length; i++)
+                samples[i] = (short)Math.Clamp((int)Math.Round(floatSamples[i] * short.MaxValue), short.MinValue, short.MaxValue);
+
+            return new PcmAudio { Samples = samples, Channels = clip.channels, SampleRate = clip.frequency };
+        }
+
+        private struct HitSfxEvent
+        {
+            public float Time; // seconds, relative to the render's output timeline (timeRange.x)
+            public HitObject.HitType Type;
+            public bool Flickable;
+        }
+
+        // Minimal 16-bit PCM WAV reader/writer for the hit-sfx mixing pass below.
+        // Both files involved are ffmpeg's own -c:a pcm_s16le output, so a full RIFF
+        // parser isn't needed -- just enough chunk-walking to find "fmt " and "data".
+        private struct PcmAudio
+        {
+            public short[] Samples; // interleaved
+            public int Channels;
+            public int SampleRate;
+        }
+
+        private static PcmAudio ReadWavPcm16(string path)
+        {
+            using var stream = File.OpenRead(path);
+            using var reader = new BinaryReader(stream);
+
+            reader.ReadBytes(4); // "RIFF"
+            reader.ReadInt32();  // file size
+            reader.ReadBytes(4); // "WAVE"
+
+            int channels = 0, sampleRate = 0, bitsPerSample = 0;
+            short[] samples = null;
+
+            while (stream.Position + 8 <= stream.Length)
+            {
+                string chunkId = Encoding.ASCII.GetString(reader.ReadBytes(4));
+                int chunkSize = reader.ReadInt32();
+                long chunkEnd = stream.Position + chunkSize;
+
+                if (chunkId == "fmt ")
+                {
+                    reader.ReadInt16(); // audio format
+                    channels = reader.ReadInt16();
+                    sampleRate = reader.ReadInt32();
+                    reader.ReadInt32(); // byte rate
+                    reader.ReadInt16(); // block align
+                    bitsPerSample = reader.ReadInt16();
+                }
+                else if (chunkId == "data")
+                {
+                    if (bitsPerSample != 16) throw new Exception($"Expected 16-bit PCM WAV, got {bitsPerSample}-bit: {path}");
+                    samples = new short[chunkSize / 2];
+                    for (int i = 0; i < samples.Length; i++) samples[i] = reader.ReadInt16();
+                }
+
+                stream.Position = chunkEnd + (chunkEnd % 2); // chunks are word-aligned
+            }
+
+            if (samples == null) throw new Exception("WAV file has no data chunk: " + path);
+            return new PcmAudio { Samples = samples, Channels = channels, SampleRate = sampleRate };
+        }
+
+        private static void WriteWavPcm16(string path, PcmAudio audio)
+        {
+            using var stream = File.Create(path);
+            using var writer = new BinaryWriter(stream);
+
+            int byteRate = audio.SampleRate * audio.Channels * 2;
+            int blockAlign = audio.Channels * 2;
+            int dataSize = audio.Samples.Length * 2;
+
+            writer.Write(Encoding.ASCII.GetBytes("RIFF"));
+            writer.Write(36 + dataSize);
+            writer.Write(Encoding.ASCII.GetBytes("WAVE"));
+            writer.Write(Encoding.ASCII.GetBytes("fmt "));
+            writer.Write(16);
+            writer.Write((short)1); // PCM
+            writer.Write((short)audio.Channels);
+            writer.Write(audio.SampleRate);
+            writer.Write(byteRate);
+            writer.Write((short)blockAlign);
+            writer.Write((short)16);
+            writer.Write(Encoding.ASCII.GetBytes("data"));
+            writer.Write(dataSize);
+            foreach (short s in audio.Samples) writer.Write(s);
+        }
+
+        // Linear-interpolation resample, used only for sfx clips whose native sample
+        // rate doesn't match the mix's target rate (Flick.wav is 48kHz, the others are
+        // 44.1kHz). Cheap, and only ever run once per distinct clip -- not per hit.
+        private static PcmAudio ResampleIfNeeded(PcmAudio audio, int targetRate)
+        {
+            if (audio.SampleRate == targetRate) return audio;
+
+            int channels = audio.Channels;
+            int srcFrames = audio.Samples.Length / channels;
+            int dstFrames = (int)Math.Round(srcFrames * (double)targetRate / audio.SampleRate);
+            short[] outSamples = new short[dstFrames * channels];
+
+            for (int i = 0; i < dstFrames; i++)
+            {
+                double srcPos = i * (double)audio.SampleRate / targetRate;
+                int i0 = Math.Min((int)srcPos, srcFrames - 1);
+                int i1 = Math.Min(i0 + 1, srcFrames - 1);
+                double frac = srcPos - i0;
+                for (int c = 0; c < channels; c++)
+                {
+                    short s0 = audio.Samples[i0 * channels + c];
+                    short s1 = audio.Samples[i1 * channels + c];
+                    outSamples[i * channels + c] = (short)(s0 + (s1 - s0) * frac);
+                }
+            }
+
+            return new PcmAudio { Samples = outSamples, Channels = channels, SampleRate = targetRate };
+        }
+
+        // Additively mixes sfxAudio into destination at timeSeconds, scaled by volume,
+        // clamping to avoid int16 overflow. destination must already match sfxAudio's
+        // sample rate/channel count (resample beforehand via ResampleIfNeeded).
+        private static void MixInPlace(PcmAudio destination, PcmAudio sfxAudio, float timeSeconds, float volume)
+        {
+            int channels = destination.Channels;
+            int destStartFrame = (int)Math.Round(timeSeconds * destination.SampleRate);
+            int sfxFrames = sfxAudio.Samples.Length / channels;
+            int destFrames = destination.Samples.Length / channels;
+
+            for (int frame = 0; frame < sfxFrames; frame++)
+            {
+                int destFrame = destStartFrame + frame;
+                if (destFrame < 0) continue;
+                if (destFrame >= destFrames) break;
+
+                for (int c = 0; c < channels; c++)
+                {
+                    int destIdx = destFrame * channels + c;
+                    int mixed = destination.Samples[destIdx] + (int)Math.Round(sfxAudio.Samples[frame * channels + c] * volume);
+                    destination.Samples[destIdx] = (short)Math.Clamp(mixed, short.MinValue, short.MaxValue);
+                }
+            }
+        }
+
         private string _EtaString;
 
         private Queue<float> _RecentFrameTimes;
@@ -860,6 +1197,8 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
             // FFmpeg process setup
             Stream ffmpegInputStream = null;
             Task ffmpegTask = null;
+            string songPcmPath = null;
+            string mixedAudioPath = null;
 
             Texture2D tex = null;
             RenderTexture rtex = null;
@@ -869,6 +1208,15 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
             bool cancelFlag = false;
 
+            // Every progress update in the capture loop costs a full Unity frame, since
+            // an awaited continuation resumes on the next player loop pass -- and with
+            // vsync that frame blocks on vblank for ~16.7ms of idle time. The loader
+            // covers the editor for the duration, so there is nothing on screen worth
+            // tearing protection; dropping vsync makes those yields cheap enough to
+            // afford. Captured on the way in rather than read from prefs so whatever the
+            // user actually had set is what gets restored.
+            int previousVSyncCount = QualitySettings.vSyncCount;
+            QualitySettings.vSyncCount = 0;
 
             try
             {
@@ -887,13 +1235,38 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 var frameRate = Prefs.FrameRate;
                 var timeRange = TimeRange;
 
+                // Most video encoders (including libx264) require even width/height
+                // since yuv420p subsamples chroma by half in each dimension -- an odd
+                // value makes libx264 fail to open the encoder at all, which otherwise
+                // just surfaces as the generic "process ended prematurely" error.
+                if (resolution.x % 2 != 0 || resolution.y % 2 != 0)
+                {
+                    throw new Exception($"Resolution {resolution.x}x{resolution.y} has an odd width or height. Most video encoders require both to be even numbers -- adjust the Resolution field and try again.");
+                }
+
                 float delta = 1f / frameRate;
                 int totalFrames = Mathf.CeilToInt((timeRange.y - timeRange.x) * frameRate);
                 float camHeight = Mathf.Min(1f, 7f / 4f * resolution.x / resolution.y) * 0.9f;
                 float fov = Mathf.Atan2(Mathf.Tan(30f * Mathf.Deg2Rad), camHeight) * 2f * Mathf.Rad2Deg;
 
-                Vector2 crfRange = GetCRFRange(Array.Find(_VideoEncoders, x => x.FfmpegArg == Prefs.VideoEncoder).Format);
-                int crf = Mathf.RoundToInt(Mathf.LerpUnclamped(crfRange.x, crfRange.y, Prefs.VideoQuality));
+                RenderFormatItem currentEncoder = Array.Find(_VideoEncoders, x => x.FfmpegArg == Prefs.VideoEncoder);
+
+                Vector2 crfRange = GetCRFRange(currentEncoder.Format);
+                string videoQualityOptions = Prefs.VideoQualityMode switch {
+                    VideoQualityMode.FixedBitrate => $"-b:v {Prefs.VideoBitRate}k",
+                    VideoQualityMode.AdaptiveBitrate => $"-crf {Mathf.RoundToInt(Mathf.LerpUnclamped(crfRange.x, crfRange.y, Prefs.VideoQuality))}",
+                    VideoQualityMode.AdaptiveBitrateCRF => $"-crf {Prefs.VideoCrf}",
+                    _ => "",
+                };
+                string audioQualityOptions = Prefs.AudioQualityMode switch
+                {
+                    AudioQualityMode.FixedBitrate => $"-b:v {Prefs.AudioBitRate}k",
+                    _ => "",
+                };
+
+                string presetOption = currentEncoder.PresetArg != null
+                    ? $"{currentEncoder.PresetArg} {currentEncoder.Presets[(EncoderSpeed)Prefs.EncoderSpeed]} "
+                    : "";
 
                 string videoFormatArg = Prefs.VideoEncoder;
                 string audioFormatArg = Prefs.AudioEncoder;
@@ -903,7 +1276,7 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 int originalAntiAliasing;
                 try
                 {
-                    rtex = new RenderTexture(resolution.x, resolution.y, 24, RenderTextureFormat.ARGB32);
+                    rtex = new RenderTexture(resolution.x, resolution.y, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
                     originalAntiAliasing = QualitySettings.antiAliasing;
                     QualitySettings.antiAliasing = Prefs.AntiAliasing;
                     _Camera.targetTexture = rtex;
@@ -935,13 +1308,149 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 var playerView = PlayerView.main;
 
                 // Setup FFmpeg arguments for streaming input
-                string qualityOptions = Prefs.AdaptiveBitrate ? $"-crf {crf}" : $"-b:v {Prefs.VideoBitRate}k";
-                string audioPath = Path.Combine(Path.GetDirectoryName(chartmaker.CurrentSongPath), chartmaker.CurrentSong.ClipPath);
+                string audioPath = Path.Combine(Path.GetDirectoryName(chartmaker.CurrentSongPath)!, chartmaker.CurrentSong.ClipPath);
+
+                float leadIn = timeRange.x < 0 ? -timeRange.x : 0f;
+                float audioStart = leadIn > 0 ? 0f : timeRange.x;
+                float renderDuration = timeRange.y - timeRange.x;
+                var invariant = System.Globalization.CultureInfo.InvariantCulture;
+
+                // If hit SFX are enabled, pre-mix the song + hit sounds into a single
+                // plain WAV *before* video capture starts, so the video-encode pass
+                // below ends up with one already-correct audio file and no per-hit
+                // work of its own. Mixing the hit overlay inside the same ffmpeg
+                // process that's encoding the live video pipe both desyncs the sfx
+                // timing and competes with Unity's render/readback loop for CPU on
+                // dense charts, stuttering the captured video.
+                //
+                // The hits themselves are summed straight into the decoded PCM here in
+                // C# rather than via ffmpeg's asplit/adelay/amix filters: that filter
+                // graph needs one node per hit occurrence and its cost scales with the
+                // chart's hit count, whereas direct summing only costs
+                // O(hits * clip length) regardless of how long the render is.
+                if (Prefs.AddHitSfx && Prefs.HitSfxVolume > 0 && chartmaker.CurrentChart != null)
+                {
+                    var timing = chartmaker.CurrentSong.Timing;
+                    List<HitSfxEvent> hitSfxEvents = new();
+                    foreach (var lane in chartmaker.CurrentChart.Lanes)
+                    {
+                        foreach (var hit in lane.Objects)
+                        {
+                            float outputTime = timing.ToSeconds(hit.Offset) - timeRange.x;
+                            if (outputTime < 0 || outputTime > renderDuration) continue;
+                            hitSfxEvents.Add(new HitSfxEvent { Time = outputTime, Type = hit.Type, Flickable = hit.Flickable });
+                        }
+                    }
+
+                    if (hitSfxEvents.Count > 0)
+                    {
+                        const int mixSampleRate = 44100;
+                        const int mixChannels = 2;
+
+                        loaderPanel.ProgressLabel.text = "Decoding song audio...";
+
+                        int leadInMs = (int)Math.Round(leadIn * 1000);
+                        string leadInFilter = leadIn > 0 ? $"-af \"adelay={leadInMs}|{leadInMs}\" " : "";
+                        songPcmPath = Path.Combine(folder, "songpcm_" + Guid.NewGuid().ToString("N") + ".wav");
+                        string decodeArgs = $"-ss {audioStart.ToString(invariant)} -t {(timeRange.y - audioStart).ToString(invariant)} -i \"{audioPath}\" " +
+                                            leadInFilter +
+                                            $"-ar {mixSampleRate} -ac {mixChannels} -c:a pcm_s16le -t {renderDuration.ToString(invariant)} " +
+                                            $"-y \"{songPcmPath}\"";
+
+                        // Track progress by parsing ffmpeg's own "time=HH:MM:SS.ss"
+                        // progress lines. The callback fires on ffmpeg's stderr-reading
+                        // background thread so it only ever writes a plain float; the
+                        // polling loop below runs on the main thread, like the rest of
+                        // this routine, and is what's allowed to touch loaderPanel.
+                        float decodeElapsed = 0f;
+                        var timeRegex = new Regex(@"time=(\d+):(\d+):(\d+(?:\.\d+)?)");
+                        Task<ProcessOutput> decodeTask = ffmpeg(decodeArgs, line =>
+                        {
+                            Match m = timeRegex.Match(line);
+                            if (m.Success)
+                            {
+                                decodeElapsed = float.Parse(m.Groups[1].Value, invariant) * 3600
+                                              + float.Parse(m.Groups[2].Value, invariant) * 60
+                                              + float.Parse(m.Groups[3].Value, invariant);
+                            }
+                        });
+
+                        while (!decodeTask.IsCompleted)
+                        {
+                            loaderPanel.ProgressBar.value = renderDuration > 0 ? Mathf.Clamp01(decodeElapsed / renderDuration) : 0f;
+                            loaderPanel.ProgressLabel.text = $"Decoding song audio... ({decodeElapsed:0.0}s / {renderDuration:0.0}s)";
+                            await Task.Yield();
+                        }
+                        var decodeResult = await decodeTask;
+
+                        if (decodeResult.ExitCode != 0 || !File.Exists(songPcmPath))
+                            throw new Exception("Failed to decode song audio for hit SFX mixing:\n" + decodeResult.Output);
+
+                        loaderPanel.ProgressBar.value = 0;
+                        loaderPanel.ProgressLabel.text = $"Applying hit SFX... ({hitSfxEvents.Count} hits)";
+                        await Task.Yield();
+
+                        PcmAudio mixBuffer = ReadWavPcm16(songPcmPath);
+                        if (mixBuffer.Channels != mixChannels)
+                            throw new Exception($"Expected {mixChannels}-channel decoded song audio, got {mixBuffer.Channels}");
+
+                        var sfxCache = new Dictionary<string, PcmAudio>();
+                        PcmAudio GetSfx(string clipName)
+                        {
+                            if (!sfxCache.TryGetValue(clipName, out var audio))
+                            {
+                                audio = ResampleIfNeeded(LoadHitSfx(clipName), mixSampleRate);
+                                // MixInPlace walks the sfx with the destination's channel
+                                // count, so a layout mismatch would read past the clip.
+                                if (audio.Channels != mixChannels)
+                                    throw new Exception($"Expected a {mixChannels}-channel hit SFX clip, got {audio.Channels}: Sounds/{clipName}");
+                                sfxCache[clipName] = audio;
+                            }
+                            return audio;
+                        }
+
+                        float hitVolume = Math.Max(0f, Prefs.HitSfxVolume) / 100f;
+
+                        int i = 0;
+                        foreach (var hit in hitSfxEvents)
+                        {
+                            MixInPlace(mixBuffer, GetSfx(hit.Type == HitObject.HitType.Catch ? "Catch Hit" : "Normal Hit"), hit.Time, hitVolume);
+                            // Flickable is a modifier on top of the hit type, not a
+                            // replacement, so its sfx layers over the base hit sound.
+                            if (hit.Flickable) MixInPlace(mixBuffer, GetSfx("Flick"), hit.Time, hitVolume);
+                            i++;
+
+                            // TODO this should show the progress to the user
+                            // if (i % 10 == 0)
+                            // {
+                            //     loaderPanel.ProgressBar.value = i / (float)hitSfxEvents.Count;
+                            //     loaderPanel.ProgressLabel.text = $"Applying hit SFX... ({i}/{hitSfxEvents.Count})";
+                            // }
+                        }
+
+                        mixedAudioPath = Path.Combine(folder, "hitsfxmix_" + Guid.NewGuid().ToString("N") + ".wav");
+                        WriteWavPcm16(mixedAudioPath, mixBuffer);
+
+                        File.Delete(songPcmPath);
+                        songPcmPath = null;
+
+                        loaderPanel.ProgressLabel.text = "Initializing...";
+                    }
+                }
+
+                // The pre-mixed file is already trimmed and lead-in padded, so it needs
+                // no -ss/-t/-itsoffset of its own -- just map it straight in.
+                string audioInputArgs = mixedAudioPath != null
+                    ? $"-i \"{mixedAudioPath}\" "
+                    : (leadIn > 0 ? $"-itsoffset {leadIn.ToString(invariant)} " : "") +
+                      $"-ss {audioStart.ToString(invariant)} -t {renderDuration.ToString(invariant)} -i \"{audioPath}\" ";
 
                 string ffmpegArgs = $"-f rawvideo -pix_fmt rgb24 -s {resolution.x}x{resolution.y} -r {frameRate} -i pipe:0 " +
-                                    $"-ss {timeRange.x} -t {timeRange.y - timeRange.x} -i \"{audioPath}\" " +
-                                    $"-vcodec {videoFormatArg} -acodec {audioFormatArg} " +
-                                    $"{qualityOptions} -b:a {Prefs.AudioBitRate}k " +
+                                    audioInputArgs +
+                                    $"-map 0:v -map 1:a " +
+                                    $"-vcodec {videoFormatArg} -vf format=rgb24 -pix_fmt yuv420p -acodec {audioFormatArg} " +
+                                    presetOption +
+                                    $"{videoQualityOptions} {audioQualityOptions} " +
                                     $"-y \"{outputPath}\"";
 
                 UnityEngine.Debug.Log("FFmpeg args: " + ffmpegArgs);
@@ -978,10 +1487,24 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                     }
                 });
 
-                float time = timeRange.x;
+                float frameOrigin = timeRange.x;
                 int frameIndex = 0;
                 int framePipedIndex = 0;
                 int frameYieldIndex = 0;
+
+                // Yield pacing. Handing the main thread back to Unity costs a whole
+                // player loop, so progress updates are bought with render time. Rather
+                // than guess that price it gets measured: the cost of one yield and the
+                // cost of one captured frame, both smoothed, feed YieldInterval() below.
+                // This is the only knob -- the share of render time spent on yields.
+                const double yieldOverheadBudget = 0.05;
+                var captureTimer = System.Diagnostics.Stopwatch.StartNew();
+                var yieldTimer = new System.Diagnostics.Stopwatch();
+                var encoderWaitTimer = new System.Diagnostics.Stopwatch();
+                double avgCaptureMs = 0;
+                double avgYieldMs = 0;
+                double avgWaitMs = 0;
+                double lastPacingLogSec = 0;
 
                 loaderPanel.ProgressLabel.text = $"Streaming frames... (0/{totalFrames})";
 
@@ -989,11 +1512,28 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 bool rendering = true;
                 bool brokenPipe = false;
                 Exception pipeError = null;
+                // Frame buffers are recycled through a fixed pool rather than allocated
+                // per frame. A buffer belongs to exactly one stage at a time: the free
+                // list, the main thread filling it, the queue, or the piping thread
+                // writing it out. The piping thread only hands a buffer back once its
+                // bytes have reached the pipe, so the pool size doubles as the queue
+                // depth -- the producer stalls on an empty free list, and a buffer can
+                // never be refilled while a queued frame still points at it.
+                int frameSize = resolution.x * resolution.y * 3; // RGB24 = 3 bytes per pixel
+
+                // Enough slack to ride out encoder hiccups without pinning gigabytes:
+                // 16 buffers is about 100 MB at 1080p. Larger resolutions shrink the
+                // pool to stay inside the memory budget, down to a floor of two so the
+                // readback and the pipe can still overlap.
                 long framebufferLimit = 2_000_000_000;
                 if (SystemInfo.systemMemorySize > 0) framebufferLimit = Math.Min(
                     framebufferLimit,
-                    SystemInfo.systemMemorySize * 1_048_576L // 20% of system's memory
+                    SystemInfo.systemMemorySize * 1_048_576L / 5 // 20% of system's memory
                 );
+                int poolSize = (int)Math.Clamp(framebufferLimit / frameSize, 2, 16);
+
+                ConcurrentQueue<byte[]> freeBuffers = new();
+                for (int i = 0; i < poolSize; i++) freeBuffers.Enqueue(new byte[frameSize]);
 
                 var pipingThread = new Thread(() =>
                 {
@@ -1006,6 +1546,8 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                                 ffmpegInputStream.Write(frame, 0, frame.Length);
                                 ffmpegInputStream.Flush();
                                 framePipedIndex++;
+                                // Only safe to recycle once the bytes are in the pipe.
+                                freeBuffers.Enqueue(frame);
                             }
                             catch (Exception e)
                             {
@@ -1029,98 +1571,102 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
 
                 pipingThread.Start();
 
-                // Pre-allocate buffer for raw frame data
-                int frameSize = resolution.x * resolution.y * 3; // RGB24 = 3 bytes per pixel
-                byte[] frameBuffer = new byte[frameSize];
-                int frameBufferSize = frameBuffer.Length;
 
-                // Pre-calculate thresholds
-                int maxFrameCount = (int)(framebufferLimit / frameBufferSize);
-                int resumeFrameCount = maxFrameCount * 3 / 4;
+                // Async GPU readback hides PCI transfer latency by overlapping
+                // readback of frame N with scene update + render of frame N+1.
+                // Falls back to synchronous ReadPixels on APIs that don't support it
+                // (OpenGL ES — Android builds).
+                bool useAsyncReadback = SystemInfo.supportsAsyncGPUReadback;
 
-                // Main rendering loop
-                while (time < timeRange.y && frameIndex < totalFrames)
+                // Shared helpers used by both paths.
+                void UpdateProgress()
                 {
-                    if (frameQueue.Count >= maxFrameCount)
+                    UpdateETAProgress(framePipedIndex, totalFrames);
+                    loaderPanel.ActionLabel.text = $"Rendering... ({framePipedIndex} / {totalFrames})";
+                    loaderPanel.ProgressLabel.text = _EtaString;
+                    loaderPanel.ProgressBar.value = (float)framePipedIndex / totalFrames;
+                }
+
+                static double Smooth(double average, double sample)
+                    => average <= 0 ? sample : average + 0.2 * (sample - average);
+
+                // Captured frames to run between progress updates, from the measured
+                // cost of a yield (C) and of a captured frame (W). Holding yields to a
+                // share p of total time means p = C / (N*W + C), so N = (C/W)(1-p)/p.
+                //
+                // Substituting back, the interval between updates comes out at C/p with
+                // W cancelling: how responsive the UI can be depends on what a player
+                // loop costs, not on how fast the render is. Tightening N alone only
+                // trades throughput away at an exchange rate C sets.
+                //
+                // The fallback applies until both costs have a sample.
+                int YieldInterval()
+                {
+                    if (avgCaptureMs <= 0 || avgYieldMs <= 0) return 10;
+                    return (int)Math.Clamp(Math.Round(
+                        avgYieldMs / avgCaptureMs * (1 - yieldOverheadBudget) / yieldOverheadBudget), 1, 240);
+                }
+
+                // Reported every few seconds rather than only at the end, so the pacing
+                // can be read off a render that gets cancelled part way through.
+                void LogPacing()
+                {
+                    UnityEngine.Debug.Log(
+                        $"Render yield pacing: player loop {avgYieldMs:F1}ms, capture {avgCaptureMs:F1}ms, " +
+                        $"encoder wait {avgWaitMs:F1}ms, interval {YieldInterval()} frames, " +
+                        $"progress every {(avgYieldMs / yieldOverheadBudget):F0}ms");
+                }
+
+                // Folds the work done since the last yield into the frame-cost estimate,
+                // gives Unity its player loop, and times what that loop cost.
+                async Task YieldToPlayerLoop()
+                {
+                    if (frameYieldIndex > 0)
                     {
-                        while (frameQueue.Count >= resumeFrameCount)
-                        {
-                            await Task.Yield();
+                        avgCaptureMs = Smooth(avgCaptureMs, captureTimer.Elapsed.TotalMilliseconds / frameYieldIndex);
+                        avgWaitMs = Smooth(avgWaitMs, encoderWaitTimer.Elapsed.TotalMilliseconds / frameYieldIndex);
+                    }
+                    encoderWaitTimer.Reset();
+                    frameYieldIndex = 0;
 
-                            UpdateETAProgress(framePipedIndex, totalFrames);
+                    UpdateProgress();
 
-                            loaderPanel.ActionLabel.text = $"Rendering... ({framePipedIndex} / {totalFrames})";
-                            loaderPanel.ProgressLabel.text = _EtaString;
-                            loaderPanel.ProgressBar.value = (float)framePipedIndex / totalFrames;
-                        }
-                        continue;
+                    yieldTimer.Restart();
+                    await Task.Yield();
+                    avgYieldMs = Smooth(avgYieldMs, yieldTimer.Elapsed.TotalMilliseconds);
+
+                    if (renderStopwatch.Elapsed.TotalSeconds - lastPacingLogSec >= 5)
+                    {
+                        lastPacingLogSec = renderStopwatch.Elapsed.TotalSeconds;
+                        LogPacing();
                     }
 
-                    // Update scene
-                    songSource.time = Mathf.Clamp(time, 0f, songSource.clip.length);
-                    informationBar.Update();
-                    playerView.UpdateObjects();
-                    time += delta;
+                    captureTimer.Restart();
+                }
 
-                    // Render frame
-                    RenderTexture.active = rtex;
-                    _Camera.Render();
+                void UpdateScene(int idx)
+                {
+                    float time = (float)(frameOrigin + idx / (double)frameRate);
+                    float audioTime = Mathf.Clamp(time, 0f, songSource.clip.length);
+                    songSource.time = audioTime;
+                    float sec  = time >= 0f ? audioTime : time;
+                    float beat = chartmaker.CurrentSong.Timing.ToBeat(sec);
+                    playerView.UpdateObjects(sec, beat);
+                }
 
-                    tex.ReadPixels(rectConfig, 0, 0);
-                    tex.Apply();
-
-                    // Get raw RGB data directly
-                    byte[] rawData = tex.GetRawTextureData();
-
-                    // Unity's texture data might need to be flipped vertically for FFmpeg
-                    int stride = resolution.x * 3; // 3 bytes per pixel for RGB24
-
-                    for (int y = 0; y < resolution.y; y++)
-                    {
-                        int srcOffset = (resolution.y - 1 - y) * stride;
-                        int dstOffset = y * stride;
-                        Array.Copy(rawData, srcOffset, frameBuffer, dstOffset, stride);
-                    }
-
+                void CheckErrors()
+                {
                     if (FFmpegProcess.HasExited)
                     {
                         rendering = false;
                         throw new Exception("FFmpeg process ended prematurely. Your copy of FFmpeg might not support the selected encoders.");
                     }
-
-                    // Queue frame for FFmpeg
-                    frameQueue.Enqueue((byte[])frameBuffer.Clone());
-
-                    frameIndex++;
-                    frameYieldIndex++;
-
-                    // Update progress less frequently (by average fps) for performance
-                    float averageFrameTime = _RecentFrameTimes.Count > 0
-                        ? _RecentFrameTimes.Sum() / _RecentFrameTimes.Count : 0.033f; // fallback to ~30fps
-                    float averageFPS = averageFrameTime > 0
-                        ? 1f / averageFrameTime : 30f;
-                    int yieldInterval = Mathf.Clamp(Mathf.RoundToInt(averageFPS) / 5, 10, 120);
-
-                    if (frameYieldIndex > yieldInterval || frameIndex == totalFrames)
-                    {
-                        frameYieldIndex = 0;
-
-                        UpdateETAProgress(framePipedIndex, totalFrames);
-
-                        loaderPanel.ActionLabel.text = $"Rendering... ({framePipedIndex} / {totalFrames})";
-                        loaderPanel.ProgressLabel.text = _EtaString;
-                        loaderPanel.ProgressBar.value = (float)framePipedIndex / totalFrames;
-
-                        await Task.Yield();
-                    }
-                    
                     if (brokenPipe)
                     {
                         Exception e = new TaskCanceledException($"Broken pipe to FFmpeg - it may have crashed: \n{pipeError.Message} \n\nTry using another configuration?");
                         ThrowRenderModal(e, rtex, tex);
                         throw e;
                     }
-
                     if (cancelFlag)
                     {
                         rendering = false;
@@ -1128,11 +1674,172 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                     }
                 }
 
+                // Backpressure: the pool is the only source of frame buffers, so waiting
+                // for one to come free is what keeps the producer in step with ffmpeg.
+                // Exactly one buffer is rented per loop iteration, and the main thread is
+                // the only renter, so a free buffer observed here is still free below.
+                async Task WaitForQueueAsync()
+                {
+                    if (!freeBuffers.IsEmpty) return;
+
+                    // Blocking on the encoder is not capture work. Counting it as such
+                    // overstates the cost of a frame, which drags the derived yield
+                    // interval down, and hides whether the render is limited by the GPU
+                    // or by ffmpeg.
+                    captureTimer.Stop();
+                    encoderWaitTimer.Start();
+
+                    while (freeBuffers.IsEmpty)
+                    {
+                        await Task.Yield();
+                        UpdateProgress();
+                        // A stalled encoder returns no buffers, so this is where a
+                        // cancel or an ffmpeg crash has to be noticed -- otherwise the
+                        // wait never ends.
+                        CheckErrors();
+                    }
+
+                    encoderWaitTimer.Stop();
+                    captureTimer.Start();
+                }
+
+                byte[] RentBuffer()
+                {
+                    if (!freeBuffers.TryDequeue(out var buffer))
+                        throw new Exception("Frame buffer pool exhausted — WaitForQueueAsync should have blocked before this point.");
+                    return buffer;
+                }
+
+                int stride = resolution.x * 3;
+
+                // Staging buffer: NativeArray data is copied out here on the main thread
+                // (NativeArray becomes invalid after the next Request call), then the
+                // vertical flip runs on a worker via Task.Run.
+                byte[] staging = new byte[resolution.x * resolution.y * 3];
+                Task pendingFlipTask = null;
+
+                void ScheduleFlip(NativeArray<byte> data)
+                {
+                    byte[] frameBuffer = RentBuffer();
+                    data.CopyTo(staging);
+                    pendingFlipTask = Task.Run(() =>
+                    {
+                        int h = resolution.y;
+                        for (int y = 0; y < h; y++)
+                            Buffer.BlockCopy(staging, (h - 1 - y) * stride,
+                                             frameBuffer, y * stride, stride);
+                        frameQueue.Enqueue(frameBuffer);
+                    });
+                }
+
+
+                void FlipAndEnqueueManaged(byte[] src)
+                {
+                    byte[] frameBuffer = RentBuffer();
+                    for (int y = 0; y < resolution.y; y++)
+                        Buffer.BlockCopy(src, (resolution.y - 1 - y) * stride,
+                                         frameBuffer, y * stride, stride);
+                    frameQueue.Enqueue(frameBuffer);
+                }
+
+                if (useAsyncReadback)
+                {
+                    // Pipelined async path:
+                    // Collect frame N's readback → render frame N+1 → issue readback → repeat.
+                    // Collect comes before render so the RT is not overwritten before
+                    // the previous readback is drained.
+                    AsyncGPUReadbackRequest pendingRequest = default;
+                    bool hasPending = false;
+
+                    while (frameIndex < totalFrames || hasPending)
+                    {
+                        await WaitForQueueAsync();
+
+                        // Collect previous frame's readback BEFORE rendering the next
+                        // frame — rendering overwrites the RT, so we must drain the
+                        // pending readback first to avoid capturing the wrong content.
+                        if (hasPending)
+                        {
+                            AsyncGPUReadback.WaitAllRequests();
+                            // Wait for previous flip task before reusing staging buffer.
+                            pendingFlipTask?.Wait();
+
+                            if (pendingRequest.hasError)
+                            {
+                                // Fall back to sync for this frame.
+                                // ReadPixels reads the active target; without this it hits the
+                                // backbuffer, which is only legal inside the drawing phase.
+                                RenderTexture.active = rtex;
+                                tex.ReadPixels(rectConfig, 0, 0);
+                                FlipAndEnqueueManaged(tex.GetRawTextureData());
+                            }
+                            else
+                            {
+                                // Copy NativeArray → staging on main thread, schedule flip on worker.
+                                ScheduleFlip(pendingRequest.GetData<byte>());
+                            }
+                            hasPending = false;
+                        }
+
+                        if (frameIndex < totalFrames)
+                        {
+                            // Render next frame into the RT now that the previous
+                            // readback has been collected.
+                            UpdateScene(frameIndex);
+                            RenderTexture.active = rtex;
+                            _Camera.Render();
+
+                            // Issue readback for the frame we just rendered.
+                            pendingRequest = AsyncGPUReadback.Request(rtex, 0, GraphicsFormat.R8G8B8_UNorm);
+                            hasPending = true;
+                            frameIndex++;
+                            frameYieldIndex++;
+                        }
+
+                        CheckErrors();
+
+                        if (frameYieldIndex >= YieldInterval() || frameIndex == totalFrames)
+                        {
+                            await YieldToPlayerLoop();
+                        }
+                    }
+                }
+                else
+                {
+                    // Synchronous fallback path (OpenGL ES / unsupported APIs).
+                    while (frameIndex < totalFrames)
+                    {
+                        await WaitForQueueAsync();
+
+                        UpdateScene(frameIndex);
+                        RenderTexture.active = rtex;
+                        _Camera.Render();
+
+                        tex.ReadPixels(rectConfig, 0, 0);
+                        FlipAndEnqueueManaged(tex.GetRawTextureData());
+
+                        CheckErrors();
+
+                        frameIndex++;
+                        frameYieldIndex++;
+
+                        if (frameYieldIndex >= YieldInterval() || frameIndex == totalFrames)
+                        {
+                            await YieldToPlayerLoop();
+                        }
+                    }
+                }
+
+                // Ensure the last flip task has enqueued its frame before signalling done.
+                pendingFlipTask?.Wait();
+
                 // Close the input stream to signal end of video data
                 rendering = false;
                 pipingThread.Join();
 
                 loaderPanel.ProgressLabel.text = "Finalizing video...";
+
+                LogPacing();
 
                 // Wait for FFmpeg to finish processing
                 if (FFmpegProcess != null && !FFmpegProcess.HasExited)
@@ -1187,6 +1894,8 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
             }
             finally
             {
+                QualitySettings.vSyncCount = previousVSyncCount;
+
                 KillFFmpegProcess();
 
                 loaderPanel.SetNoCancelButton();
@@ -1203,6 +1912,15 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
                 if (tex != null)
                 {
                     Destroy(tex);
+                }
+
+                if (songPcmPath != null && File.Exists(songPcmPath))
+                {
+                    File.Delete(songPcmPath);
+                }
+                if (mixedAudioPath != null && File.Exists(mixedAudioPath))
+                {
+                    File.Delete(mixedAudioPath);
                 }
 
                 chartmaker.Loader.SetActive(false);
@@ -1386,26 +2104,48 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
         
     }
     
+    public enum VideoQualityMode
+    {
+        Auto,
+        FixedBitrate,
+        AdaptiveBitrate,
+        AdaptiveBitrateCRF,
+    }
+    
+    public enum AudioQualityMode
+    {
+        Auto,
+        FixedBitrate,
+    }
 
     public class RenderPrefs 
     {
+
         public string FFmpegPath;
         public int    OutputType;
 
         public Vector2Int Resolution   = new(1024, 800);
         public float      FrameRate    = 30;
-        public float      VideoQuality = 0.6f;
-        public int        AudioBitRate = 128;
-        public float      VideoBitRate = 3200;
+
+        public int              EncoderSpeed = (int)RenderModal.EncoderSpeed.Balanced;
+        public VideoQualityMode VideoQualityMode;
+        public float            VideoBitRate = 3200;
+        public float            VideoQuality = 0.6f;
+        public int              VideoCrf;
+        public AudioQualityMode AudioQualityMode;
+        public int              AudioBitRate = 128;
      
         public string VideoEncoder;
         public string AudioEncoder;
         
         public bool OpenOnComplete = true;
-
-        public bool AdaptiveBitrate;
         
         public int AntiAliasing;
+
+
+
+        public bool  AddHitSfx    = true;
+        public float HitSfxVolume = 60;
 
         public void Load(Storage storage)
         {
@@ -1417,19 +2157,23 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
            
             FrameRate    = storage.Get("RD:FrameRate", FrameRate);
             
-            VideoQuality = storage.Get("RD:VideoQuality", VideoQuality);
-            
+            EncoderSpeed      = storage.Get("RD:EncoderSpeed", EncoderSpeed);
+            VideoQualityMode  = storage.Get("RD:VideoQualityMode", VideoQualityMode);
+            VideoQuality      = storage.Get("RD:VideoQuality", VideoQuality);
+            VideoBitRate      = storage.Get("RD:VideoBitRate", VideoBitRate);
+            VideoCrf          = storage.Get("RD:CrfVal", VideoCrf);
+            AudioQualityMode  = storage.Get("RD:AudioQualityMode", AudioQualityMode);
             AudioBitRate = storage.Get("RD:AudioBitRate", AudioBitRate);
-            VideoBitRate = storage.Get("RD:VideoBitRate", VideoBitRate);
             
             VideoEncoder = storage.Get("RD:VideoEncoder", VideoEncoder);
             AudioEncoder = storage.Get("RD:AudioEncoder", AudioEncoder);
             
             OpenOnComplete  = storage.Get("RD:OpenOnComplete", OpenOnComplete);
-         
-            AdaptiveBitrate = storage.Get("RD:AdaptiveBitrate", AdaptiveBitrate);
-           
+
             AntiAliasing = storage.Get("RD:AntiAliasing", AntiAliasing);
+
+            AddHitSfx    = storage.Get("RD:AddHitSfx", AddHitSfx);
+            HitSfxVolume = storage.Get("RD:HitSfxVolume", HitSfxVolume);
         }
 
         public void Save(Storage storage)
@@ -1442,19 +2186,23 @@ namespace JANOARG.Chartmaker.UI.Modal.ModalTypes
          
             storage.Set("RD:FrameRate", FrameRate);
           
+            storage.Set("RD:EncoderSpeed", EncoderSpeed);
+            storage.Set("RD:VideoQualityMode", VideoQualityMode);
             storage.Set("RD:VideoQuality", VideoQuality);
-            
-            storage.Set("RD:AudioBitRate", AudioBitRate);
             storage.Set("RD:VideoBitRate", VideoBitRate);
+            storage.Set("RD:CrfVal", VideoCrf);
+            storage.Set("RD:AudioQualityMode", AudioQualityMode);
+            storage.Set("RD:AudioBitRate", AudioBitRate);
           
             storage.Set("RD:VideoEncoder", VideoEncoder);
             storage.Set("RD:AudioEncoder", AudioEncoder);
             
             storage.Set("RD:OpenOnComplete", OpenOnComplete);
-         
-            storage.Set("RD:AdaptiveBitrate", AdaptiveBitrate);
-           
+
             storage.Set("RD:AntiAliasing", AntiAliasing);
+
+            storage.Set("RD:AddHitSfx", AddHitSfx);
+            storage.Set("RD:HitSfxVolume", HitSfxVolume);
         }
     }
 

@@ -20,11 +20,10 @@ namespace JANOARG.Chartmaker.Utils.Math
         /// <typeparam name="T">Result type.</typeparam>
         /// <param name="expression">The expression string to be evaluated.</param>
         /// <returns>The evaluation result of the expression string.</returns>
-        public static T Evaluate<T>(string expression)
+        public static T Evaluate<T>(string expression, ExpressionContext context = null)
         {
             expression = expression.ToLowerInvariant();
             return (T)Convert.ChangeType(ParseTokens(Tokenize(expression)), typeof(T));
-            throw new NotImplementedException();
         }
 
         /// <summary>
@@ -33,11 +32,11 @@ namespace JANOARG.Chartmaker.Utils.Math
         /// <typeparam name="T">Result type.</typeparam>
         /// <param name="expression">The expression string to be evaluated.</param>
         /// <returns>Whether the expression evaluated successfully.</returns>
-        public static bool TryEvaluate<T>(string expression, out T result)
+        public static bool TryEvaluate<T>(string expression, out T result, ExpressionContext context = null)
         {
             try
             {
-                result = Evaluate<T>(expression);
+                result = Evaluate<T>(expression, context);
                 return true;
             }
             catch (ExpressionException)
@@ -64,18 +63,34 @@ namespace JANOARG.Chartmaker.Utils.Math
 
             ExpressionToken ToToken()
             {
+                string text = currentText.ToString();
+
                 if (currentMode == TokenMode.Number)
                 {
                     return new ConstantExpressionToken
                     {
-                        Value = double.Parse(currentText.ToString(), CultureInfo.InvariantCulture)
+                        Value = double.Parse(text, CultureInfo.InvariantCulture)
+                    };
+                }
+                else if (Constant.Constants.ContainsKey(text))
+                {
+                    return new NamedConstantExpressionToken
+                    {
+                        Constant = text
+                    };
+                }
+                else if (Operator.Operators.ContainsKey(text))
+                {
+                    return new OperatorExpressionToken
+                    {
+                        Operator = text
                     };
                 }
                 else
                 {
-                    return new OperatorExpressionToken
+                    return new VariableExpressionToken
                     {
-                        Operator = currentText.ToString()
+                        Variable = text
                     };
                 }
             }
@@ -102,6 +117,13 @@ namespace JANOARG.Chartmaker.Utils.Math
                     yield return new EndExpressionToken();
                     continue;
                 }
+                if (character == ',')
+                {
+                    if (currentText.Length > 0) yield return ToToken();
+                    currentText = new();
+                    yield return new SeparatorExpressionToken();
+                    continue;
+                }
 
                 TokenMode targetMode = character switch
                 {
@@ -117,7 +139,7 @@ namespace JANOARG.Chartmaker.Utils.Math
                     currentMode = targetMode;
                 }
 
-                // Attempt to split continuos punctuation operators
+                // Attempt to split continuous punctuation operators
                 if (targetMode == TokenMode.Punctuation)
                 {
                     string currentOp = currentText.ToString() + character;
@@ -155,13 +177,20 @@ namespace JANOARG.Chartmaker.Utils.Math
         /// </summary>
         /// <param name="tokens">A token enumerable.</param>
         /// <returns>The result.</returns>
-        internal static double ParseTokens(IEnumerable<ExpressionToken> tokens)
+        internal static double ParseTokens(IEnumerable<ExpressionToken> tokens, ExpressionContext context = null)
         {
             var enumerator = tokens.GetEnumerator();
             enumerator.MoveNext();
-            Expression result = ParseTokens(enumerator, true);
+            Expression result = ParseTokens(enumerator, true, context);
             if (result is ConstantExpression constant) return constant.Value;
             else throw new ExpressionException("");
+        }
+        internal static Expression ParseTokens(IEnumerable<ExpressionToken> tokens, bool evaluate, ExpressionContext context = null)
+        {
+            var enumerator = tokens.GetEnumerator();
+            enumerator.MoveNext();
+            Expression result = ParseTokens(enumerator, evaluate, context);
+            return result;
         }
 
         /// <summary>
@@ -170,16 +199,16 @@ namespace JANOARG.Chartmaker.Utils.Math
         /// <param name="tokens">A token enumerator.</param>
         /// <param name="evaluate">Whether the parser also evaluates the expression.</param>
         /// <returns>The result.</returns>
-        internal static Expression ParseTokens(IEnumerator<ExpressionToken> tokens, bool evaluate = false, int rightBindingPower = 0)
+        internal static Expression ParseTokens(IEnumerator<ExpressionToken> tokens, bool evaluate = false, ExpressionContext context = null, int rightBindingPower = 0)
         {
-            Expression leftSide = ProcessFirstToken(tokens, evaluate);
+            Expression leftSide = ProcessFirstToken(tokens, evaluate, context);
 
-            ProcessInfixTokens(tokens, evaluate, rightBindingPower, ref leftSide);
+            ProcessInfixTokens(tokens, evaluate, rightBindingPower, ref leftSide, context);
 
-            return evaluate ? new ConstantExpression { Value = leftSide.Evaluate() } : leftSide;
+            return evaluate ? new ConstantExpression { Value = leftSide.Evaluate(context) } : leftSide;
         }
 
-        static Expression ProcessFirstToken(IEnumerator<ExpressionToken> tokens, bool evaluate)
+        static Expression ProcessFirstToken(IEnumerator<ExpressionToken> tokens, bool evaluate, ExpressionContext context = null)
         {
             ExpressionToken token = tokens.Current;
             tokens.MoveNext();
@@ -195,6 +224,24 @@ namespace JANOARG.Chartmaker.Utils.Math
                         }
                         tokens.MoveNext();
                         return exp;
+                    }
+
+                case VariableExpressionToken variable:
+                    {
+                        return new VariableExpression
+                        {
+                            Name = variable.Variable
+                        };
+                    }
+
+
+                case NamedConstantExpressionToken namedConstant:
+                    {
+                        Constant c = GetConstantFromToken(namedConstant);
+                        return new ConstantExpression
+                        {
+                            Value = c.Value
+                        };
                     }
 
                 case ConstantExpressionToken leftConstant:
@@ -213,7 +260,7 @@ namespace JANOARG.Chartmaker.Utils.Math
                         return new PrefixOperatorExpression
                         {
                             Operator = op,
-                            RightExpression = ParseTokens(tokens, evaluate, (int)BindingPower.Prefix)
+                            RightExpression = ParseTokens(tokens, evaluate, context, (int)BindingPower.Prefix)
                         };
                     }
 
@@ -222,7 +269,7 @@ namespace JANOARG.Chartmaker.Utils.Math
             }
         }
 
-        static void ProcessInfixTokens(IEnumerator<ExpressionToken> tokens, bool evaluate, int rightBindingPower, ref Expression leftSide)
+        static void ProcessInfixTokens(IEnumerator<ExpressionToken> tokens, bool evaluate, int rightBindingPower, ref Expression leftSide, ExpressionContext context = null)
         {
             while (true)
             {
@@ -245,7 +292,7 @@ namespace JANOARG.Chartmaker.Utils.Math
                     {
                         Operator = op,
                         LeftExpression = leftSide,
-                        RightExpression = ParseTokens(tokens, evaluate, op.LeftBindingPower + (int)op.Associativity)
+                        RightExpression = ParseTokens(tokens, evaluate, context, op.LeftBindingPower + (int)op.Associativity)
                     };
                 }
                 else
@@ -264,6 +311,18 @@ namespace JANOARG.Chartmaker.Utils.Math
             else
             {
                 throw new ExpressionException($"Unknown operator '{token.Operator}'");
+            }
+        }
+
+        static Constant GetConstantFromToken(NamedConstantExpressionToken token)
+        {
+            if (Constant.Constants.TryGetValue(token.Constant, out Constant c))
+            {
+                return c;
+            }
+            else
+            {
+                throw new ExpressionException($"Unknown constant '{token.Constant}'");
             }
         }
         
