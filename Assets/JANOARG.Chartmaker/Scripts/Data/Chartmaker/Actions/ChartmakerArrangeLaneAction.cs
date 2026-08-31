@@ -12,20 +12,23 @@ namespace JANOARG.Chartmaker.Data.Chartmaker.Actions
         public Lane   BeforeAdjacent;
         public ulong  BeforeAdjacentUuid;
         public string BeforeGroup;
+        public ulong  BeforeGroupUuid;
         public Lane   AfterAdjacent;
         public ulong  AfterAdjacentUuid;
         public string AfterGroup;
+        public ulong  AfterGroupUuid;
 
         public string GetName()
         {
             return "Arrange Lane";
         }
 
-        public void Do(Lane adjacent, ulong adjacentUuid, string group) 
+        public void Do(Lane adjacent, ulong adjacentUuid, string group, ulong groupUuid) 
         {
             List<Lane> list = Behaviors.Chartmaker.Chartmaker.main.CurrentChart.Lanes;
       
             Target.Group = group;
+            Target.GroupUuid = groupUuid;
       
             list.Remove(Target);
 
@@ -39,12 +42,12 @@ namespace JANOARG.Chartmaker.Data.Chartmaker.Actions
 
         public void Redo()
         {
-            Do(AfterAdjacent, AfterAdjacentUuid, AfterGroup);
+            Do(AfterAdjacent, AfterAdjacentUuid, AfterGroup, AfterGroupUuid);
         }
 
         public void Undo()
         {
-            Do(BeforeAdjacent, BeforeAdjacentUuid, BeforeGroup);
+            Do(BeforeAdjacent, BeforeAdjacentUuid, BeforeGroup, BeforeGroupUuid);
         }
     }
 }
