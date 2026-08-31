@@ -813,8 +813,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     ChartmakerArrangeLaneAction rearrangeLaneAction(Lane adjacent, string group) => new () {
                         Target = lane,
                         BeforeAdjacent = index > 0 ? list[index - 1] : null,
+                        BeforeAdjacentUuid = index > 0 ? list[index - 1].UUID : 0,
                         BeforeGroup = lane.Group,
                         AfterAdjacent = adjacent,
+                        AfterAdjacentUuid = adjacent?.UUID ?? 0,
                         AfterGroup = group
                     };
 
@@ -831,8 +833,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     ChartmakerArrangeLaneGroupAction rearrangeGroupAction(LaneGroup adjacent, string parent) => new () {
                         Target = group,
                         BeforeAdjacent = index > 0 ? list[index - 1] : null,
+                        BeforeAdjacentUuid = index > 0 ? list[index - 1].UUID : 0,
                         BeforeGroup = group.Group,
                         AfterAdjacent = adjacent,
+                        AfterAdjacentUuid = adjacent?.UUID ?? 0,
                         AfterGroup = parent
                     };
 
@@ -856,8 +860,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     ChartmakerArrangeLaneAction rearrangeLaneAction(Lane adjacent, string group) => new () {
                         Target = lane,
                         BeforeAdjacent = index > 0 ? list[index - 1] : null,
+                        BeforeAdjacentUuid = index > 0 ? list[index - 1].UUID : 0,
                         BeforeGroup = lane.Group,
                         AfterAdjacent = adjacent,
+                        AfterAdjacentUuid = adjacent?.UUID ?? 0,
                         AfterGroup = group
                     };
 
@@ -886,8 +892,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         IsLaneGroupDraggingIntoSelf(group, parent) ? null : new () {
                             Target = group,
                             BeforeAdjacent = index > 0 ? list[index - 1] : null,
+                            BeforeAdjacentUuid = index > 0 ? list[index - 1].UUID : 0,
                             BeforeGroup = group.Group,
                             AfterAdjacent = adjacent,
+                            AfterAdjacentUuid = adjacent?.UUID ?? 0,
                             AfterGroup = parent
                         };
 
