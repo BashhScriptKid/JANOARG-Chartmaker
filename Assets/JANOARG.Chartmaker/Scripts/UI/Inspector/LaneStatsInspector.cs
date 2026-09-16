@@ -62,7 +62,7 @@ namespace JANOARG.Chartmaker.UI.Inspector
                         omniFlickables++;
                 }
     
-                if (obj.Length > 0)
+                if (obj.HoldLength > 0)
                     holds++;
             }
 
