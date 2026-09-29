@@ -1039,8 +1039,8 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         // Reconstruction triggers when the viewport has consumed more than 62% of
         // the available margin on either side (i.e. drifted > 2.17× viewport widths
         // from the buffer centre).
-        const int   TICK_BUFFER_MULT           = 9;   // total buffer = this × viewport
-        const int   TICK_BUFFER_PADDING        = 4;   // padding on each side in viewport widths
+        const int   TICK_BUFFER_MULT           = 3;   // total buffer = this × viewport
+        const int   TICK_BUFFER_PADDING        = 1;   // padding on each side in viewport widths
         const float TICK_RECONSTRUCT_THRESHOLD = 0.62f;
         const int   TICK_GRADIENT_HEIGHT       = 8;    // [Optimization] 8px + Clamp + Bilinear = sharp bottom + smooth non-linear fade
         const int   TICK_MAX_LABEL_COUNT       = 50;
@@ -1063,7 +1063,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 TicksImage.enabled = true;
 
             int vpWidth  = Mathf.Max(1, (int)TicksHolder.rect.width);
-            int texWidth = Mathf.Min(vpWidth * TICK_BUFFER_MULT, SystemInfo.maxTextureSize);
+            int texWidth = Mathf.Min(vpWidth * TICK_BUFFER_MULT, Mathf.Min(SystemInfo.maxTextureSize, 16384));
 
             float density = (PeekRange.y - PeekRange.x) * metronome.GetStop(PeekRange.x, out _).BPM / vpWidth / 8;
             float factor  = Mathf.Log(density, SeparationFactor);
@@ -1591,7 +1591,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             int targetCols = Mathf.RoundToInt(WAVE_TARGET_BUFFER_SECONDS / step);
             int minCols    = vpWidth * (WAVE_BUFFER_PADDING * 2 + 1);
             int preferred  = Mathf.Max(targetCols, minCols);
-            return Mathf.Clamp(preferred, vpWidth, SystemInfo.maxTextureSize);
+            return Mathf.Clamp(preferred, vpWidth, Mathf.Min(SystemInfo.maxTextureSize, 16384));
         }
 
         public void UpdateWaveform()
@@ -1991,7 +1991,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             _WaveViewportHeight = 0;
             _WaveBaked          = null;
             _WaveOffset         = 0;
-            _WaveTimeouted      = false;
+            _WaveTimeouted      = true;
         }
 
         #endregion
