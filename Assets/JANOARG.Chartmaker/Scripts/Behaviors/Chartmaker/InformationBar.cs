@@ -109,6 +109,15 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         /// </summary>
         float GetSmoothSeconds()
         {
+            // In the pre-song break there is no audio to anchor to; the virtual clock is
+            // already smooth, so hand its value straight through.
+            if (Chartmaker.main.IsPreSong)
+            {
+                _WasPlaying = false;
+                _SmoothSec   = Chartmaker.main.SongTime;
+                return _SmoothSec;
+            }
+
             AudioSource source = Chartmaker.main.SongSource;
 
             float audioSec = source.timeSamples / (float)source.clip.frequency;
@@ -222,32 +231,30 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             if (Chartmaker.main == null)
                 return;
 
-            PlayIcon.SetActive(!Chartmaker.main.SongSource.isPlaying);
-            PauseIcon.SetActive(Chartmaker.main.SongSource.isPlaying);
+            PlayIcon.SetActive(!Chartmaker.main.IsPlaying);
+            PauseIcon.SetActive(Chartmaker.main.IsPlaying);
         }
     
         public void ToggleSong()
         {
-            if (Chartmaker.main.SongSource.isPlaying)
+            Chartmaker.main.TogglePlay();
+
+            if (Chartmaker.main.IsPlaying)
             {
-                Chartmaker.main.SongSource.Pause();
-            
-                if (Chartmaker.Preferences.MaximizeOnPlay)
-                {
-                    TimelinePanel.main.Restore();
-                    HierarchyPanel.main.Restore();
-                    InspectorPanel.main.Restore();
-                }
-            }
-            else 
-            {
-                Chartmaker.main.SongSource.Play();
-            
                 if (Chartmaker.Preferences.MaximizeOnPlay)
                 {
                     TimelinePanel.main.Collapse();
                     HierarchyPanel.main.Collapse();
                     InspectorPanel.main.Collapse();
+                }
+            }
+            else 
+            {
+                if (Chartmaker.Preferences.MaximizeOnPlay)
+                {
+                    TimelinePanel.main.Restore();
+                    HierarchyPanel.main.Restore();
+                    InspectorPanel.main.Restore();
                 }
             }
             UpdatePlayButton();

@@ -657,7 +657,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             CenterHandle.gameObject.SetActive(false);
             EndHandle.gameObject.SetActive(false);
 
-            if (Chartmaker.main.SongSource.isPlaying)
+            if (Chartmaker.main.IsPlaying)
                 return;
         
             switch (HierarchyPanel.main.CurrentMode)
@@ -769,7 +769,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     
                             LaneStepManager laneStepManager = laneManager.Steps[index];
 
-                            if (laneStepManager.Offset >= Chartmaker.main.SongSource.time)
+                            if (laneStepManager.Offset >= Chartmaker.main.SongTime)
                             {
                                 Vector3 offset = laneManager.FinalRotation * Vector3.forward * (laneStepManager.Distance - laneManager.CurrentDistance) + laneManager.FinalPosition;
                                 Vector2 middlePointPosition = (laneStepManager.CurrentStep.StartPointPosition + laneStepManager.CurrentStep.EndPointPosition) / 2;
@@ -814,7 +814,7 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     
                             HitObjectManager hitObjectManager = laneManager.Objects[index];
 
-                            if (hitObjectManager.TimeEnd >= Chartmaker.main.SongSource.time)
+                            if (hitObjectManager.TimeEnd >= Chartmaker.main.SongTime)
                             {
                                 Vector2 start = MainCamera.WorldToScreenPoint(laneManager.FinalRotation * (hitObjectManager.StartPos + laneManager.CurrentDistance * Vector3.back) + laneManager.FinalPosition);
                                 Vector2 end = MainCamera.WorldToScreenPoint(laneManager.FinalRotation * (hitObjectManager.EndPos + laneManager.CurrentDistance * Vector3.back) + laneManager.FinalPosition);

@@ -396,8 +396,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                                         });
                                         bpmTapper.OnStartTap.AddListener(() =>
                                         {
-                                            if (Chartmaker.main.SongSource.clip && !Chartmaker.main.SongSource.isPlaying)
+                                            if (Chartmaker.main.SongSource.clip && !Chartmaker.main.IsPlaying)
                                             {
+                                                Chartmaker.main.SeekTo(0);
                                                 Chartmaker.main.SongSource.Play();
                                                 bpmTapper.Reset();
                                             }
