@@ -984,16 +984,23 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         _ => (() => laneManager.FinalPosition),
                     };
 
+                    // The drag is measured against a fixed anchor, not the live position: the live
+                    // position is already snapped, so adding one event's small delta to it rounds
+                    // straight back and the handle would only creep on fast flicks.
+                    Vector3 gizmoAnchor = get();
+                    Vector3 dragAccum = Vector3.zero;
+
                     OnDragEvent += (ev) => {
-                        Vector3 current = get();
                         Vector2 local = ScreenDeltaToPlane(ev.delta, originOf(), basis * Vector3.right, basis * Vector3.up);
-                        Vector3 target = current + new Vector3(local.x, local.y, 0);
+                        dragAccum += new Vector3(local.x, local.y, 0);
+
+                        Vector3 target = gizmoAnchor + dragAccum;
 
                         if (GridSize[0] > 0)
                             for (int x = 0; x < 3; x++) 
                                 target[x] = Mathf.Round(target[x] / GridSize[0]) * GridSize[0];
 
-                        Vector3 offset = target - current;
+                        Vector3 offset = target - get();
 
                         switch (CurrentDragMode)
                         {
@@ -1034,6 +1041,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                             _ => null
                         };
                     
+                    Vector3 gizmoAnchor = get();
+                    Vector3 dragAccum = Vector3.zero;
+
                     OnDragEvent += (ev) => {
                         Vector3 current = get();
                         Vector3 origin = laneManager.FinalRotation * current
@@ -1041,7 +1051,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                                        + laneManager.FinalRotation * Vector3.forward * (laneStepManager.Distance - laneManager.CurrentDistance);
 
                         Vector2 local = ScreenDeltaToPlane(ev.delta, origin, laneManager.FinalRotation * Vector3.right, laneManager.FinalRotation * Vector3.up);
-                        Vector3 target = current + new Vector3(local.x, local.y, 0);
+                        dragAccum += new Vector3(local.x, local.y, 0);
+
+                        Vector3 target = gizmoAnchor + dragAccum;
                         
                         if (GridSize[0] > 0)
                             for (int x = 0; x < 3; x++)
@@ -1086,6 +1098,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         _ => null
                     };
 
+                    Vector3 gizmoAnchor = get();
+                    Vector3 dragAccum = Vector3.zero;
+
                     OnDragEvent += (PointerEventData ev) => 
                     {
                         // The note's Position is a fraction along its lane cross-section, so the drag
@@ -1104,8 +1119,9 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                             ? Vector2.Dot(ev.delta, span) / span.sqrMagnitude
                             : 0;
 
-                        Vector3 current = get();
-                        Vector3 target = current + Vector3.right * fractionDelta;
+                        dragAccum += Vector3.right * fractionDelta;
+
+                        Vector3 target = gizmoAnchor + dragAccum;
 
                         if (GridSize[0] > 0)
                         {
@@ -1114,14 +1130,16 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                             target = des;
                         }
 
+                        Vector3 offset = target - get();
+
                         switch (CurrentDragMode)
                         {
                             case HandleDragMode.Start:
-                                DoMove<ChartmakerMoveHitObjectStartAction, HitObject>(hit, target - current); break;
+                                DoMove<ChartmakerMoveHitObjectStartAction, HitObject>(hit, offset); break;
                             case HandleDragMode.Center:
-                                DoMove<ChartmakerMoveHitObjectAction, HitObject>(hit, target - current); break;
+                                DoMove<ChartmakerMoveHitObjectAction, HitObject>(hit, offset); break;
                             case HandleDragMode.End:
-                                DoMove<ChartmakerMoveHitObjectEndAction, HitObject>(hit, target - current); break;
+                                DoMove<ChartmakerMoveHitObjectEndAction, HitObject>(hit, offset); break;
                         }
                     };
                 }
