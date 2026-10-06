@@ -136,7 +136,7 @@ namespace JANOARG.Chartmaker.UI.Inspector
                 Push(MonoMemory, Profiler.GetMonoUsedSizeLong() / 1048576f);
                 float memMax = Mathf.Max(ReservedMemory.ToArray());
                 MemoryScale = Mathf.Max(MemoryScale, Mathf.Ceil(memMax / 64f) * 64f);
-                bool memValid = MemoryScale > 0.001f;
+                bool memValid = Profiler.supported && MemoryScale > 0.001f;
                 float[] memall = new float[64], memres = new float[64], memmono = new float[64];
                 if (memValid)
                 {
