@@ -42,6 +42,8 @@ namespace JANOARG.Chartmaker.UI.Inspector
         List<float> ReservedMemory  = new();
         List<float> MonoMemory      = new();
 
+        float MemoryScale;
+
         Material FPSGraphMaterial, MemoryGraphMaterial;
 
         void Start()
@@ -132,14 +134,15 @@ namespace JANOARG.Chartmaker.UI.Inspector
                 Push(AllocatedMemory, Profiler.GetTotalAllocatedMemoryLong() / 1048576f);
                 Push(ReservedMemory, Profiler.GetTotalReservedMemoryLong() / 1048576f);
                 Push(MonoMemory, Profiler.GetMonoUsedSizeLong() / 1048576f);
-                float memheight = Mathf.Max(ReservedMemory.ToArray()); 
-                bool memValid = memheight > 0.001f;
+                float memMax = Mathf.Max(ReservedMemory.ToArray());
+                MemoryScale = Mathf.Max(MemoryScale, Mathf.Ceil(memMax / 64f) * 64f);
+                bool memValid = MemoryScale > 0.001f;
                 float[] memall = new float[64], memres = new float[64], memmono = new float[64];
                 if (memValid)
                 {
-                    FillSeries(AllocatedMemory, memall, memheight);
-                    FillSeries(ReservedMemory, memres, memheight);
-                    FillSeries(MonoMemory, memmono, memheight);
+                    FillSeries(AllocatedMemory, memall, MemoryScale);
+                    FillSeries(ReservedMemory, memres, MemoryScale);
+                    FillSeries(MonoMemory, memmono, MemoryScale);
                 }
                 else
                 {
