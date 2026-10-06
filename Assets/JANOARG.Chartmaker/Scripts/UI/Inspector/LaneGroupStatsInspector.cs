@@ -18,6 +18,7 @@ namespace JANOARG.Chartmaker.UI.Inspector
         public TMP_Text Catches;
         public TMP_Text Flickables;
         public TMP_Text Holds;
+        public TMP_Text FakeNotes;
         
         private LaneGroup _lastLaneGroup;
 
@@ -39,6 +40,7 @@ namespace JANOARG.Chartmaker.UI.Inspector
                 Catches.text = "-";
                 Flickables.text = "-";
                 Holds.text = "-";
+                if (FakeNotes) FakeNotes.text = "-";
                 return;
             }
             
@@ -52,7 +54,8 @@ namespace JANOARG.Chartmaker.UI.Inspector
                 catches = 0, 
                 directionalFlickables = 0, 
                 omniFlickables = 0,
-                holds = 0;
+                holds = 0,
+                fakeNotes = 0;
             
             _lastLaneGroup = HightlightedLaneGroup;
         
@@ -84,7 +87,7 @@ namespace JANOARG.Chartmaker.UI.Inspector
             MaxNestingCount.text = CalculateMaxNestingDepth(groupName, chart).ToString();
             
             LaneCountRecursive.text = CalculateRecursiveLaneCount(groupName, chart, 
-                ref totalHitObjects,ref taps, ref catches, ref directionalFlickables, ref omniFlickables, ref holds).ToString();
+                ref totalHitObjects,ref taps, ref catches, ref directionalFlickables, ref omniFlickables, ref holds, ref fakeNotes).ToString();
             
             TotalHitObjects.text = totalHitObjects.ToString();
             
@@ -92,6 +95,7 @@ namespace JANOARG.Chartmaker.UI.Inspector
             Catches.text = catches.ToString();
             Flickables.text = $"{omniFlickables}/{directionalFlickables}";
             Holds.text = holds.ToString();
+            if (FakeNotes) FakeNotes.text = fakeNotes.ToString();
         }
         
         private int CalculateMaxNestingDepth(string groupName, Chart chart)
@@ -128,7 +132,7 @@ namespace JANOARG.Chartmaker.UI.Inspector
         }
         
         private int CalculateRecursiveLaneCount(string groupName, Chart chart, 
-            ref int totalHitObjects, ref int taps, ref int catches, ref int directionalFlickables, ref int omniFlickables, ref int holds)
+            ref int totalHitObjects, ref int taps, ref int catches, ref int directionalFlickables, ref int omniFlickables, ref int holds, ref int fakeNotes)
         {
             int totalLanes = 0;
     
@@ -139,9 +143,16 @@ namespace JANOARG.Chartmaker.UI.Inspector
                     continue;
 
                 totalLanes++;
-                totalHitObjects += lane.Objects.Count;
                 foreach (var obj in lane.Objects)
                 {
+                    if (obj.IsFake)
+                    {
+                        fakeNotes++;
+                        continue;
+                    }
+
+                    totalHitObjects++;
+
                     switch (obj.Type)
                     {
                         case HitObject.HitType.Normal:
@@ -170,7 +181,7 @@ namespace JANOARG.Chartmaker.UI.Inspector
             // Recursively count lanes in child groups
             foreach (var group in chart.Groups)
                 if (group.Group == groupName)
-                    totalLanes += CalculateRecursiveLaneCount(group.Name, chart, ref totalHitObjects,ref taps, ref catches, ref directionalFlickables, ref omniFlickables, ref holds);
+                    totalLanes += CalculateRecursiveLaneCount(group.Name, chart, ref totalHitObjects,ref taps, ref catches, ref directionalFlickables, ref omniFlickables, ref holds, ref fakeNotes);
     
             return totalLanes;
         }

@@ -16,6 +16,7 @@ namespace JANOARG.Chartmaker.UI.Inspector
         public TMP_Text Catches;
         public TMP_Text Flickables;
         public TMP_Text Holds;
+        public TMP_Text FakeNotes;
 
         void Start()
         {
@@ -32,23 +33,33 @@ namespace JANOARG.Chartmaker.UI.Inspector
                 Catches.text = "-";
                 Flickables.text = "-";
                 Holds.text = "-";
+                if (FakeNotes) FakeNotes.text = "-";
                 return;
             }
 
             LaneStep.text = HightlightedLane.LaneSteps.Count.ToString();
 
             var objects = HightlightedLane.Objects;
-            TotalHitObjects.text = objects.Count.ToString();
 
+            int totalHitObjects = 0;
             int taps = 0;
             int catches = 0;
             int omniFlickables = 0;
             int directionalFlickables = 0;
             int holds = 0;
+            int fakeNotes = 0;
 
             // Single pass through the collection
             foreach (var obj in objects)
             {
+                if (obj.IsFake)
+                {
+                    fakeNotes++;
+                    continue;
+                }
+
+                totalHitObjects++;
+
                 if (obj.Type is HitObject.HitType.Normal)
                     taps++;
                 else if (obj.Type is HitObject.HitType.Catch)
@@ -66,10 +77,12 @@ namespace JANOARG.Chartmaker.UI.Inspector
                     holds++;
             }
 
+            TotalHitObjects.text = totalHitObjects.ToString();
             Taps.text = taps.ToString();
             Catches.text = catches.ToString();
             Flickables.text = $"{omniFlickables}/{directionalFlickables}";
             Holds.text = holds.ToString();
+            if (FakeNotes) FakeNotes.text = fakeNotes.ToString();
         }
     }
 }

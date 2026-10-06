@@ -27,6 +27,7 @@ namespace JANOARG.Chartmaker.UI.Inspector
         public TMP_Text HoldCount;
         public TMP_Text HoldTapCatchCount;
         public TMP_Text HoldTickCount;
+        public TMP_Text FakeNotes;
 
         [Header("Score")]
         public TMP_Text EXScore;
@@ -54,6 +55,7 @@ namespace JANOARG.Chartmaker.UI.Inspector
                 HoldCount.text = "-";
                 HoldTapCatchCount.text = "-";
                 HoldTickCount.text = "-";
+                if (FakeNotes) FakeNotes.text = "-";
                 EXScore.text = "-";
                 MaxStreak.text = "-";
                 return;
@@ -78,17 +80,25 @@ namespace JANOARG.Chartmaker.UI.Inspector
             int tapHolds = 0;
             int catchHolds = 0;
             int holdTicks = 0;
+            int fakeNotes = 0;
 
             foreach (var lane in HightlightedChart.Lanes)
             {
                 laneStepCount += lane.LaneSteps.Count; 
                 
                 var objects = lane.Objects;
-                totalHitObjects += objects.Count;
 
                 // Hit Object Count
                 foreach (var obj in objects)
                 {
+                    if (obj.IsFake)
+                    {
+                        fakeNotes++;
+                        continue;
+                    }
+
+                    totalHitObjects++;
+
                     if (obj.Type is HitObject.HitType.Normal)
                         taps++;
                     else if (obj.Type is HitObject.HitType.Catch)
@@ -126,6 +136,7 @@ namespace JANOARG.Chartmaker.UI.Inspector
             HoldCount.text = (tapHolds + catchHolds).ToString();
             HoldTapCatchCount.text = $"({tapHolds}+{catchHolds})";
             HoldTickCount.text = holdTicks.ToString();
+            if (FakeNotes) FakeNotes.text = fakeNotes.ToString();
 
             // Score
             // Get Max Streak
