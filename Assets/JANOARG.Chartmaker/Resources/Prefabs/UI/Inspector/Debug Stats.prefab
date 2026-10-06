@@ -1262,6 +1262,7 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
+  - component: {fileID: 5867475236360992512}
   - component: {fileID: 6683945349794020237}
   - component: {fileID: 4237344792204619713}
   - component: {fileID: 5440149657922622888}
@@ -1288,8 +1289,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 1, y: 0.5}
-  m_AnchoredPosition: {x: 34.5, y: 0}
-  m_SizeDelta: {x: 71, y: 20}
+  m_AnchoredPosition: {x: -30, y: 0}
+  m_SizeDelta: {x: 200, y: 20}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &4237344792204619713
 CanvasRenderer:
@@ -1848,6 +1849,7 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
+  - component: {fileID: 5470150148158593217}
   - component: {fileID: 8393369937760116984}
   - component: {fileID: 4774495359826977284}
   - component: {fileID: 2453119012283351920}
@@ -1874,8 +1876,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 1, y: 0.5}
-  m_AnchoredPosition: {x: -15, y: 0}
-  m_SizeDelta: {x: 170, y: 20}
+  m_AnchoredPosition: {x: -30, y: 0}
+  m_SizeDelta: {x: 200, y: 20}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &4774495359826977284
 CanvasRenderer:
@@ -1992,7 +1994,6 @@ GameObject:
   - component: {fileID: 4893276381866844443}
   - component: {fileID: 8228795362648607803}
   - component: {fileID: 5197745691985336717}
-  - component: {fileID: 5867475236360992512}
   m_Layer: 5
   m_Name: Label
   m_TagString: Untagged
@@ -2159,7 +2160,7 @@ MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3767621564743607434}
+  m_GameObject: {fileID: 2103308284132512678}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8c3575a8e2f3f824ba92bd05325e044a, type: 3}
@@ -2581,6 +2582,7 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
+  - component: {fileID: 35499327607549853}
   - component: {fileID: 2221866420430095428}
   - component: {fileID: 7808565315152613079}
   - component: {fileID: 7799468411723049890}
@@ -2607,8 +2609,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 1, y: 0.5}
-  m_AnchoredPosition: {x: -15.249989, y: 0}
-  m_SizeDelta: {x: 170.50002, y: 20}
+  m_AnchoredPosition: {x: -30, y: 0}
+  m_SizeDelta: {x: 200, y: 20}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &7808565315152613079
 CanvasRenderer:
@@ -2748,7 +2750,6 @@ GameObject:
   - component: {fileID: 8762459855493893859}
   - component: {fileID: 6843042550502417267}
   - component: {fileID: 4086452696949607536}
-  - component: {fileID: 5470150148158593217}
   m_Layer: 5
   m_Name: Label
   m_TagString: Untagged
@@ -2913,7 +2914,7 @@ MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4944891743407532882}
+  m_GameObject: {fileID: 3584673948162146036}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8c3575a8e2f3f824ba92bd05325e044a, type: 3}
@@ -2936,7 +2937,6 @@ GameObject:
   - component: {fileID: 1674863780114266268}
   - component: {fileID: 8441585009808019626}
   - component: {fileID: 3420569530126001334}
-  - component: {fileID: 35499327607549853}
   m_Layer: 5
   m_Name: Label
   m_TagString: Untagged
@@ -3101,7 +3101,7 @@ MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6013905319294120852}
+  m_GameObject: {fileID: 4678858345729408341}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8c3575a8e2f3f824ba92bd05325e044a, type: 3}
@@ -3629,6 +3629,7 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
+  - component: {fileID: 7556747346339560572}
   - component: {fileID: 7300675337235924767}
   - component: {fileID: 3937783009398774904}
   - component: {fileID: 2751717988266486146}
@@ -5387,7 +5388,6 @@ GameObject:
   - component: {fileID: 7997934929565178757}
   - component: {fileID: 8659043358387987371}
   - component: {fileID: 1437247380760454888}
-  - component: {fileID: 7556747346339560572}
   m_Layer: 5
   m_Name: Total Label
   m_TagString: Untagged
@@ -5552,7 +5552,7 @@ MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 9092396874581846336}
+  m_GameObject: {fileID: 6900635002129752760}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8c3575a8e2f3f824ba92bd05325e044a, type: 3}
