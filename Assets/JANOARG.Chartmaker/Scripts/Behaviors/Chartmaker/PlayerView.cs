@@ -960,56 +960,49 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     LaneGroupManager laneGroupManager = null;
                     bool hasGroup = !string.IsNullOrEmpty(laneManager.Current.Group) 
                                     && Manager.Groups.TryGetValue(laneManager.Current.Group, out laneGroupManager);
-                
-                    Vector3 Inv(Vector3 x)      => Quaternion.Inverse(laneManager.FinalRotation) * (x - laneManager.FinalPosition);
-                    Vector3 GroupInv(Vector3 x) => hasGroup ? Quaternion.Inverse(laneGroupManager.FinalRotation) * (x - laneGroupManager.FinalPosition) : x;
 
-                    Func<Vector3> get = 
-                        CurrentDragMode switch
-                        {
-                            HandleDragMode.Start => (() => Inv(laneManager.StartPos)),
-                            HandleDragMode.Center => (() => GroupInv(laneManager.FinalPosition)),
-                            HandleDragMode.End => (() => Inv(laneManager.EndPos)),
-                            _ => null
-                        };
-                    
-                    Vector3 gizmoAnchor = get();
-                
+                    // Start/End move lane-local points, so their basis is the lane frame. Center
+                    // moves the lane's Position, which is measured in the parent group's frame
+                    // (or the world's, when the lane is ungrouped).
+                    bool isCenter = CurrentDragMode == HandleDragMode.Center;
+                    Quaternion basis = isCenter
+                        ? (hasGroup ? laneGroupManager.FinalRotation : Quaternion.identity)
+                        : laneManager.FinalRotation;
+
+                    Func<Vector3> get = CurrentDragMode switch
+                    {
+                        HandleDragMode.Start => (() => Quaternion.Inverse(laneManager.FinalRotation) * (laneManager.StartPos - laneManager.FinalPosition)),
+                        HandleDragMode.Center => (() => hasGroup ? Quaternion.Inverse(laneGroupManager.FinalRotation) * (laneManager.FinalPosition - laneGroupManager.FinalPosition) : laneManager.FinalPosition),
+                        HandleDragMode.End => (() => Quaternion.Inverse(laneManager.FinalRotation) * (laneManager.EndPos - laneManager.FinalPosition)),
+                        _ => null
+                    };
+
+                    Func<Vector3> originOf = CurrentDragMode switch
+                    {
+                        HandleDragMode.Start => (() => laneManager.StartPos),
+                        HandleDragMode.End => (() => laneManager.EndPos),
+                        _ => (() => laneManager.FinalPosition),
+                    };
+
                     OnDragEvent += (ev) => {
-                        Vector3? dragPosNull = CurrentDragMode == HandleDragMode.Center 
-                            ? (hasGroup
-                                ? RaycastScreenToPlane(ev.position, laneGroupManager!.FinalPosition + laneGroupManager.FinalRotation * Vector3.forward * get().z, laneGroupManager.FinalRotation)
-                                : RaycastScreenToPlane(ev.position, Vector3.forward * get().z, Quaternion.identity))
-                            : RaycastScreenToPlane(ev.position, laneManager.FinalPosition + laneManager.FinalRotation * Vector3.forward * get().z, laneManager.FinalRotation);
-                        Vector3 dragPos;
-                        if (dragPosNull != null)
-                        {
-                            if (CurrentDragMode is HandleDragMode.Center)
-                                dragPos = GroupInv((Vector3)dragPosNull);
-                            else
-                                dragPos = Inv((Vector3)dragPosNull);
-                        
-                            if (GridSize[0] > 0)
-                            {
-                                Vector3 des = new();
-                            
-                                for (int x = 0; x < 3; x++) 
-                                    des[x] = Mathf.Round(dragPos[x] / GridSize[0]) * GridSize[0];
-                            
-                                dragPos = des;
-                            }
-                        }
-                        else
-                            dragPos = gizmoAnchor;
-                
+                        Vector3 current = get();
+                        Vector2 local = ScreenDeltaToPlane(ev.delta, originOf(), basis * Vector3.right, basis * Vector3.up);
+                        Vector3 target = current + new Vector3(local.x, local.y, 0);
+
+                        if (GridSize[0] > 0)
+                            for (int x = 0; x < 3; x++) 
+                                target[x] = Mathf.Round(target[x] / GridSize[0]) * GridSize[0];
+
+                        Vector3 offset = target - current;
+
                         switch (CurrentDragMode)
                         {
                             case HandleDragMode.Start:
-                                DoMove<ChartmakerMoveLaneStartAction, Lane>(lane, (Vector3)dragPos - get()); break;
+                                DoMove<ChartmakerMoveLaneStartAction, Lane>(lane, offset); break;
                             case HandleDragMode.Center:
-                                DoMove<ChartmakerMoveLaneAction, Lane>(lane, (Vector3)dragPos - get()); break;
+                                DoMove<ChartmakerMoveLaneAction, Lane>(lane, offset); break;
                             case HandleDragMode.End:
-                                DoMove<ChartmakerMoveLaneEndAction, Lane>(lane, (Vector3)dragPos - get()); break;
+                                DoMove<ChartmakerMoveLaneEndAction, Lane>(lane, offset); break;
                         }
                     };                  
                 } 
@@ -1032,8 +1025,6 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 
                     LaneStepManager laneStepManager = laneManager.Steps[index];
 
-                    Vector3 Inv(Vector3 x) => Quaternion.Inverse(laneManager.FinalRotation) * (x - laneManager.FinalPosition);
-
                     Func<Vector3> get = 
                         CurrentDragMode switch
                         {
@@ -1043,39 +1034,27 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                             _ => null
                         };
                     
-                    Vector3 gizmoAnchor = get!();
-
                     OnDragEvent += (ev) => {
-                        Vector3? dragPos = 
-                            RaycastScreenToPlane(ev.position, laneManager.FinalPosition + laneManager.FinalRotation * Vector3.forward * (laneStepManager.Distance - laneManager.CurrentDistance), laneManager.FinalRotation);
-                    
-                        if (dragPos != null)
-                        {
-                            dragPos = Inv((Vector3)dragPos);
+                        Vector3 current = get();
+                        Vector3 origin = laneManager.FinalRotation * current
+                                       + laneManager.FinalPosition
+                                       + laneManager.FinalRotation * Vector3.forward * (laneStepManager.Distance - laneManager.CurrentDistance);
+
+                        Vector2 local = ScreenDeltaToPlane(ev.delta, origin, laneManager.FinalRotation * Vector3.right, laneManager.FinalRotation * Vector3.up);
+                        Vector3 target = current + new Vector3(local.x, local.y, 0);
                         
-                            if (GridSize[0] > 0)
-                            {
-                                Vector3 des = new();
-                            
-                                for (int x = 0; x < 3; x++)
-                                    des[x] = Mathf.Round((dragPos?[x] ?? 0) / GridSize[0]) * GridSize[0];
-                            
-                                dragPos = des;
-                            } 
-                        }
-                        else
-                        {
-                            dragPos = gizmoAnchor;
-                        }
-                
+                        if (GridSize[0] > 0)
+                            for (int x = 0; x < 3; x++)
+                                target[x] = Mathf.Round(target[x] / GridSize[0]) * GridSize[0];
+
                         switch (CurrentDragMode)
                         {
                             case HandleDragMode.Start:
-                                DoMove<ChartmakerMoveLaneStepStartAction, LaneStep>(step, (Vector3)dragPos - get()); break;
+                                DoMove<ChartmakerMoveLaneStepStartAction, LaneStep>(step, target - current); break;
                             case HandleDragMode.Center:
-                                DoMove<ChartmakerMoveLaneStepAction, LaneStep>(step, (Vector3)dragPos - get()); break;
+                                DoMove<ChartmakerMoveLaneStepAction, LaneStep>(step, target - current); break;
                             case HandleDragMode.End:
-                                DoMove<ChartmakerMoveLaneStepEndAction, LaneStep>(step, (Vector3)dragPos - get()); break;
+                                DoMove<ChartmakerMoveLaneStepEndAction, LaneStep>(step, target - current); break;
                         }
                     };
                 }
@@ -1098,12 +1077,6 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         return;
                 
                     HitObjectManager hitObjectManager = laneManager.Objects[index];
-                
-                    Vector3 Inv(Vector3 x)
-                    {
-                        Vector3 point = Quaternion.Inverse(laneManager.FinalRotation) * (x - laneManager.FinalPosition) - Vector3.forward * (hitObjectManager.Position.z - laneManager.CurrentDistance);
-                        return Vector3.right * (Quaternion.Euler(0, 0, Vector2.SignedAngle(laneManager.EndPosLocal - laneManager.StartPosLocal, Vector2.right)) * (point - laneManager.StartPosLocal)).x / Vector2.Distance(laneManager.StartPosLocal, laneManager.EndPosLocal);
-                    }
 
                     Func<Vector3> get = CurrentDragMode switch
                     {
@@ -1112,39 +1085,43 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                         HandleDragMode.End => (() => Vector3.right * (hitObjectManager.Current.Position + hitObjectManager.Current.Length)),
                         _ => null
                     };
-                    
-                    Vector3 gizmoAnchor = get!();
 
                     OnDragEvent += (PointerEventData ev) => 
                     {
-                        Vector3? dragPos = 
-                            RaycastScreenToPlane(
-                                ev.position, 
-                                laneManager.FinalPosition + laneManager.FinalRotation * Vector3.forward * (hitObjectManager.Position.z - laneManager.CurrentDistance), 
-                                laneManager.FinalRotation);
-                   
-                        if (dragPos != null)
+                        // The note's Position is a fraction along its lane cross-section, so the drag
+                        // axis is that cross-section: one whole fraction of it, projected from the
+                        // note's own screen location. A hold carries its span in StartPos/EndPos; a
+                        // zero-length note reads the lane's.
+                        Vector3 widthSpan = hitObjectManager.Current.Length > 1e-6f
+                            ? laneManager.FinalRotation * ((hitObjectManager.EndPos - hitObjectManager.StartPos) / hitObjectManager.Current.Length)
+                            : laneManager.FinalRotation * (laneManager.EndPosLocal - laneManager.StartPosLocal);
+                        Vector3 noteWorld = laneManager.FinalRotation * (hitObjectManager.Position + laneManager.CurrentDistance * Vector3.back) + laneManager.FinalPosition;
+
+                        Vector2 spanStart = MainCamera.WorldToScreenPoint(noteWorld);
+                        Vector2 span = (Vector2)MainCamera.WorldToScreenPoint(noteWorld + widthSpan) - spanStart;
+
+                        float fractionDelta = span.sqrMagnitude > 1e-6f
+                            ? Vector2.Dot(ev.delta, span) / span.sqrMagnitude
+                            : 0;
+
+                        Vector3 current = get();
+                        Vector3 target = current + Vector3.right * fractionDelta;
+
+                        if (GridSize[0] > 0)
                         {
-                            dragPos = Inv((Vector3)dragPos);
-                        
-                            if (GridSize[0] > 0)
-                            {
-                                Vector3 des = new();
-                                des[0] = Mathf.Round((dragPos?[0] ?? 0) / 0.05f) * 0.05f;
-                                dragPos = des;
-                            } 
+                            Vector3 des = new();
+                            des[0] = Mathf.Round(target[0] / 0.05f) * 0.05f;
+                            target = des;
                         }
-                        else
-                            dragPos = gizmoAnchor;
-                
+
                         switch (CurrentDragMode)
                         {
                             case HandleDragMode.Start:
-                                DoMove<ChartmakerMoveHitObjectStartAction, HitObject>(hit, (Vector3)dragPos - get()); break;
+                                DoMove<ChartmakerMoveHitObjectStartAction, HitObject>(hit, target - current); break;
                             case HandleDragMode.Center:
-                                DoMove<ChartmakerMoveHitObjectAction, HitObject>(hit, (Vector3)dragPos - get()); break;
+                                DoMove<ChartmakerMoveHitObjectAction, HitObject>(hit, target - current); break;
                             case HandleDragMode.End:
-                                DoMove<ChartmakerMoveHitObjectEndAction, HitObject>(hit, (Vector3)dragPos - get()); break;
+                                DoMove<ChartmakerMoveHitObjectEndAction, HitObject>(hit, target - current); break;
                         }
                     };
                 }
@@ -1229,15 +1206,29 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             UpdateCursor(eventData.position, eventData.pressEventCamera);
         }
     
-        public Vector3? RaycastScreenToPlane(Vector3 pos, Vector3 center, Quaternion rotation)
+        /// <summary>
+        /// Maps a screen-space pointer delta back onto the plane spanned by the two unit world
+        /// directions <paramref name="axisX"/> / <paramref name="axisY"/> through
+        /// <paramref name="origin"/>, returning the delta measured along each. The handles are
+        /// drawn by projecting world points to screen, so the drag inverts that projection.
+        /// Ray-casting the object's own plane instead had no answer when the plane turned
+        /// edge-on to the camera — a lane Rotation X of ±90° puts the plane parallel to a level
+        /// view ray, Plane.Raycast fails, and the handles cannot be dragged at all. A plane
+        /// seen exactly edge-on has no unique answer, so that case returns zero instead of
+        /// dividing by a vanishing determinant.
+        /// </summary>
+        public Vector2 ScreenDeltaToPlane(Vector2 delta, Vector3 origin, Vector3 axisX, Vector3 axisY)
         {
-            Plane plane = new (rotation * Vector3.back, center);
-            Ray ray = MainCamera.ScreenPointToRay(new Vector2(pos.x, pos.y));
-            if (plane.Raycast(ray, out float enter))
-            {
-                return ray.GetPoint(enter);
-            }
-            return null;
+            Vector2 screenX = (Vector2)MainCamera.WorldToScreenPoint(origin + axisX) - (Vector2)MainCamera.WorldToScreenPoint(origin);
+            Vector2 screenY = (Vector2)MainCamera.WorldToScreenPoint(origin + axisY) - (Vector2)MainCamera.WorldToScreenPoint(origin);
+
+            float det = screenX.x * screenY.y - screenY.x * screenX.y;
+            if (Mathf.Abs(det) < 1e-6f) return Vector2.zero;
+
+            return new Vector2(
+                (delta.x * screenY.y - delta.y * screenY.x) / det,
+                (screenX.x * delta.y - screenX.y * delta.x) / det
+            );
         }
 
         public Rect Rect2UV(Rect parent, Rect child) 
