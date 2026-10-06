@@ -9,6 +9,7 @@ using JANOARG.Chartmaker.Data.Chartmaker.Actions;
 using JANOARG.Chartmaker.UI;
 using JANOARG.Chartmaker.UI.ContextMenu;
 using JANOARG.Chartmaker.UI.Themeable;
+using JANOARG.Chartmaker.UI.Themeable.ThemeableTypes;
 using JANOARG.Chartmaker.UI.Timeline;
 using JANOARG.Chartmaker.Utils;
 using JANOARG.Shared.Data.ChartInfo;
@@ -188,15 +189,37 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
         public void Start()
         {
+            EnsureSoftStartTint();
             UpdateTabs();
             UpdateScrollbar();
             Options.OnEnable();
             UpdateTimeline(true);
         }
 
+        // A fainter companion to the "Song Start" tint, covering the soft-limit stretch from the
+        // hard limit (PreSongLimit) up to the audio start. It is cloned from the hard tint at
+        // runtime so it picks up that tint's border and layout, and it takes its own theme colour
+        // so the soft limit reads as a uniform band with a hard edge rather than a fade.
+        RectTransform _SoftStartRect;
+
+        void EnsureSoftStartTint()
+        {
+            if (_SoftStartRect || !SongStartRect) return;
+
+            _SoftStartRect = Instantiate(SongStartRect, SongStartRect.parent);
+            _SoftStartRect.name = "Song Start Soft";
+            _SoftStartRect.SetSiblingIndex(SongStartRect.GetSiblingIndex() + 1);
+
+            if (_SoftStartRect.TryGetComponent(out GraphicThemeable themeable))
+            {
+                themeable.ID = "TimelineBackgroundStartSoft";
+                themeable.SetColors();
+            }
+        }
+
         public void UpdatePeekLimit()
         {
-            PeekLimit.x = -5;
+            PeekLimit.x = Chartmaker.PreSongLimit;
             PeekLimit.y = Chartmaker.main.CurrentSong.Clip.length + 5;
         }
 
@@ -408,6 +431,15 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                     Mathf.InverseLerp(PeekRange.x, PeekRange.y, Chartmaker.main.CurrentSong.Clip.length), 
                     SongEndRect.anchorMin.y
                 );
+
+                // The soft-limit tint fills the gap the hard tint leaves behind.
+                if (_SoftStartRect)
+                {
+                    float hardLimit = Mathf.InverseLerp(PeekRange.x, PeekRange.y, Chartmaker.PreSongLimit);
+
+                    _SoftStartRect.anchorMin = new (hardLimit, 0);
+                    _SoftStartRect.anchorMax = new (Mathf.InverseLerp(PeekRange.x, PeekRange.y, 0), 1);
+                }
 
                 UpdateItems();
                 UpdateWaveform();
