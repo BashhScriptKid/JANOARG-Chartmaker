@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using JANOARG.Chartmaker.Behaviors.Chartmaker;
 using JANOARG.Chartmaker.UI.Modal;
 using JANOARG.Chartmaker.UI.Modal.ModalTypes;
-using JANOARG.Chartmaker.UI.Tooltip;
 using JANOARG.Chartmaker.Utils;
 using TMPro;
 using UnityEngine;
@@ -56,45 +55,6 @@ namespace JANOARG.Chartmaker.UI.Inspector
         {
             FPSGraphMaterial = new Material(FPSGraph.material);
             MemoryGraphMaterial = new Material(MemoryGraph.material);
-
-            AddMemoryTooltip(TotalMemoryLabel);
-            AddMemoryTooltip(ReservedMemoryLabel);
-            AddMemoryTooltip(AllocatedMemoryLabel);
-            AddMemoryTooltip(ManagedMemoryLabel);
-        }
-
-        // The memory labels are laid out with zero-height rects, so they have no
-        // raycast area. Add an explicit transparent hit box (covering the value and
-        // caption) and reuse the tooltip text authored on the caption in the prefab.
-        static void AddMemoryTooltip(TMP_Text valueLabel)
-        {
-            if (valueLabel == null) return;
-            Transform parent = valueLabel.transform.parent;
-            if (parent == null) return;
-
-            Transform caption = parent.Find("Label") ?? parent.Find("Total Label");
-            TooltipTarget source = caption != null ? caption.GetComponent<TooltipTarget>() : null;
-            if (source == null) return;
-
-            if (valueLabel.transform.Find("Memory Tooltip Hitbox") != null) return;
-
-            GameObject go = new("Memory Tooltip Hitbox", typeof(RectTransform));
-            RectTransform rt = (RectTransform)go.transform;
-            rt.SetParent(valueLabel.transform, false);
-            rt.anchorMin = new Vector2(0, 0.5f);
-            rt.anchorMax = new Vector2(1, 0.5f);
-            rt.pivot = new Vector2(0.5f, 0.5f);
-            rt.sizeDelta = new Vector2(60, 20);
-            rt.anchoredPosition = new Vector2(-30, 0);
-
-            Image image = go.AddComponent<Image>();
-            image.color = new Color(0, 0, 0, 0);
-            image.raycastTarget = true;
-
-            TooltipTarget tooltip = go.AddComponent<TooltipTarget>();
-            tooltip.Text = source.Text;
-            tooltip.Delay = 0.2f;
-            tooltip.PositionMode = TooltipPositionMode.Cursor;
         }
 
         void OnDestroy()
