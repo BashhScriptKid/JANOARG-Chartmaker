@@ -120,14 +120,16 @@ namespace JANOARG.Chartmaker.UI.Inspector
                 while (ReservedMemory.Count > 64) ReservedMemory.RemoveAt(0);
                 while (MonoMemory.Count > 64) MonoMemory.RemoveAt(0);
                 float memheight = Mathf.Max(ReservedMemory.ToArray()); 
+                bool memValid = memheight > 0.001f;
                 float[] memall = new float[64], memres = new float[64], memmono = new float[64];
                 int memCount = AllocatedMemory.Count;
                 for (int a = 0; a < 64; a++) 
                 {
                     int i = memCount - 64 + a;
-                    memall[a] = i >= 0 ? AllocatedMemory[i] / memheight : -1e6f;
-                    memres[a] = i >= 0 ? ReservedMemory[i] / memheight : -1e6f;
-                    memmono[a] = i >= 0 ? MonoMemory[i] / memheight : -1e6f;
+                    bool ok = memValid && i >= 0;
+                    memall[a] = ok ? AllocatedMemory[i] / memheight : -1e6f;
+                    memres[a] = ok ? ReservedMemory[i] / memheight : -1e6f;
+                    memmono[a] = ok ? MonoMemory[i] / memheight : -1e6f;
                 }
                 MemoryGraphMaterial.SetFloat("_CutoffThreshold", cutoffThres);
                 MemoryGraphMaterial.SetFloatArray("_Values1", memall);
@@ -137,9 +139,9 @@ namespace JANOARG.Chartmaker.UI.Inspector
                 MemoryGraph.material = MemoryGraphMaterial;
                 MemoryGraph.SetMaterialDirty();
             
-                AllocatedMemoryLabel.text = AllocatedMemory[^1].ToString("0.0");
-                ReservedMemoryLabel.text = ReservedMemory[^1].ToString("0.0");
-                MonoMemoryLabel.text = MonoMemory[^1].ToString("0.0");
+                AllocatedMemoryLabel.text = memValid ? AllocatedMemory[^1].ToString("0.0") : "N/A";
+                ReservedMemoryLabel.text = memValid ? ReservedMemory[^1].ToString("0.0") : "N/A";
+                MonoMemoryLabel.text = memValid ? MonoMemory[^1].ToString("0.0") : "N/A";
             }
         }
     
