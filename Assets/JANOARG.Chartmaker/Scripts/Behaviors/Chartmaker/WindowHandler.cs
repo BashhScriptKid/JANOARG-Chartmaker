@@ -89,14 +89,20 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             var prefs = Chartmaker.Preferences;
             if (prefs.WindowWidth <= 0 || prefs.WindowHeight <= 0) return; // nothing saved yet
 
-            Screen.SetResolution(prefs.WindowWidth, prefs.WindowHeight, FullScreenMode.Windowed);
+            var size = new Vector2Int(prefs.WindowWidth, prefs.WindowHeight);
 
-            // Position is compositor-owned under XWayland; only meaningful on native X11.
+            // Resize the window natively instead of through Screen.SetResolution. The latter
+            // forces a runtime resolution-mode change / full swapchain reset, which crashes
+            // the Vulkan driver on some Linux setups. A native resize lets the engine react
+            // to the resulting window configure event -- the same path a user-driven resize
+            // takes. Position is compositor-owned under XWayland, so only size is set there.
             if (targetWindow.SupportsClientPositioning)
-                targetWindow.Position = new Vector2Int(prefs.WindowX, prefs.WindowY);
+                targetWindow.Rect = new RectInt(prefs.WindowX, prefs.WindowY, size.x, size.y);
+            else
+                targetWindow.Size = size;
 
             lastFloatingPos = new Vector2Int(prefs.WindowX, prefs.WindowY);
-            lastFloatingSize = new Vector2Int(prefs.WindowWidth, prefs.WindowHeight);
+            lastFloatingSize = size;
             hasFloatingRect = true;
 
             if (prefs.WindowMaximized)

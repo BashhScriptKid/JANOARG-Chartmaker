@@ -174,6 +174,14 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
                 return;
             }
 
+            // A resize/minimize can momentarily report a zero-sized client area.
+            // Dividing by it yields Inf/NaN camera rects and field-of-view, which the
+            // renderer can't handle, so skip the frame until the size is valid again.
+            if (Screen.width <= 0 || Screen.height <= 0)
+            {
+                return;
+            }
+
             RectTransform rt = (RectTransform)transform;
             Vector3[] corners = new Vector3[4];
             rt.GetWorldCorners(corners);
