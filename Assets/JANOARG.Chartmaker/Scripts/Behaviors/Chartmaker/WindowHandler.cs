@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using JANOARG.Chartmaker.UI.Cursor;
 using JANOARG.Chartmaker.UI.NativeUI;
 using JANOARG.Chartmaker.UI.Tooltip;
+using JANOARG.Chartmaker.Utils;
 using JANOARG.Chartmaker.Utils.NativeAPI;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -59,6 +60,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
         {
             Chartmaker.PreferencesStorage = new("cm_prefs");
             Chartmaker.Preferences.Load(Chartmaker.PreferencesStorage);
+
+            // Unity picked the rendering backend before this ran; restart into the
+            // user's chosen one if it differs.
+            GraphicsAPIUtils.ApplyPreferenceOnStartup(Chartmaker.Preferences);
 
             if (!NativeWindow.IsApiAvailable) return;
 
