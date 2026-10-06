@@ -56,6 +56,24 @@ namespace JANOARG.Chartmaker.UI.Inspector
             Destroy(MemoryGraphMaterial);
         }
 
+        const int SeriesLength = 64;
+
+        static void Push(List<float> series, float value)
+        {
+            series.Add(value);
+            while (series.Count > SeriesLength) series.RemoveAt(0);
+        }
+
+        static void FillSeries(List<float> series, float[] target, float scale)
+        {
+            int count = series.Count;
+            for (int a = 0; a < SeriesLength; a++)
+            {
+                int i = count - SeriesLength + a;
+                target[a] = i >= 0 ? series[i] / scale : -1e6f;
+            }
+        }
+
         // Update is called once per frame
         void Update()
         {
@@ -79,22 +97,20 @@ namespace JANOARG.Chartmaker.UI.Inspector
                 FPSLabel.text = (1 / msAvg).ToString("0.0");
                 MSLabel.text = (msAvg * 1000).ToString("0.00");
 
-                FrameHistory.Add(msAvg);
-                FrameMin.Add(UpdateMin);
-                FrameMax.Add(UpdateMax);
-                while (FrameHistory.Count > 64) FrameHistory.RemoveAt(0);
-                while (FrameMin.Count > 64) FrameMin.RemoveAt(0);
-                while (FrameMax.Count > 64) FrameMax.RemoveAt(0);
+                Push(FrameHistory, msAvg);
+                Push(FrameMin, UpdateMin);
+                Push(FrameMax, UpdateMax);
                 float fpsheight = Mathf.Max(FrameMin.ToArray()); 
                 float[] fpslist = new float[64], fpsmin = new float[64], fpsmax = new float[64];
+                FillSeries(FrameHistory, fpslist, fpsheight);
+                FillSeries(FrameMin, fpsmin, fpsheight);
+                FillSeries(FrameMax, fpsmax, fpsheight);
                 float fpsSum = 0;
-                for (int a = 0; a < 64; a++) 
+                int frameCount = FrameHistory.Count;
+                for (int a = 0; a < SeriesLength; a++) 
                 {
-                    int i = FrameHistory.Count - 64 + a;
-                    fpslist[a] = i >= 0 ? FrameHistory[i] / fpsheight : -1e6f;
-                    fpsmin[a] = i >= 0 ? FrameMin[i] / fpsheight : -1e6f;
-                    fpsmax[a] = i >= 0 ? FrameMax[i] / fpsheight : -1e6f;
-                    fpsSum += i >= 0 ? FrameHistory[i] : 0;
+                    int i = frameCount - SeriesLength + a;
+                    if (i >= 0) fpsSum += FrameHistory[i];
                 }
                 FPSGraphMaterial.SetFloat("_CutoffThreshold", cutoffThres);
                 FPSGraphMaterial.SetFloatArray("_Values", fpslist);
@@ -113,23 +129,21 @@ namespace JANOARG.Chartmaker.UI.Inspector
                 UpdateMin = 0;
             
 
-                AllocatedMemory.Add(Profiler.GetTotalAllocatedMemoryLong() / 1048576f);
-                ReservedMemory.Add(Profiler.GetTotalReservedMemoryLong() / 1048576f);
-                MonoMemory.Add(Profiler.GetMonoUsedSizeLong() / 1048576f);
-                while (AllocatedMemory.Count > 64) AllocatedMemory.RemoveAt(0);
-                while (ReservedMemory.Count > 64) ReservedMemory.RemoveAt(0);
-                while (MonoMemory.Count > 64) MonoMemory.RemoveAt(0);
+                Push(AllocatedMemory, Profiler.GetTotalAllocatedMemoryLong() / 1048576f);
+                Push(ReservedMemory, Profiler.GetTotalReservedMemoryLong() / 1048576f);
+                Push(MonoMemory, Profiler.GetMonoUsedSizeLong() / 1048576f);
                 float memheight = Mathf.Max(ReservedMemory.ToArray()); 
                 bool memValid = memheight > 0.001f;
                 float[] memall = new float[64], memres = new float[64], memmono = new float[64];
-                int memCount = AllocatedMemory.Count;
-                for (int a = 0; a < 64; a++) 
+                if (memValid)
                 {
-                    int i = memCount - 64 + a;
-                    bool ok = memValid && i >= 0;
-                    memall[a] = ok ? AllocatedMemory[i] / memheight : -1e6f;
-                    memres[a] = ok ? ReservedMemory[i] / memheight : -1e6f;
-                    memmono[a] = ok ? MonoMemory[i] / memheight : -1e6f;
+                    FillSeries(AllocatedMemory, memall, memheight);
+                    FillSeries(ReservedMemory, memres, memheight);
+                    FillSeries(MonoMemory, memmono, memheight);
+                }
+                else
+                {
+                    for (int a = 0; a < SeriesLength; a++) memall[a] = memres[a] = memmono[a] = -1e6f;
                 }
                 MemoryGraphMaterial.SetFloat("_CutoffThreshold", cutoffThres);
                 MemoryGraphMaterial.SetFloatArray("_Values1", memall);
