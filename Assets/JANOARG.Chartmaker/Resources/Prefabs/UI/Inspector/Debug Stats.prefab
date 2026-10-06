@@ -4257,9 +4257,10 @@ MonoBehaviour:
   MaxFPSLabel: {fileID: 2825343552420718800}
   AverageFPSLabel: {fileID: 7924219063690101794}
   FPSGraph: {fileID: 4727564094926565842}
-  AllocatedMemoryLabel: {fileID: 407423689695066329}
+  TotalMemoryLabel: {fileID: 407423689695066329}
   ReservedMemoryLabel: {fileID: 8225003621515749232}
-  MonoMemoryLabel: {fileID: 5367100091377066405}
+  AllocatedMemoryLabel: {fileID: 3035490467436986313}
+  ManagedMemoryLabel: {fileID: 5367100091377066405}
   MemoryGraph: {fileID: 6400758650876958550}
 --- !u!1 &8311844125973354847
 GameObject:
