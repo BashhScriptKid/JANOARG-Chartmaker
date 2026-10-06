@@ -1,4 +1,4 @@
-Shader "UI/Triple Graph"
+Shader "UI/Quad Graph"
 {
     Properties
     {
