@@ -36,7 +36,7 @@ namespace JANOARG.Chartmaker.Data.Chartmaker.MultiEdit
        
             if (LerpField == null) 
             {
-                Debug.LogWarning($"SetLerp: LerpSource '{LerpSource}' not found on type {list.GetType().GetGenericArguments()[0].Name}. Select a valid scalar field in the Lerp Source dropdown.");
+                UnityEngine.Debug.LogWarning($"SetLerp: LerpSource '{LerpSource}' not found on type {list.GetType().GetGenericArguments()[0].Name}. Select a valid scalar field in the Lerp Source dropdown.");
                 return;
             }
      
