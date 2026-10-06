@@ -47,6 +47,8 @@ namespace JANOARG.Chartmaker.UI.Inspector
 
         float MemoryScale;
 
+        float PeakTotal, PeakReserved, PeakAllocated, PeakManaged;
+
         Material FPSGraphMaterial, MemoryGraphMaterial;
 
         void Start()
@@ -84,6 +86,21 @@ namespace JANOARG.Chartmaker.UI.Inspector
             return valid && value > 0 ? value.ToString("0.0") : "N/A";
         }
 
+        void SampleMemoryPeaks()
+        {
+            bool profilerValid = Profiler.supported;
+
+            if (ProcessMemory.TryGet(out long workingSet, out _))
+                PeakTotal = Mathf.Max(PeakTotal, workingSet / 1048576f);
+
+            if (profilerValid)
+            {
+                PeakReserved  = Mathf.Max(PeakReserved,  Profiler.GetTotalReservedMemoryLong()  / 1048576f);
+                PeakAllocated = Mathf.Max(PeakAllocated, Profiler.GetTotalAllocatedMemoryLong() / 1048576f);
+                PeakManaged   = Mathf.Max(PeakManaged,   Profiler.GetMonoUsedSizeLong()          / 1048576f);
+            }
+        }
+
         // Update is called once per frame
         void Update()
         {
@@ -91,6 +108,8 @@ namespace JANOARG.Chartmaker.UI.Inspector
             UpdateMin = Mathf.Max(UpdateMin, Time.unscaledDeltaTime);
             UpdateMax = Mathf.Min(UpdateMax, Time.unscaledDeltaTime);
             UpdateFrames++;
+
+            SampleMemoryPeaks();
 
             float cutoffThres = 108 - WindowHandler.main.NavBar.anchoredPosition.y;
 
@@ -141,13 +160,12 @@ namespace JANOARG.Chartmaker.UI.Inspector
 
                 bool profilerValid = Profiler.supported;
 
-                float totalMB = ProcessMemory.TryGet(out long workingSet, out _)
-                    ? workingSet / 1048576f
-                    : 0;
-                Push(TotalMemory, totalMB);
-                Push(ReservedMemory, profilerValid ? Profiler.GetTotalReservedMemoryLong()  / 1048576f : 0);
-                Push(AllocatedMemory, profilerValid ? Profiler.GetTotalAllocatedMemoryLong() / 1048576f : 0);
-                Push(ManagedMemory, profilerValid ? Profiler.GetMonoUsedSizeLong() / 1048576f : 0);
+                Push(TotalMemory, PeakTotal);
+                Push(ReservedMemory, PeakReserved);
+                Push(AllocatedMemory, PeakAllocated);
+                Push(ManagedMemory, PeakManaged);
+
+                PeakTotal = PeakReserved = PeakAllocated = PeakManaged = 0;
 
                 float memMax = Mathf.Max(
                     Mathf.Max(TotalMemory.ToArray()),
