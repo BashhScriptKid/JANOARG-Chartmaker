@@ -92,19 +92,14 @@ namespace JANOARG.Chartmaker.UI.Inspector
             if (ProcessMemory.TryGet(out long workingSet, out _))
                 PeakTotal = Mathf.Max(PeakTotal, workingSet / 1048576f);
 
-            // The Profiler memory counters return 0 outside development builds.
-            bool profilerAvailable = Profiler.supported && UnityEngine.Debug.isDebugBuild;
+            // Memory Profiler methods are available outside development builds too,
+            // so call them directly and only fall back when they report nothing.
+            PeakReserved  = Mathf.Max(PeakReserved,  Profiler.GetTotalReservedMemoryLong()  / 1048576f);
+            PeakAllocated = Mathf.Max(PeakAllocated, Profiler.GetTotalAllocatedMemoryLong() / 1048576f);
 
-            if (profilerAvailable)
-            {
-                PeakReserved  = Mathf.Max(PeakReserved,  Profiler.GetTotalReservedMemoryLong()  / 1048576f);
-                PeakAllocated = Mathf.Max(PeakAllocated, Profiler.GetTotalAllocatedMemoryLong() / 1048576f);
-            }
-
-            // The managed heap is readable in release too, via GC.
-            PeakManaged = Mathf.Max(PeakManaged, (profilerAvailable
-                ? Profiler.GetMonoUsedSizeLong()
-                : GC.GetTotalMemory(false)) / 1048576f);
+            float managed = Profiler.GetMonoUsedSizeLong() / 1048576f;
+            if (managed <= 0) managed = GC.GetTotalMemory(false) / 1048576f;
+            PeakManaged = Mathf.Max(PeakManaged, managed);
         }
 
         // Update is called once per frame
@@ -164,8 +159,6 @@ namespace JANOARG.Chartmaker.UI.Inspector
                 UpdateMin = 0;
             
 
-                bool profilerValid = Profiler.supported && UnityEngine.Debug.isDebugBuild;
-
                 Push(TotalMemory, PeakTotal);
                 Push(ReservedMemory, PeakReserved);
                 Push(AllocatedMemory, PeakAllocated);
@@ -202,8 +195,8 @@ namespace JANOARG.Chartmaker.UI.Inspector
                 MemoryGraph.SetMaterialDirty();
             
                 TotalMemoryLabel.text     = FormatMemory(TotalMemory[^1], true);
-                ReservedMemoryLabel.text  = FormatMemory(ReservedMemory[^1], profilerValid);
-                AllocatedMemoryLabel.text = FormatMemory(AllocatedMemory[^1], profilerValid);
+                ReservedMemoryLabel.text  = FormatMemory(ReservedMemory[^1], true);
+                AllocatedMemoryLabel.text = FormatMemory(AllocatedMemory[^1], true);
                 ManagedMemoryLabel.text   = FormatMemory(ManagedMemory[^1], true);
             }
         }
