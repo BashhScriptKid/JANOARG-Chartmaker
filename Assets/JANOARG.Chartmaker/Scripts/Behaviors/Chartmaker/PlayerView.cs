@@ -237,7 +237,10 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
             float camRatio = safeZone.height / bound.height;
             MainCamera.fieldOfView = Mathf.Atan2(Mathf.Tan(30 * Mathf.Deg2Rad), camRatio) * 2 * Mathf.Rad2Deg;
 
-            if (!Mathf.Approximately(CurrentTime, InformationBar.main.sec) || !Mathf.Approximately(targetAspect, lastTargetAspect))
+            // Exact comparison: sec is the smooth playback clock and advances every render
+            // frame, and its per-frame step can fall under Mathf.Approximately's growing
+            // relative epsilon on a long song, silently skipping frames again.
+            if (CurrentTime != InformationBar.main.sec || !Mathf.Approximately(targetAspect, lastTargetAspect))
                 UpdateObjectsForFrame();
             lastTargetAspect = targetAspect;
         }
