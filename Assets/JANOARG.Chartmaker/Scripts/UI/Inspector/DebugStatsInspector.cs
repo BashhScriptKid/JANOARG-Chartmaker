@@ -121,9 +121,10 @@ namespace JANOARG.Chartmaker.UI.Inspector
                 while (MonoMemory.Count > 64) MonoMemory.RemoveAt(0);
                 float memheight = Mathf.Max(ReservedMemory.ToArray()); 
                 float[] memall = new float[64], memres = new float[64], memmono = new float[64];
+                int memCount = AllocatedMemory.Count;
                 for (int a = 0; a < 64; a++) 
                 {
-                    int i = FrameHistory.Count - 64 + a;
+                    int i = memCount - 64 + a;
                     memall[a] = i >= 0 ? AllocatedMemory[i] / memheight : -1e6f;
                     memres[a] = i >= 0 ? ReservedMemory[i] / memheight : -1e6f;
                     memmono[a] = i >= 0 ? MonoMemory[i] / memheight : -1e6f;
