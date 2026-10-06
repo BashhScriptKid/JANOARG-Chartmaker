@@ -96,6 +96,14 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
             var size = new Vector2Int(prefs.WindowWidth, prefs.WindowHeight);
 
+            // Cap to the display so a stale value saved on a larger monitor (or by an
+            // older build that stored render pixels) can't open a window bigger than
+            // the screen.
+            int maxWidth = Mathf.Max(Display.main.systemWidth, Screen.currentResolution.width);
+            int maxHeight = Mathf.Max(Display.main.systemHeight, Screen.currentResolution.height);
+            if (maxWidth > 0) size.x = Mathf.Clamp(size.x, 1, maxWidth);
+            if (maxHeight > 0) size.y = Mathf.Clamp(size.y, 1, maxHeight);
+
             // Resize the window natively instead of through Screen.SetResolution. The latter
             // forces a runtime resolution-mode change / full swapchain reset, which crashes
             // the Vulkan driver on some Linux setups. A native resize lets the engine react
@@ -167,12 +175,18 @@ namespace JANOARG.Chartmaker.Behaviors.Chartmaker
 
             // Remember the latest floating geometry so a maximized-at-close still saves a
             // sane restore size, and so position survives across launches (native X11).
-            if (NativeWindow.IsApiAvailable && !maximized && !isFullScreen
-                && Screen.width > 0 && Screen.height > 0)
+            // Track the native window rect, not Screen.width/height: the latter is the
+            // render/backbuffer size, which differs from window-manager coordinates under
+            // display scaling and made the saved size grow on every launch.
+            if (NativeWindow.IsApiAvailable && !maximized && !isFullScreen)
             {
-                lastFloatingPos = targetWindow.Position;
-                lastFloatingSize = new Vector2Int(Screen.width, Screen.height);
-                hasFloatingRect = true;
+                RectInt rect = targetWindow.Rect;
+                if (rect.width > 0 && rect.height > 0)
+                {
+                    lastFloatingPos = new Vector2Int(rect.x, rect.y);
+                    lastFloatingSize = new Vector2Int(rect.width, rect.height);
+                    hasFloatingRect = true;
+                }
             }
         }
 
