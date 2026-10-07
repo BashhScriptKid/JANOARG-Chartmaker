@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Collections.Generic;
 using JANOARG.Shared.Data.ChartInfo;
 using TMPro;
 using UnityEngine;
@@ -13,13 +15,8 @@ namespace JANOARG.Chartmaker.UI.Inspector
         public TMP_Text LaneCountRecursive;
         public TMP_Text MaxNestingCount;
         [Header( "Hit Objects" )]
-        public TMP_Text TotalHitObjects;
-        public TMP_Text Taps;
-        public TMP_Text Catches;
-        public TMP_Text Flickables;
-        public TMP_Text Holds;
-        public TMP_Text FakeNotes;
-        
+        public HitObjectCountDisplay HitObjectCountDisplay;
+
         private LaneGroup _lastLaneGroup;
 
         void Start()
@@ -35,27 +32,13 @@ namespace JANOARG.Chartmaker.UI.Inspector
                 LaneGroupCount.text = "-";
                 LaneCountRecursive.text = "-";
                 MaxNestingCount.text = "-";
-                TotalHitObjects.text = "-";
-                Taps.text = "-";
-                Catches.text = "-";
-                Flickables.text = "-";
-                Holds.text = "-";
-                if (FakeNotes) FakeNotes.text = "-";
+                HitObjectCountDisplay.UpdateStatsIndeterminate();
                 return;
             }
             
             // Only recalculate if the lane group changed
             if (_lastLaneGroup == HightlightedLaneGroup)
                 return;
-            
-            // Incremented in CalculateRecursiveLaneCount
-            int totalHitObjects = 0, 
-                taps = 0, 
-                catches = 0, 
-                directionalFlickables = 0, 
-                omniFlickables = 0,
-                holds = 0,
-                fakeNotes = 0;
             
             _lastLaneGroup = HightlightedLaneGroup;
         
@@ -83,22 +66,13 @@ namespace JANOARG.Chartmaker.UI.Inspector
         
             LaneCount.text = laneCount.ToString();
             LaneGroupCount.text = laneGroupCount.ToString();
-            
             MaxNestingCount.text = CalculateMaxNestingDepth(groupName, chart).ToString();
-            
-            LaneCountRecursive.text = CalculateRecursiveLaneCount(groupName, chart, 
-                ref totalHitObjects,ref taps, ref catches, ref directionalFlickables, ref omniFlickables, ref holds, ref fakeNotes).ToString();
-            
-            TotalHitObjects.text = totalHitObjects.ToString();
-            
-            Taps.text = taps.ToString();
-            Catches.text = catches.ToString();
-            Flickables.text = $"{omniFlickables}/{directionalFlickables}";
-            Holds.text = holds.ToString();
-            if (FakeNotes) FakeNotes.text = fakeNotes.ToString();
+            LaneCountRecursive.text = CalculateRecursiveLaneCount(groupName, chart).ToString();
+
+            HitObjectCountDisplay.UpdateStats(TraverseRecursiveLaneHitObjects(groupName, chart));
         }
         
-        private int CalculateMaxNestingDepth(string groupName, Chart chart)
+        private static int CalculateMaxNestingDepth(string groupName, Chart chart)
         {
             // Find all direct children of this group
             bool hasChildren = false;
@@ -131,8 +105,7 @@ namespace JANOARG.Chartmaker.UI.Inspector
             return hasChildren ? 1 + maxChildDepth : 0;
         }
         
-        private int CalculateRecursiveLaneCount(string groupName, Chart chart, 
-            ref int totalHitObjects, ref int taps, ref int catches, ref int directionalFlickables, ref int omniFlickables, ref int holds, ref int fakeNotes)
+        private static int CalculateRecursiveLaneCount(string groupName, Chart chart)
         {
             int totalLanes = 0;
     
@@ -143,47 +116,32 @@ namespace JANOARG.Chartmaker.UI.Inspector
                     continue;
 
                 totalLanes++;
-                foreach (var obj in lane.Objects)
-                {
-                    if (obj.IsFake)
-                    {
-                        fakeNotes++;
-                        continue;
-                    }
-
-                    totalHitObjects++;
-
-                    switch (obj.Type)
-                    {
-                        case HitObject.HitType.Normal:
-                            taps++;
-
-                            break;
-                        case HitObject.HitType.Catch:
-                            catches++;
-
-                            break;
-                    }
-    
-                    if (obj.Flickable)
-                    {
-                        if (float.IsFinite(obj.FlickDirection))
-                            directionalFlickables++;
-                        else
-                            omniFlickables++;
-                    }
-    
-                    if (obj.HoldLength > 0)
-                        holds++;
-                }
             }
     
             // Recursively count lanes in child groups
             foreach (var group in chart.Groups)
                 if (group.Group == groupName)
-                    totalLanes += CalculateRecursiveLaneCount(group.Name, chart, ref totalHitObjects,ref taps, ref catches, ref directionalFlickables, ref omniFlickables, ref holds, ref fakeNotes);
+                    totalLanes += CalculateRecursiveLaneCount(group.Name, chart);
     
             return totalLanes;
+        }
+        
+        private static IEnumerable<HitObject> TraverseRecursiveLaneHitObjects(string groupName, Chart chart)
+        {
+            foreach (var lane in chart.Lanes)
+            {
+                if (lane.Group != groupName) 
+                    continue;
+                
+                foreach (var obj in lane.Objects)
+                    yield return obj;
+            }
+    
+            foreach (var group in chart.Groups)
+                if (group.Group == groupName)
+                    foreach (var obj in TraverseRecursiveLaneHitObjects(group.Name, chart))
+                        yield return obj;
+
         }
 
     }
